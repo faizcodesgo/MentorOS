@@ -21,6 +21,22 @@ function rankFromLevel(lv) {
 
 function questReward(entry) { return entry && entry.is_checkpoint ? 150 : 100; }
 
+let lastShownXp = null;
+
+/* count the XP number upward in the level chip, with a gold glow */
+function animateXpChip(el, from, to, lv) {
+  const dur = 700, t0 = performance.now();
+  el.classList.remove("bump");
+  void el.offsetWidth;
+  el.classList.add("bump");
+  (function step(t) {
+    const p = Math.min(1, (t - t0) / dur);
+    const eased = 1 - Math.pow(1 - p, 3);
+    el.textContent = `LV ${lv} · ${Math.round(from + (to - from) * eased)} XP`;
+    if (p < 1) requestAnimationFrame(step);
+  })(t0);
+}
+
 /* ---------- helpers ---------- */
 
 function show(view) {
@@ -228,7 +244,12 @@ function renderDashboard() {
     ? "Main quest complete. Well done."
     : `Day ${today} of ${plan.days}`;
   $("dashCount").textContent = `${doneCount}/${plan.curriculum.length} QUESTS DONE`;
-  $("levelChip").textContent = `LV ${lv} · ${xp} XP`;
+  if (lastShownXp !== null && xp > lastShownXp) {
+    animateXpChip($("levelChip"), lastShownXp, xp, lv);
+  } else {
+    $("levelChip").textContent = `LV ${lv} · ${xp} XP`;
+  }
+  lastShownXp = xp;
   $("rankChip").textContent = rankFromLevel(lv) + " RANK";
   const career = state.lifetime_xp || 0;
   $("careerChip").innerHTML = career > 0 ? `CAREER <b>${career + xp} XP</b>` : "";
@@ -399,6 +420,8 @@ $("btnComplete").addEventListener("click", async () => {
       const newLv = levelFromXp(r.xp);
       await showBanner("QUEST COMPLETE", `+${r.xp_gained} XP`);
       if (newLv > oldLv) {
+        $("app").classList.add("shake");
+        setTimeout(() => $("app").classList.remove("shake"), 500);
         await showBanner("LEVEL UP", `LV ${newLv} · ${rankFromLevel(newLv)} RANK`, true);
       }
     } else {
