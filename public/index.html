@@ -165,6 +165,35 @@
         <p class="reward mono" id="completeReward"></p>
         <button class="btn primary" id="btnComplete">Complete quest</button>
       </div>
+
+      <div class="card boss-card hidden" id="bossCard">
+        <h3>⚔ Boss Check</h3>
+        <p class="sub" id="bossSub">5 questions on today's quest. Bonus XP only — you can't lose anything you've earned.</p>
+        <button class="btn primary" id="btnBoss">Fight</button>
+      </div>
+    </section>
+
+    <!-- ============ BOSS CHECK (QUIZ) ============ -->
+    <section id="view-quiz" class="view hidden">
+      <div class="quiz-head">
+        <p class="mono kicker">⚔ BOSS CHECK · DAY <span id="quizDay"></span></p>
+        <p class="quiz-dots mono" id="quizDots"></p>
+      </div>
+      <div class="card quiz-card">
+        <p class="quiz-q" id="quizQ"></p>
+        <div id="quizOptions" class="quiz-options"></div>
+        <div id="wagerRow" class="wager-row hidden">
+          <p class="label mono">HOW SURE ARE YOU? STAKE IT</p>
+          <div class="wager-chips">
+            <button class="wager-chip" data-w="safe">Safe ×1</button>
+            <button class="wager-chip" data-w="confident">Confident ×1.5</button>
+            <button class="wager-chip allin" data-w="allin">All-in ×2</button>
+          </div>
+        </div>
+        <p id="quizFeedback" class="quiz-feedback hidden"></p>
+        <button class="btn primary hidden" id="btnNextQ">Next</button>
+      </div>
+      <p class="quiz-combo mono" id="comboChip"></p>
     </section>
 
   </main>

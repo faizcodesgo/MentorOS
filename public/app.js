@@ -1,7 +1,7 @@
 /* MentorOS frontend — plain JS, no framework. */
 
 const $ = (id) => document.getElementById(id);
-const views = ["onboarding", "negotiate", "generating", "dashboard", "lesson"];
+const views = ["onboarding", "negotiate", "generating", "dashboard", "lesson", "quiz"];
 
 let state = null;          // slim server state (plan + progress + profile + xp)
 let negotiation = null;    // last /api/negotiate result
@@ -10,9 +10,18 @@ let chosenClass = "";      // scholar | builder | consistent | challenger
 
 /* ---------- XP / levels ---------- */
 
-const RANKS = [[20, "PLATINUM"], [10, "GOLD"], [5, "SILVER"], [0, "BRONZE"]];
+const RANKS = [[16, "PLATINUM"], [10, "GOLD"], [5, "SILVER"], [0, "BRONZE"]];
 
-function levelFromXp(xp) { return Math.floor((xp || 0) / 250) + 1; }
+/* triangular curve: level N costs 50×N XP — fast levels early, slower later */
+function levelFromXp(xp) {
+  let lv = 1, total = 0, cost = 100;
+  while ((xp || 0) >= total + cost) {
+    total += cost;
+    lv++;
+    cost = 50 * (lv + 1);
+  }
+  return lv;
+}
 
 function rankFromLevel(lv) {
   for (const [min, name] of RANKS) if (lv >= min) return name;
@@ -314,6 +323,7 @@ $("btnAbandonGen").addEventListener("click", () =>
 /* ---------- lesson ---------- */
 
 let openDay = null;
+let currentLesson = null;
 
 async function openLesson(day) {
   openDay = day;
@@ -413,6 +423,7 @@ function visualHolder(visual) {
 }
 
 function renderLesson(l) {
+  currentLesson = l;
   const direct = (l.videos || [])
     .map((v) => `<a class="resource-link" target="_blank" rel="noopener" href="${esc(v.url)}">▶ ${esc(v.title)} <span class="channel">· ${esc(v.channel)}</span></a>`)
     .join("");
@@ -457,7 +468,27 @@ function renderLesson(l) {
 
   $("askInput").value = "";
   $("explorations").innerHTML = (l.explorations || []).map(explorationHtml).join("");
+  renderBossCard(l, done);
   renderDiagrams();
+}
+
+/* Boss Check offer/result card at the bottom of a lesson */
+function renderBossCard(l, done) {
+  const card = $("bossCard");
+  const result = (state.quizzes || {})[String(l.day)];
+  if (!l.quiz || !l.quiz.length || (!done && !result)) {
+    card.classList.add("hidden");
+    return;
+  }
+  card.classList.remove("hidden");
+  if (result) {
+    $("bossSub").innerHTML = `<span class="cleared">CLEARED</span> · ${result.score}/${result.total} correct · +${result.xp_earned} XP earned`;
+    $("btnBoss").style.display = "none";
+  } else {
+    $("bossSub").textContent = `${l.quiz.length} questions on today's quest. Bonus XP only — you can't lose anything you've earned.`;
+    $("btnBoss").style.display = "";
+    $("btnBoss").onclick = () => startQuiz(l);
+  }
 }
 
 function explorationHtml(x) {
@@ -499,8 +530,19 @@ $("btnComplete").addEventListener("click", async () => {
   try {
     const r = await api(`/api/day/${openDay}/complete`, { method: "POST" });
     state = await api("/api/state");
-    renderDashboard();
-    show("dashboard");
+    const lesson = currentLesson;
+    const quizWaiting = lesson && lesson.quiz && lesson.quiz.length &&
+      !(state.quizzes || {})[String(openDay)];
+
+    if (quizWaiting) {
+      // stay on the lesson — reveal the Boss Check right where the user is
+      $("completeCard").style.display = "none";
+      renderBossCard(lesson, true);
+    } else {
+      renderDashboard();
+      show("dashboard");
+    }
+
     if (r.xp_gained > 0) {
       const oldLv = levelFromXp(r.xp - r.xp_gained);
       const newLv = levelFromXp(r.xp);
@@ -510,11 +552,134 @@ $("btnComplete").addEventListener("click", async () => {
         setTimeout(() => $("app").classList.remove("shake"), 500);
         await showBanner("LEVEL UP", `LV ${newLv} · ${rankFromLevel(newLv)} RANK`, true);
       }
+      if (quizWaiting) {
+        $("bossCard").scrollIntoView({ block: "center", behavior: "smooth" });
+      }
     } else {
       toast(`Day ${openDay} complete.`);
     }
   } catch (err) {
     toast(err.message);
+  }
+});
+
+/* ---------- Boss Check engine ---------- */
+
+let quizRun = null; // {lesson, idx, answers, combo, xp, picked}
+
+function startQuiz(lesson) {
+  quizRun = { lesson, idx: 0, answers: [], combo: 0, xp: 0, picked: null };
+  $("quizDay").textContent = lesson.day;
+  show("quiz");
+  renderQuestion();
+}
+
+function renderQuestion() {
+  const { lesson, idx } = quizRun;
+  const q = lesson.quiz[idx];
+  quizRun.picked = null;
+
+  $("quizDots").textContent = lesson.quiz.map((_, i) =>
+    i < idx ? "●" : i === idx ? "◉" : "○").join(" ");
+  $("quizQ").innerHTML = fmt(q.q);
+  $("quizFeedback").className = "quiz-feedback hidden";
+  $("btnNextQ").classList.add("hidden");
+  $("wagerRow").classList.add("hidden");
+  $("comboChip").textContent = quizRun.combo >= 2 ? `COMBO ×${quizRun.combo === 2 ? "1.5" : "2"}` : "";
+
+  $("quizOptions").innerHTML = q.options.map((o, i) =>
+    `<button class="opt" data-i="${i}">${fmt(o)}</button>`).join("");
+  $("quizOptions").querySelectorAll(".opt").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (quizRun.picked !== null) return;
+      quizRun.picked = parseInt(btn.dataset.i, 10);
+      btn.classList.add("picked");
+      $("quizOptions").querySelectorAll(".opt").forEach((b) => (b.disabled = true));
+      $("wagerRow").classList.remove("hidden");
+      $("wagerRow").scrollIntoView({ block: "nearest", behavior: "smooth" });
+    });
+  });
+}
+
+document.querySelectorAll(".wager-chip").forEach((chip) => {
+  chip.addEventListener("click", () => {
+    if (!quizRun || quizRun.picked === null) return;
+    if ($("wagerRow").classList.contains("hidden")) return;
+    revealAnswer(chip.dataset.w);
+  });
+});
+
+function revealAnswer(confidence) {
+  const { lesson, idx, picked } = quizRun;
+  const q = lesson.quiz[idx];
+  const correct = picked === q.answer;
+  $("wagerRow").classList.add("hidden");
+
+  const opts = $("quizOptions").querySelectorAll(".opt");
+  opts[q.answer].classList.add("correct");
+  if (!correct) opts[picked].classList.add("wrong");
+
+  const wager = { safe: 1, confident: 1.5, allin: 2 }[confidence];
+  let gained, cls, msg;
+  if (correct) {
+    quizRun.combo++;
+    const comboMult = quizRun.combo === 1 ? 1 : quizRun.combo === 2 ? 1.5 : 2;
+    gained = Math.round(10 * wager * comboMult);
+    const crit = confidence === "allin";
+    cls = crit ? "quiz-feedback crit" : "quiz-feedback win";
+    msg = `${crit ? "⚡ CRITICAL HIT — " : ""}+${gained} XP${quizRun.combo >= 2 ? ` · COMBO ×${comboMult}` : ""}`;
+  } else {
+    quizRun.combo = 0;
+    gained = 2;
+    cls = "quiz-feedback lose";
+    msg = `Weak point revealed: ${q.topic || "this topic"} · +2 XP for scouting it`;
+  }
+  quizRun.xp += gained;
+  quizRun.answers.push({ chosen: picked, confidence });
+
+  const fb = $("quizFeedback");
+  fb.className = cls;
+  fb.textContent = msg;
+  $("comboChip").textContent = quizRun.combo >= 2 ? `COMBO ×${quizRun.combo === 2 ? "1.5" : "2"}` : "";
+
+  const last = idx === lesson.quiz.length - 1;
+  $("btnNextQ").textContent = last ? "Finish" : "Next";
+  $("btnNextQ").classList.remove("hidden");
+}
+
+$("btnNextQ").addEventListener("click", async () => {
+  quizRun.idx++;
+  if (quizRun.idx < quizRun.lesson.quiz.length) {
+    renderQuestion();
+    return;
+  }
+  // finished — server grades authoritatively and awards the XP
+  loading(true, "✨ Judging your run…");
+  try {
+    const r = await api(`/api/quiz/${quizRun.lesson.day}/submit`, {
+      method: "POST",
+      body: JSON.stringify({ answers: quizRun.answers }),
+    });
+    state = await api("/api/state");
+    loading(false);
+    renderDashboard();
+    show("dashboard");
+    const oldLv = levelFromXp(r.xp - r.xp_gained);
+    const newLv = levelFromXp(r.xp);
+    await showBanner(
+      r.perfect ? "FLAWLESS VICTORY" : "BOSS CHECK CLEARED",
+      `${r.score}/${r.total} · +${r.xp_gained} XP${r.crits ? ` · ${r.crits} CRIT${r.crits > 1 ? "S" : ""}` : ""}`
+    );
+    if (newLv > oldLv) {
+      $("app").classList.add("shake");
+      setTimeout(() => $("app").classList.remove("shake"), 500);
+      await showBanner("LEVEL UP", `LV ${newLv} · ${rankFromLevel(newLv)} RANK`, true);
+    }
+  } catch (err) {
+    loading(false);
+    toast(err.message, 6000);
+  } finally {
+    quizRun = null;
   }
 });
 

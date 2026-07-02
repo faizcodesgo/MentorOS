@@ -52,6 +52,7 @@ def _empty_state():
         "lessons": {},         # day number -> generated lesson content (cache)
         "xp": 0,               # current Main Quest XP — resets when a new goal starts
         "lifetime_xp": 0,      # career total — quest XP rolls in here, never resets
+        "quizzes": {},         # day -> Boss Check result (score, answers, xp_earned)
         "profile": {           # Learning DNA — grows over time
             "level_notes": "",
             "class": "",       # scholar | builder | consistent | challenger

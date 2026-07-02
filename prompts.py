@@ -129,6 +129,10 @@ Respond with JSON:
   "practice": ["hands-on task 1 for today", "..."],
   "homework": ["homework item to complete before tomorrow", "..."],
   "common_mistakes": ["mistake beginners make with today's topics", "..."],
-  "summary": "3-4 sentence recap of the day"
+  "summary": "3-4 sentence recap of the day",
+  "quiz": [
+    {{"q": "question text (may include `code`)", "options": ["option A", "option B", "option C", "option D"], "answer": <0-3 index of the correct option>, "topic": "short tag naming which of today's topics this tests", "type": "recall" | "application" | "code"}}
+  ]
 }}
-Rules: one section per major topic (3-6 sections). If it is a checkpoint day, sections should be revision-style (recall prompts, self-test questions) instead of new content."""
+Rules: one section per major topic (3-6 sections). If it is a checkpoint day, sections should be revision-style (recall prompts, self-test questions) instead of new content.
+Quiz rules: exactly 5 questions testing TODAY's topics only — 2 recall, 2 application, 1 code-reading ("what does this print/do") if the goal involves programming, otherwise a 3rd application question. Plausible distractors, exactly one correct option, vary the position of the correct answer, never make the longest option the correct one."""

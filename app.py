@@ -169,6 +169,67 @@ def get_lesson(day):
     return jsonify(lesson)
 
 
+@app.post("/api/quiz/<int:day>/submit")
+def submit_quiz(day):
+    """Grade a Boss Check — pure Python, no AI call. XP is rewards-only:
+    wrong answers still earn scouting XP and never subtract anything."""
+    body = request.get_json(force=True)
+    answers = body.get("answers") or []
+    state = storage.load_state()
+    lesson = state["lessons"].get(str(day))
+    if not lesson or not lesson.get("quiz"):
+        return jsonify({"error": "No Boss Check exists for this day."}), 404
+    if str(day) in state.get("quizzes", {}):
+        return jsonify({"error": "Boss Check already cleared for this day."}), 400
+
+    quiz = lesson["quiz"]
+    wager_mult = {"safe": 1.0, "confident": 1.5, "allin": 2.0}
+    xp = 0
+    correct_count = 0
+    combo = 0
+    crits = 0
+    wrong_topics = []
+    graded = []
+
+    for i, q in enumerate(quiz):
+        a = answers[i] if i < len(answers) and isinstance(answers[i], dict) else {}
+        chosen = a.get("chosen", -1)
+        confidence = a.get("confidence", "safe")
+        is_correct = chosen == q.get("answer")
+        if is_correct:
+            correct_count += 1
+            combo += 1
+            combo_mult = 1.0 if combo == 1 else (1.5 if combo == 2 else 2.0)
+            gained = round(10 * wager_mult.get(confidence, 1.0) * combo_mult)
+            if confidence == "allin":
+                crits += 1
+        else:
+            combo = 0
+            gained = 2  # scouting XP — the wrong answer revealed a weak point
+            if q.get("topic"):
+                wrong_topics.append(q["topic"])
+        xp += gained
+        graded.append({"chosen": chosen, "confidence": confidence,
+                       "topic": q.get("topic", ""), "correct": is_correct, "xp": gained})
+
+    perfect = correct_count == len(quiz)
+    if perfect:
+        xp += 25
+
+    state.setdefault("quizzes", {})[str(day)] = {
+        "score": correct_count,
+        "total": len(quiz),
+        "wrong_topics": wrong_topics,
+        "answers": graded,
+        "xp_earned": xp,
+        "taken_at": datetime.datetime.now().isoformat(),
+    }
+    state["xp"] = state.get("xp", 0) + xp
+    storage.save_state(state)
+    return jsonify({"score": correct_count, "total": len(quiz), "xp_gained": xp,
+                    "crits": crits, "perfect": perfect, "xp": state["xp"]})
+
+
 @app.post("/api/ask")
 def ask():
     """Curious-question box: the student asks anything, mid-lesson or not."""
