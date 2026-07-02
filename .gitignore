@@ -1,0 +1,4 @@
+.env
+mentoros_data.json
+__pycache__/
+*.pyc

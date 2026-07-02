@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#f6f4ee" />
+  <title>MentorOS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">Mentor<span>OS</span></div>
+    <div class="topbar-right mono" id="topbarStatus"></div>
+  </header>
+
+  <main id="app">
+
+    <!-- ============ ONBOARDING ============ -->
+    <section id="view-onboarding" class="view">
+      <div class="hero">
+        <p class="mono kicker">YOUR PERSONAL AI MENTOR</p>
+        <h1>What do you want to learn?</h1>
+        <p class="sub">Tell me the goal and the time you have. I'll be honest about what's achievable — then build your day-by-day plan.</p>
+      </div>
+
+      <form id="goalForm" class="card form-card">
+        <label>
+          <span class="label mono">GOAL</span>
+          <input type="text" id="inGoal" placeholder="e.g. Data Structures & Algorithms in C for placement prep" required />
+        </label>
+        <div class="row">
+          <label>
+            <span class="label mono">DAYS</span>
+            <input type="number" id="inDays" min="3" max="365" value="50" required />
+          </label>
+          <label>
+            <span class="label mono">HOURS / DAY</span>
+            <input type="number" id="inHours" min="0.5" max="14" step="0.5" value="4" required />
+          </label>
+        </div>
+        <label>
+          <span class="label mono">YOUR CURRENT LEVEL <em>(optional, honest)</em></span>
+          <textarea id="inLevel" rows="2" placeholder="e.g. I know basic C syntax, never studied data structures"></textarea>
+        </label>
+        <button type="submit" class="btn primary" id="btnNegotiate">Ask the mentor</button>
+      </form>
+    </section>
+
+    <!-- ============ NEGOTIATION RESULT ============ -->
+    <section id="view-negotiate" class="view hidden">
+      <div class="card verdict-card">
+        <div class="verdict-head">
+          <span class="badge mono" id="verdictBadge"></span>
+          <h2>Mentor's assessment</h2>
+        </div>
+        <p id="mentorMessage" class="mentor-msg"></p>
+
+        <div class="scope-grid">
+          <div>
+            <p class="label mono">IN THIS PLAN</p>
+            <ul id="scopeIn" class="scope-list in"></ul>
+          </div>
+          <div id="scopeOutWrap">
+            <p class="label mono">NEEDS MORE TIME</p>
+            <ul id="scopeOut" class="scope-list out"></ul>
+          </div>
+        </div>
+
+        <p class="label mono">PHASES</p>
+        <ol id="phaseList" class="phase-list"></ol>
+
+        <div class="actions">
+          <button class="btn primary" id="btnAccept">Accept — build my plan</button>
+          <button class="btn ghost" id="btnAdjust">Change goal / days</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ GENERATING ============ -->
+    <section id="view-generating" class="view hidden">
+      <div class="card center-card">
+        <div class="spinner"></div>
+        <h2>Building your curriculum</h2>
+        <p class="mono" id="genProgress">Phase 1…</p>
+        <p class="sub">The mentor is sequencing every day of your plan. This takes a minute — don't close the page.</p>
+      </div>
+    </section>
+
+    <!-- ============ DASHBOARD ============ -->
+    <section id="view-dashboard" class="view hidden">
+      <div class="dash-head">
+        <div>
+          <p class="mono kicker" id="dashGoal"></p>
+          <h1 id="dashDayTitle"></h1>
+        </div>
+        <div class="dash-stat mono" id="dashCount"></div>
+      </div>
+
+      <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+
+      <div class="card today-card" id="todayCard">
+        <p class="label mono">TODAY</p>
+        <h2 id="todayTitle"></h2>
+        <ul id="todayObjectives"></ul>
+        <button class="btn primary" id="btnStartToday">Start today's lesson</button>
+      </div>
+
+      <p class="label mono list-label">FULL PLAN</p>
+      <div id="dayList" class="day-list"></div>
+
+      <button class="btn danger ghost small" id="btnReset">Start over (wipes plan)</button>
+    </section>
+
+    <!-- ============ LESSON ============ -->
+    <section id="view-lesson" class="view hidden">
+      <button class="btn ghost small" id="btnBack">&larr; Back to plan</button>
+      <div id="lessonBody"></div>
+      <div class="card complete-card" id="completeCard">
+        <h3>Done for today?</h3>
+        <p class="sub">Mark it complete once you've finished the practice work.</p>
+        <button class="btn primary" id="btnComplete">Mark day complete</button>
+      </div>
+    </section>
+
+  </main>
+
+  <div id="toast" class="toast hidden"></div>
+  <div id="loading" class="loading hidden"><div class="spinner"></div><p class="mono" id="loadingText">Thinking…</p></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
