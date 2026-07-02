@@ -11,6 +11,7 @@ from flask import Flask, jsonify, request, send_from_directory
 import gemini
 import prompts
 import storage
+import youtube
 
 # Load .env if present (tiny parser — avoids an extra dependency)
 _env_path = os.path.join(os.path.dirname(__file__), ".env")
@@ -156,6 +157,13 @@ def get_lesson(day):
     lesson["title"] = entry["title"]
     lesson["resource_queries"] = entry.get("resource_queries", [])
     lesson["is_checkpoint"] = entry.get("is_checkpoint", False)
+
+    # Direct video links via YouTube API (cached with the lesson); falls back
+    # to search links in the UI when empty.
+    videos = []
+    for query in lesson["resource_queries"][:2]:
+        videos.extend(youtube.search_videos(query, max_results=2))
+    lesson["videos"] = videos[:4]
     state["lessons"][str(day)] = lesson
     storage.save_state(state)
     return jsonify(lesson)

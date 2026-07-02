@@ -303,8 +303,47 @@ async function openLesson(day) {
   }
 }
 
+/* lazy-load mermaid only when a lesson actually has a diagram */
+let mermaidReady = null;
+function ensureMermaid() {
+  if (!mermaidReady) {
+    mermaidReady = new Promise((resolve, reject) => {
+      const s = document.createElement("script");
+      s.src = "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js";
+      s.onload = () => {
+        mermaid.initialize({
+          startOnLoad: false, theme: "dark", securityLevel: "strict",
+          suppressErrorRendering: true,
+        });
+        resolve();
+      };
+      s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  }
+  return mermaidReady;
+}
+
+async function renderDiagrams() {
+  const holders = document.querySelectorAll(".diagram[data-code]");
+  if (!holders.length) return;
+  try { await ensureMermaid(); } catch { holders.forEach((h) => h.remove()); return; }
+  let n = 0;
+  for (const h of holders) {
+    try {
+      const { svg } = await mermaid.render("mmd" + (n++), h.dataset.code);
+      h.innerHTML = svg;
+    } catch {
+      h.remove(); // invalid diagram from the model — hide, never show garbage
+    }
+  }
+}
+
 function renderLesson(l) {
-  const resources = (l.resource_queries || [])
+  const direct = (l.videos || [])
+    .map((v) => `<a class="resource-link" target="_blank" rel="noopener" href="${esc(v.url)}">▶ ${esc(v.title)} <span class="channel">· ${esc(v.channel)}</span></a>`)
+    .join("");
+  const resources = direct || (l.resource_queries || [])
     .map((q) => `<a class="resource-link" target="_blank" rel="noopener"
         href="https://www.youtube.com/results?search_query=${encodeURIComponent(q)}">▶ ${esc(q)}</a>`)
     .join("");
@@ -313,6 +352,7 @@ function renderLesson(l) {
     <div class="card lesson-section">
       <h3>${esc(s.heading)}</h3>
       <div class="analogy">${fmt(s.analogy)}</div>
+      ${s.diagram ? `<div class="diagram" data-code="${esc(s.diagram)}"></div>` : ""}
       <div class="explanation">${fmt(s.explanation)}</div>
       <ul class="keypoints">${(s.key_points || []).map((k) => `<li>${fmt(k)}</li>`).join("")}</ul>
       <div class="tryit">${fmt(s.try_it)}</div>
@@ -340,6 +380,7 @@ function renderLesson(l) {
   const done = state.progress[String(l.day)] && state.progress[String(l.day)].completed;
   $("completeCard").style.display = done ? "none" : "";
   $("completeReward").textContent = `REWARD: +${l.is_checkpoint ? 150 : 100} XP`;
+  renderDiagrams();
 }
 
 $("btnBack").addEventListener("click", () => {

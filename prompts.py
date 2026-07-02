@@ -93,7 +93,8 @@ Respond with JSON:
       "analogy": "a simple real-life analogy that makes the concept intuitive",
       "explanation": "clear teaching of the concept from first principles, in plain language, a few paragraphs. Use short paragraphs.",
       "key_points": ["the 2-4 things to remember", "..."],
-      "try_it": "a small concrete exercise the student should do right now (specific, not vague)"
+      "try_it": "a small concrete exercise the student should do right now (specific, not vague)",
+      "diagram": "OPTIONAL — omit this field for most sections. Only include when the concept is genuinely visual (flow of control, call stack, memory layout, tree/graph structures, step-by-step processes). Value = valid Mermaid code, e.g. 'flowchart TD; A[start] --> B{{condition}}; B -->|yes| C[do X]'. Keep diagrams under 10 nodes. NEVER include a diagram for concepts that are fine as text."
     }}
   ],
   "practice": ["hands-on task 1 for today", "..."],
