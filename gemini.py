@@ -11,10 +11,11 @@ import urllib.error
 API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 
 # First model that works wins; env var GEMINI_MODEL overrides the list.
+# Note: gemini-2.0-flash has NO free-tier quota anymore (limit: 0) — don't use it.
 MODEL_CANDIDATES = [
     os.environ.get("GEMINI_MODEL", ""),
     "gemini-2.5-flash",
-    "gemini-2.0-flash",
+    "gemini-2.5-flash-lite",
 ]
 
 _working_model = None
@@ -77,6 +78,8 @@ def ask_json(system_prompt, user_prompt, max_retries=3):
                     last_error = f"HTTP {e.code} from {model}: {detail}"
                     if e.code in (404, 503):
                         break  # model missing or overloaded — switch to the next model
+                    if e.code == 429 and "limit: 0" in detail:
+                        break  # this model has NO free quota at all — switch models
                     if e.code in (429, 500):
                         time.sleep(5 * (attempt + 1))  # rate limit / hiccup — wait and retry
                         continue
