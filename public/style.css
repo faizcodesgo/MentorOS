@@ -163,6 +163,10 @@ input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 
 }
 .analogy::before { content: "ANALOGY "; font-family: "IBM Plex Mono", monospace; font-size: 0.65rem; letter-spacing: 0.12em; color: var(--accent); display: block; margin-bottom: 4px; }
 .explanation { white-space: pre-line; margin-bottom: 12px; }
+code {
+  font-family: "IBM Plex Mono", monospace; font-size: 0.88em;
+  background: #eef1f9; border-radius: 4px; padding: 1px 5px;
+}
 .keypoints { margin: 0 0 12px 20px; }
 .keypoints li { padding: 2px 0; }
 .tryit {

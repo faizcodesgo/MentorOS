@@ -53,29 +53,38 @@ def _call_model(model, system_prompt, user_prompt):
 def ask_json(system_prompt, user_prompt, max_retries=3):
     """Ask Gemini and return the response parsed as JSON (dict or list)."""
     global _working_model
-    models = [_working_model] if _working_model else [m for m in MODEL_CANDIDATES if m]
+    # Prefer the model that last worked, but ALWAYS keep the others as fallback —
+    # free-tier models regularly return 503 "high demand" and we switch instead of dying.
+    models = [m for m in MODEL_CANDIDATES if m]
+    if _working_model and _working_model in models:
+        models.remove(_working_model)
+    if _working_model:
+        models.insert(0, _working_model)
     last_error = None
 
-    for model in models:
-        for attempt in range(max_retries):
-            try:
-                data = _call_model(model, system_prompt, user_prompt)
-                text = data["candidates"][0]["content"]["parts"][0]["text"]
-                _working_model = model
-                return _parse_json(text)
-            except urllib.error.HTTPError as e:
-                detail = e.read().decode("utf-8", errors="ignore")[:500]
-                last_error = f"HTTP {e.code} from {model}: {detail}"
-                if e.code == 404:
-                    break  # model doesn't exist for this key — try next model
-                if e.code in (429, 500, 503):
-                    time.sleep(4 * (attempt + 1))  # rate limit / hiccup — wait and retry
+    for sweep in range(2):  # if every model is busy, wait once and sweep again
+        if sweep > 0:
+            time.sleep(20)
+        for model in models:
+            for attempt in range(max_retries):
+                try:
+                    data = _call_model(model, system_prompt, user_prompt)
+                    text = data["candidates"][0]["content"]["parts"][0]["text"]
+                    _working_model = model
+                    return _parse_json(text)
+                except urllib.error.HTTPError as e:
+                    detail = e.read().decode("utf-8", errors="ignore")[:500]
+                    last_error = f"HTTP {e.code} from {model}: {detail}"
+                    if e.code in (404, 503):
+                        break  # model missing or overloaded — switch to the next model
+                    if e.code in (429, 500):
+                        time.sleep(5 * (attempt + 1))  # rate limit / hiccup — wait and retry
+                        continue
+                    raise RuntimeError(last_error)
+                except (KeyError, IndexError):
+                    last_error = f"{model} returned an unexpected/empty response"
+                    time.sleep(2)
                     continue
-                raise RuntimeError(last_error)
-            except (KeyError, IndexError):
-                last_error = f"{model} returned an unexpected/empty response"
-                time.sleep(2)
-                continue
 
     raise RuntimeError(f"Gemini call failed after retries. Last error: {last_error}")
 

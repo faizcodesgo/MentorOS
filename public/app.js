@@ -42,6 +42,13 @@ function esc(s) {
   return d.innerHTML;
 }
 
+/* escape first, then allow ONLY **bold** and `code` from the model */
+function fmt(s) {
+  return esc(s)
+    .replace(/\*\*(.+?)\*\*/g, "<b>$1</b>")
+    .replace(/`([^`]+)`/g, "<code>$1</code>");
+}
+
 /* ---------- boot ---------- */
 
 async function boot() {
@@ -245,10 +252,10 @@ function renderLesson(l) {
   const sections = (l.sections || []).map((s) => `
     <div class="card lesson-section">
       <h3>${esc(s.heading)}</h3>
-      <div class="analogy">${esc(s.analogy)}</div>
-      <div class="explanation">${esc(s.explanation)}</div>
-      <ul class="keypoints">${(s.key_points || []).map((k) => `<li>${esc(k)}</li>`).join("")}</ul>
-      <div class="tryit">${esc(s.try_it)}</div>
+      <div class="analogy">${fmt(s.analogy)}</div>
+      <div class="explanation">${fmt(s.explanation)}</div>
+      <ul class="keypoints">${(s.key_points || []).map((k) => `<li>${fmt(k)}</li>`).join("")}</ul>
+      <div class="tryit">${fmt(s.try_it)}</div>
     </div>`).join("");
 
   $("lessonBody").innerHTML = `
@@ -256,18 +263,18 @@ function renderLesson(l) {
       <p class="mono kicker">DAY ${l.day}${l.is_checkpoint ? " · CHECKPOINT" : ""}</p>
       <h1>${esc(l.title)}</h1>
     </div>
-    <p class="lesson-intro">${esc(l.intro)}</p>
+    <p class="lesson-intro">${fmt(l.intro)}</p>
     ${resources ? `<div class="card"><p class="label mono">WATCH (best matches on YouTube)</p>${resources}</div>` : ""}
     ${sections}
     <div class="card">
       <p class="label mono">PRACTICE</p>
-      <ul class="plain-list">${(l.practice || []).map((p) => `<li>${esc(p)}</li>`).join("")}</ul>
+      <ul class="plain-list">${(l.practice || []).map((p) => `<li>${fmt(p)}</li>`).join("")}</ul>
       <p class="label mono" style="margin-top:14px">HOMEWORK</p>
-      <ul class="plain-list">${(l.homework || []).map((h) => `<li>${esc(h)}</li>`).join("")}</ul>
+      <ul class="plain-list">${(l.homework || []).map((h) => `<li>${fmt(h)}</li>`).join("")}</ul>
       <p class="label mono" style="margin-top:14px">COMMON MISTAKES</p>
-      <ul class="plain-list">${(l.common_mistakes || []).map((m) => `<li>${esc(m)}</li>`).join("")}</ul>
+      <ul class="plain-list">${(l.common_mistakes || []).map((m) => `<li>${fmt(m)}</li>`).join("")}</ul>
     </div>
-    <div class="card"><p class="label mono">SUMMARY</p><p>${esc(l.summary)}</p></div>
+    <div class="card"><p class="label mono">SUMMARY</p><p>${fmt(l.summary)}</p></div>
   `;
 
   const done = state.progress[String(l.day)] && state.progress[String(l.day)].completed;
