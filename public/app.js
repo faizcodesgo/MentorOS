@@ -72,15 +72,17 @@ async function boot() {
     toast("Can't reach the server: " + e.message);
     return;
   }
-  if (state.plan && state.plan.curriculum.length > 0 &&
-      state.plan.phases_generated >= state.plan.phases.length) {
+  const plan = state.plan;
+  if (plan && plan.curriculum.length > 0 &&
+      plan.phases_generated >= plan.phases.length) {
     renderDashboard();
     show("dashboard");
-  } else if (state.plan) {
+  } else if (plan && (plan.phases || []).length > 0) {
     // plan exists but curriculum unfinished — resume generation
     show("generating");
     generatePhases();
   } else {
+    // no plan, or a broken plan shell with no phases — start fresh
     show("onboarding");
   }
 }
@@ -147,6 +149,10 @@ function renderNegotiation() {
 $("btnAdjust").addEventListener("click", () => show("onboarding"));
 
 $("btnAccept").addEventListener("click", async () => {
+  if (!negotiation || !(negotiation.phases || []).length) {
+    toast("The mentor couldn't build phases for this goal — adjust it and ask again.");
+    return;
+  }
   loading(true, "Setting up your plan…");
   try {
     await api("/api/plan/init", {
@@ -251,12 +257,18 @@ function renderDashboard() {
   });
 }
 
-$("btnReset").addEventListener("click", async () => {
-  if (!confirm("This wipes your whole plan and progress. Sure?")) return;
+async function resetAll(msg) {
+  if (!confirm(msg)) return;
   await api("/api/reset", { method: "POST" });
   state = await api("/api/state");
   show("onboarding");
-});
+}
+
+$("btnReset").addEventListener("click", () =>
+  resetAll("This wipes your whole plan and progress. Sure?"));
+
+$("btnAbandonGen").addEventListener("click", () =>
+  resetAll("Abandon this plan and start over from the goal screen?"));
 
 /* ---------- lesson ---------- */
 
