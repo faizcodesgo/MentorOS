@@ -82,6 +82,7 @@ def plan_init():
     state["progress"] = {}
     state["lessons"] = {}
     state["profile"]["level_notes"] = body.get("level_notes", "")
+    state["profile"]["class"] = body.get("learner_class", "")
     storage.save_state(state)
     return jsonify({"ok": True, "total_phases": len(body["phases"])})
 
@@ -140,6 +141,7 @@ def get_lesson(day):
     profile = state["profile"]
     profile_text = (
         f"Level: {profile.get('level_notes') or 'beginner'}. "
+        f"Class: {profile.get('class') or 'not chosen'}. "
         f"Weak topics so far: {profile.get('weak_topics') or 'none recorded yet'}. "
         f"Strong topics: {profile.get('strong_topics') or 'none recorded yet'}."
     )
@@ -159,12 +161,21 @@ def get_lesson(day):
 @app.post("/api/day/<int:day>/complete")
 def complete_day(day):
     state = storage.load_state()
+    already_done = state["progress"].get(str(day), {}).get("completed", False)
     state["progress"][str(day)] = {
         "completed": True,
         "completed_at": datetime.datetime.now().isoformat(),
     }
+
+    gained = 0
+    if not already_done:  # XP is awarded once per quest
+        plan = state.get("plan") or {}
+        entry = next((d for d in plan.get("curriculum", []) if d["day"] == day), None)
+        gained = 150 if (entry and entry.get("is_checkpoint")) else 100
+        state["xp"] = state.get("xp", 0) + gained
+
     storage.save_state(state)
-    return jsonify({"ok": True})
+    return jsonify({"ok": True, "xp_gained": gained, "xp": state.get("xp", 0)})
 
 
 @app.post("/api/reset")

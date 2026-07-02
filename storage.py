@@ -50,8 +50,10 @@ def _empty_state():
         "plan": None,          # goal, days, hours, phases, curriculum days
         "progress": {},        # day number -> {completed: bool, completed_at: iso}
         "lessons": {},         # day number -> generated lesson content (cache)
+        "xp": 0,               # earned by completing quests (days), never by app-opens
         "profile": {           # Learning DNA — grows over time
             "level_notes": "",
+            "class": "",       # scholar | builder | consistent | challenger
             "weak_topics": [],
             "strong_topics": [],
             "preferences": {},

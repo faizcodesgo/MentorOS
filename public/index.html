@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#f6f4ee" />
+  <meta name="theme-color" content="#101219" />
   <title>MentorOS</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -45,6 +45,27 @@
           <span class="label mono">YOUR CURRENT LEVEL <em>(optional, honest)</em></span>
           <textarea id="inLevel" rows="2" placeholder="e.g. I know basic C syntax, never studied data structures"></textarea>
         </label>
+
+        <span class="label mono">CHOOSE YOUR CLASS <em>(how your mentor teaches you)</em></span>
+        <div class="class-grid" id="classGrid">
+          <button type="button" class="class-card" data-class="scholar">
+            <span class="cname">🧙 Scholar</span>
+            <span class="cdesc">Deeper theory, richer explanations</span>
+          </button>
+          <button type="button" class="class-card" data-class="builder">
+            <span class="cname">⚒️ Builder</span>
+            <span class="cdesc">More projects and hands-on work</span>
+          </button>
+          <button type="button" class="class-card" data-class="consistent">
+            <span class="cname">🛡️ Consistent</span>
+            <span class="cdesc">Smaller daily goals, strong habits</span>
+          </button>
+          <button type="button" class="class-card" data-class="challenger">
+            <span class="cname">⚔️ Challenger</span>
+            <span class="cdesc">Harder problems, interview-style</span>
+          </button>
+        </div>
+
         <button type="submit" class="btn primary" id="btnNegotiate">Ask the mentor</button>
       </form>
     </section>
@@ -99,16 +120,22 @@
         <div class="dash-stat mono" id="dashCount"></div>
       </div>
 
+      <div class="level-bar">
+        <span class="level-chip mono" id="levelChip"></span>
+        <span class="rank-chip mono" id="rankChip"></span>
+      </div>
+
       <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
 
       <div class="card today-card" id="todayCard">
-        <p class="label mono">TODAY</p>
+        <p class="label mono">TODAY'S QUEST</p>
         <h2 id="todayTitle"></h2>
         <ul id="todayObjectives"></ul>
-        <button class="btn primary" id="btnStartToday">Start today's lesson</button>
+        <p class="reward mono" id="todayReward"></p>
+        <button class="btn primary" id="btnStartToday">Start the quest</button>
       </div>
 
-      <p class="label mono list-label">FULL PLAN</p>
+      <p class="label mono list-label">QUEST LOG</p>
       <div id="dayList" class="day-list"></div>
 
       <button class="btn danger ghost small" id="btnReset">Start over (wipes plan)</button>
@@ -119,9 +146,10 @@
       <button class="btn ghost small" id="btnBack">&larr; Back to plan</button>
       <div id="lessonBody"></div>
       <div class="card complete-card" id="completeCard">
-        <h3>Done for today?</h3>
-        <p class="sub">Mark it complete once you've finished the practice work.</p>
-        <button class="btn primary" id="btnComplete">Mark day complete</button>
+        <h3>Quest complete?</h3>
+        <p class="sub">Claim it once you've finished the practice work.</p>
+        <p class="reward mono" id="completeReward"></p>
+        <button class="btn primary" id="btnComplete">Complete quest</button>
       </div>
     </section>
 

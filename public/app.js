@@ -3,9 +3,23 @@
 const $ = (id) => document.getElementById(id);
 const views = ["onboarding", "negotiate", "generating", "dashboard", "lesson"];
 
-let state = null;          // slim server state (plan + progress + profile)
+let state = null;          // slim server state (plan + progress + profile + xp)
 let negotiation = null;    // last /api/negotiate result
 let pendingInput = null;   // goal/days/hours the user submitted
+let chosenClass = "";      // scholar | builder | consistent | challenger
+
+/* ---------- XP / levels ---------- */
+
+const RANKS = [[20, "PLATINUM"], [10, "GOLD"], [5, "SILVER"], [0, "BRONZE"]];
+
+function levelFromXp(xp) { return Math.floor((xp || 0) / 250) + 1; }
+
+function rankFromLevel(lv) {
+  for (const [min, name] of RANKS) if (lv >= min) return name;
+  return "BRONZE";
+}
+
+function questReward(entry) { return entry && entry.is_checkpoint ? 150 : 100; }
 
 /* ---------- helpers ---------- */
 
@@ -73,13 +87,26 @@ async function boot() {
 
 /* ---------- onboarding & negotiation ---------- */
 
+document.querySelectorAll(".class-card").forEach((card) => {
+  card.addEventListener("click", () => {
+    document.querySelectorAll(".class-card").forEach((c) => c.classList.remove("selected"));
+    card.classList.add("selected");
+    chosenClass = card.dataset.class;
+  });
+});
+
 $("goalForm").addEventListener("submit", async (e) => {
   e.preventDefault();
+  if (!chosenClass) {
+    toast("Choose your class first — it shapes how the mentor teaches you.");
+    return;
+  }
   pendingInput = {
     goal: $("inGoal").value.trim(),
     days: parseInt($("inDays").value, 10),
     hours_per_day: parseFloat($("inHours").value),
     level_notes: $("inLevel").value.trim(),
+    learner_class: chosenClass,
   };
   const btn = $("btnNegotiate");
   btn.disabled = true;
@@ -174,20 +201,26 @@ function renderDashboard() {
   const plan = state.plan;
   const doneCount = Object.values(state.progress).filter((p) => p.completed).length;
   const today = currentDay();
+  const xp = state.xp || 0;
+  const lv = levelFromXp(xp);
 
-  $("dashGoal").textContent = plan.goal.toUpperCase();
+  $("dashGoal").textContent = "MAIN QUEST · " + plan.goal.toUpperCase();
   $("dashDayTitle").textContent = doneCount >= plan.curriculum.length
-    ? "Plan complete. Well done."
+    ? "Main quest complete. Well done."
     : `Day ${today} of ${plan.days}`;
-  $("dashCount").textContent = `${doneCount}/${plan.curriculum.length} DAYS DONE`;
+  $("dashCount").textContent = `${doneCount}/${plan.curriculum.length} QUESTS DONE`;
+  $("levelChip").textContent = `LV ${lv} · ${xp} XP`;
+  $("rankChip").textContent = rankFromLevel(lv) + " RANK";
   $("progressFill").style.width = `${(doneCount / plan.curriculum.length) * 100}%`;
-  $("topbarStatus").textContent = `DAY ${today}/${plan.days}`;
+  $("topbarStatus").innerHTML =
+    `<span class="xp-chip">LV ${lv} · ${xp} XP</span><span>DAY ${today}/${plan.days}</span>`;
 
   const entry = plan.curriculum.find((d) => d.day === today);
   $("todayTitle").textContent = entry ? entry.title : "";
   $("todayObjectives").innerHTML = entry
     ? entry.objectives.map((o) => `<li>${esc(o)}</li>`).join("")
     : "";
+  $("todayReward").textContent = entry ? `REWARD: +${questReward(entry)} XP` : "";
   $("btnStartToday").onclick = () => openLesson(today);
 
   $("dayList").innerHTML = plan.curriculum
@@ -197,9 +230,9 @@ function renderDashboard() {
       const isToday = d.day === today && !done;
       const locked = d.day > today;
       const cls = ["day-row", done ? "done" : "", isToday ? "today-row" : "", locked ? "locked" : "", d.is_checkpoint ? "checkpoint" : ""].join(" ");
-      const stateTxt = done ? "DONE" : isToday ? "TODAY" : "";
+      const stateTxt = done ? `✓ +${questReward(d)} XP` : isToday ? "TODAY" : locked ? "LOCKED" : "";
       return `<button class="${cls}" data-day="${d.day}">
-        <span class="num mono">DAY ${d.day}</span>
+        <span class="num mono">${d.is_checkpoint ? "◈" : ""} DAY ${d.day}</span>
         <span class="t">${esc(d.title)}</span>
         <span class="state mono">${stateTxt}</span>
       </button>`;
@@ -279,6 +312,7 @@ function renderLesson(l) {
 
   const done = state.progress[String(l.day)] && state.progress[String(l.day)].completed;
   $("completeCard").style.display = done ? "none" : "";
+  $("completeReward").textContent = `REWARD: +${l.is_checkpoint ? 150 : 100} XP`;
 }
 
 $("btnBack").addEventListener("click", () => {
@@ -288,11 +322,18 @@ $("btnBack").addEventListener("click", () => {
 
 $("btnComplete").addEventListener("click", async () => {
   try {
-    await api(`/api/day/${openDay}/complete`, { method: "POST" });
+    const r = await api(`/api/day/${openDay}/complete`, { method: "POST" });
     state = await api("/api/state");
-    toast(`Day ${openDay} complete. See you tomorrow.`);
     renderDashboard();
     show("dashboard");
+    if (r.xp_gained > 0) {
+      const el = $("toast");
+      el.classList.add("xp");
+      toast(`QUEST COMPLETE · +${r.xp_gained} XP · LV ${levelFromXp(r.xp)}`);
+      setTimeout(() => el.classList.remove("xp"), 4000);
+    } else {
+      toast(`Day ${openDay} complete.`);
+    }
   } catch (err) {
     toast(err.message);
   }
