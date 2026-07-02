@@ -50,7 +50,8 @@ def _empty_state():
         "plan": None,          # goal, days, hours, phases, curriculum days
         "progress": {},        # day number -> {completed: bool, completed_at: iso}
         "lessons": {},         # day number -> generated lesson content (cache)
-        "xp": 0,               # earned by completing quests (days), never by app-opens
+        "xp": 0,               # current Main Quest XP — resets when a new goal starts
+        "lifetime_xp": 0,      # career total — quest XP rolls in here, never resets
         "profile": {           # Learning DNA — grows over time
             "level_notes": "",
             "class": "",       # scholar | builder | consistent | challenger

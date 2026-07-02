@@ -69,6 +69,9 @@ def plan_init():
     """Create the plan shell after the student accepts the negotiated outline."""
     body = request.get_json(force=True)
     state = storage.load_state()
+    # Season model: XP earned on the previous Main Quest rolls into the career total
+    state["lifetime_xp"] = state.get("lifetime_xp", 0) + state.get("xp", 0)
+    state["xp"] = 0
     state["plan"] = {
         "goal": body["goal"],
         "days": int(body["days"]),

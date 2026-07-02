@@ -40,6 +40,19 @@ function loading(on, text) {
   if (text) $("loadingText").textContent = text;
 }
 
+/* achievement banner (quest complete / level up) — returns after it finishes */
+function showBanner(title, sub, levelup = false) {
+  return new Promise((resolve) => {
+    const b = $("banner");
+    $("bannerTitle").textContent = title;
+    $("bannerSub").textContent = sub;
+    b.classList.toggle("levelup", levelup);
+    b.classList.remove("hidden");
+    void b.offsetWidth; // restart the CSS animation
+    setTimeout(() => { b.classList.add("hidden"); resolve(); }, 1950);
+  });
+}
+
 async function api(path, opts = {}) {
   const res = await fetch(path, {
     headers: { "Content-Type": "application/json" },
@@ -217,6 +230,8 @@ function renderDashboard() {
   $("dashCount").textContent = `${doneCount}/${plan.curriculum.length} QUESTS DONE`;
   $("levelChip").textContent = `LV ${lv} · ${xp} XP`;
   $("rankChip").textContent = rankFromLevel(lv) + " RANK";
+  const career = state.lifetime_xp || 0;
+  $("careerChip").innerHTML = career > 0 ? `CAREER <b>${career + xp} XP</b>` : "";
   $("progressFill").style.width = `${(doneCount / plan.curriculum.length) * 100}%`;
   $("topbarStatus").innerHTML =
     `<span class="xp-chip">LV ${lv} · ${xp} XP</span><span>DAY ${today}/${plan.days}</span>`;
@@ -339,10 +354,12 @@ $("btnComplete").addEventListener("click", async () => {
     renderDashboard();
     show("dashboard");
     if (r.xp_gained > 0) {
-      const el = $("toast");
-      el.classList.add("xp");
-      toast(`QUEST COMPLETE · +${r.xp_gained} XP · LV ${levelFromXp(r.xp)}`);
-      setTimeout(() => el.classList.remove("xp"), 4000);
+      const oldLv = levelFromXp(r.xp - r.xp_gained);
+      const newLv = levelFromXp(r.xp);
+      await showBanner("QUEST COMPLETE", `+${r.xp_gained} XP`);
+      if (newLv > oldLv) {
+        await showBanner("LEVEL UP", `LV ${newLv} · ${rankFromLevel(newLv)} RANK`, true);
+      }
     } else {
       toast(`Day ${openDay} complete.`);
     }

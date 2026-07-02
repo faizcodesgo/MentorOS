@@ -64,6 +64,10 @@
             <span class="cname">⚔️ Challenger</span>
             <span class="cdesc">Harder problems, interview-style</span>
           </button>
+          <button type="button" class="class-card" data-class="allrounder">
+            <span class="cname">🎒 All-Rounder</span>
+            <span class="cdesc">A balanced mix of everything</span>
+          </button>
         </div>
 
         <button type="submit" class="btn primary" id="btnNegotiate">Ask the mentor</button>
@@ -124,6 +128,7 @@
       <div class="level-bar">
         <span class="level-chip mono" id="levelChip"></span>
         <span class="rank-chip mono" id="rankChip"></span>
+        <span class="career-chip mono" id="careerChip"></span>
       </div>
 
       <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
@@ -156,6 +161,10 @@
 
   </main>
 
+  <div id="banner" class="banner hidden">
+    <p class="banner-title mono" id="bannerTitle"></p>
+    <p class="banner-sub mono" id="bannerSub"></p>
+  </div>
   <div id="toast" class="toast hidden"></div>
   <div id="loading" class="loading hidden"><div class="spinner"></div><p class="mono" id="loadingText">Thinking…</p></div>
 
