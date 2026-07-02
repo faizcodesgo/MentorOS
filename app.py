@@ -169,6 +169,39 @@ def get_lesson(day):
     return jsonify(lesson)
 
 
+@app.post("/api/ask")
+def ask():
+    """Curious-question box: the student asks anything, mid-lesson or not."""
+    body = request.get_json(force=True)
+    question = (body.get("question") or "").strip()
+    if not question:
+        return jsonify({"error": "Type a question first."}), 400
+
+    state = storage.load_state()
+    plan = state.get("plan")
+    day = body.get("day")
+    entry = None
+    if plan and day is not None:
+        entry = next((d for d in plan["curriculum"] if d["day"] == day), None)
+
+    profile = state["profile"]
+    profile_text = (
+        f"Level: {profile.get('level_notes') or 'beginner'}. "
+        f"Class: {profile.get('class') or 'not chosen'}."
+    )
+    result = gemini.ask_json(
+        prompts.MENTOR_PERSONA,
+        prompts.ask_prompt(plan["goal"] if plan else "", entry, profile_text, question),
+    )
+    item = {"q": question, "a": result.get("answer", ""), "visual": result.get("visual")}
+
+    # persist inside the lesson so the Q&A stays with that day forever
+    if day is not None and str(day) in state["lessons"]:
+        state["lessons"][str(day)].setdefault("explorations", []).append(item)
+        storage.save_state(state)
+    return jsonify(item)
+
+
 @app.post("/api/day/<int:day>/complete")
 def complete_day(day):
     state = storage.load_state()

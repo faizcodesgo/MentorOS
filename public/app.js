@@ -92,6 +92,11 @@ function fmt(s) {
     .replace(/`([^`]+)`/g, "<code>$1</code>");
 }
 
+/* attribute-safe escaping (quotes matter inside data-* attributes) */
+function escAttr(s) {
+  return esc(s).replace(/"/g, "&quot;");
+}
+
 /* ---------- boot ---------- */
 
 async function boot() {
@@ -324,7 +329,7 @@ async function openLesson(day) {
   }
 }
 
-/* lazy-load mermaid only when a lesson actually has a diagram */
+/* lazy-load mermaid only when a lesson actually has a mermaid diagram */
 let mermaidReady = null;
 function ensureMermaid() {
   if (!mermaidReady) {
@@ -333,8 +338,17 @@ function ensureMermaid() {
       s.src = "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js";
       s.onload = () => {
         mermaid.initialize({
-          startOnLoad: false, theme: "dark", securityLevel: "strict",
-          suppressErrorRendering: true,
+          startOnLoad: false, securityLevel: "strict", suppressErrorRendering: true,
+          theme: "base",
+          themeVariables: {
+            darkMode: true, background: "#161b22",
+            primaryColor: "#1c2330", primaryTextColor: "#e6edf3", primaryBorderColor: "#4f8cff",
+            secondaryColor: "#231c33", secondaryBorderColor: "#8b5cf6",
+            tertiaryColor: "#1a2030", tertiaryBorderColor: "#283042",
+            lineColor: "#8b949e", textColor: "#e6edf3",
+            fontFamily: "Inter, sans-serif", fontSize: "14px",
+            edgeLabelBackground: "#161b22", clusterBkg: "#12161f",
+          },
         });
         resolve();
       };
@@ -345,19 +359,57 @@ function ensureMermaid() {
   return mermaidReady;
 }
 
-async function renderDiagrams() {
-  const holders = document.querySelectorAll(".diagram[data-code]");
+/* allow only safe, self-contained SVG from the model */
+function sanitizeSvg(code) {
+  const doc = new DOMParser().parseFromString(code, "image/svg+xml");
+  const svg = doc.documentElement;
+  if (svg.nodeName.toLowerCase() !== "svg" || doc.querySelector("parsererror")) return null;
+  svg.querySelectorAll("script, foreignObject, iframe, image, use, animate, set")
+    .forEach((el) => el.remove());
+  for (const el of [svg, ...svg.querySelectorAll("*")]) {
+    for (const attr of [...el.attributes]) {
+      if (/^on/i.test(attr.name) || /javascript:/i.test(attr.value) ||
+          attr.name === "href" || attr.name === "xlink:href") {
+        el.removeAttribute(attr.name);
+      }
+    }
+  }
+  if (!svg.getAttribute("viewBox")) return null;
+  svg.removeAttribute("height");
+  svg.setAttribute("width", "100%");
+  return new XMLSerializer().serializeToString(svg);
+}
+
+async function renderDiagrams(root) {
+  const holders = (root || document).querySelectorAll(".diagram[data-code]");
   if (!holders.length) return;
-  try { await ensureMermaid(); } catch { holders.forEach((h) => h.remove()); return; }
-  let n = 0;
+
   for (const h of holders) {
+    if (h.dataset.type === "svg") {
+      const clean = sanitizeSvg(h.dataset.code);
+      if (clean) h.innerHTML = clean; else h.remove();
+      h.removeAttribute("data-code");
+    }
+  }
+
+  const mmd = [...(root || document).querySelectorAll('.diagram[data-code]')]
+    .filter((h) => h.dataset.type !== "svg");
+  if (!mmd.length) return;
+  try { await ensureMermaid(); } catch { mmd.forEach((h) => h.remove()); return; }
+  for (const h of mmd) {
     try {
-      const { svg } = await mermaid.render("mmd" + (n++), h.dataset.code);
+      const { svg } = await mermaid.render("mmd" + Math.random().toString(36).slice(2, 8), h.dataset.code);
       h.innerHTML = svg;
     } catch {
       h.remove(); // invalid diagram from the model — hide, never show garbage
     }
+    h.removeAttribute("data-code");
   }
+}
+
+function visualHolder(visual) {
+  if (!visual || !visual.code || !visual.type) return "";
+  return `<div class="diagram" data-type="${escAttr(visual.type)}" data-code="${escAttr(visual.code)}"></div>`;
 }
 
 function renderLesson(l) {
@@ -373,7 +425,8 @@ function renderLesson(l) {
     <div class="card lesson-section">
       <h3>${esc(s.heading)}</h3>
       <div class="analogy">${fmt(s.analogy)}</div>
-      ${s.diagram ? `<div class="diagram" data-code="${esc(s.diagram)}"></div>` : ""}
+      ${s.visual ? visualHolder(s.visual)
+        : (s.diagram ? `<div class="diagram" data-type="mermaid" data-code="${escAttr(s.diagram)}"></div>` : "")}
       <div class="explanation">${fmt(s.explanation)}</div>
       <ul class="keypoints">${(s.key_points || []).map((k) => `<li>${fmt(k)}</li>`).join("")}</ul>
       <div class="tryit">${fmt(s.try_it)}</div>
@@ -401,8 +454,41 @@ function renderLesson(l) {
   const done = state.progress[String(l.day)] && state.progress[String(l.day)].completed;
   $("completeCard").style.display = done ? "none" : "";
   $("completeReward").textContent = `REWARD: +${l.is_checkpoint ? 150 : 100} XP`;
+
+  $("askInput").value = "";
+  $("explorations").innerHTML = (l.explorations || []).map(explorationHtml).join("");
   renderDiagrams();
 }
+
+function explorationHtml(x) {
+  return `<div class="exploration">
+    <p class="exp-q"><span class="mono">YOU ASKED</span> ${esc(x.q)}</p>
+    <div class="exp-a">${fmt(x.a)}</div>
+    ${visualHolder(x.visual)}
+  </div>`;
+}
+
+$("btnAsk").addEventListener("click", async () => {
+  const question = $("askInput").value.trim();
+  if (!question) { toast("Type your question first."); return; }
+  $("btnAsk").disabled = true;
+  loading(true, "✨ Thinking…");
+  try {
+    const item = await api("/api/ask", {
+      method: "POST",
+      body: JSON.stringify({ question, day: openDay }),
+    });
+    $("explorations").insertAdjacentHTML("beforeend", explorationHtml(item));
+    $("askInput").value = "";
+    renderDiagrams($("explorations"));
+    $("explorations").lastElementChild.scrollIntoView({ block: "center", behavior: "smooth" });
+  } catch (err) {
+    toast(err.message, 6000);
+  } finally {
+    $("btnAsk").disabled = false;
+    loading(false);
+  }
+});
 
 $("btnBack").addEventListener("click", () => {
   renderDashboard();

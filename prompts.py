@@ -72,6 +72,35 @@ Respond with JSON:
 Rules: exactly {phase['days']} day entries. Every 5th overall day (day 5, 10, 15...) that falls in this phase must be a checkpoint day (revision + self-assessment, lighter new content). Fit each day's load to ~{hours_per_day} hours. Sequence topics so each day builds on the previous. 1-2 resource_queries per day."""
 
 
+VISUAL_RULES = """"visual": OPTIONAL — omit for most sections/answers. Include ONLY when a picture genuinely teaches better than text (timelines, memory layouts, call stacks, tree/graph structures, comparisons, step processes). Object: {"type": "svg" | "mermaid", "code": "..."}.
+Prefer "svg" — a clean, premium infographic. SVG rules: start with <svg viewBox="0 0 600 380" xmlns="http://www.w3.org/2000/svg"> (height 240-450 as needed), TRANSPARENT background (no full-size background rect), colors ONLY from this palette: #4f8cff (blue, primary), #8b5cf6 (purple, secondary), #facc15 (gold, highlights), #22c55e (green, success), #e6edf3 (text), #8b949e (muted text/arrows), #1c2330 (box fills) with #283042 (box strokes). Use font-family="Inter, sans-serif", text size 13-16, rounded rects (rx="8"), generous spacing, label EVERYTHING clearly, max ~50 elements. No scripts, no images, no links.
+Use "mermaid" only for flowcharts/trees where automatic layout helps: valid Mermaid code, under 10 nodes."""
+
+
+def ask_prompt(goal, day_entry, learner_profile, question):
+    context = "The student is not inside a specific lesson right now."
+    if day_entry:
+        context = (f"The student is on Day {day_entry['day']}: \"{day_entry['title']}\" "
+                   f"(topics: {day_entry.get('topics', [])}).")
+    return f"""The student paused their study session to ask you a curious question. This is a GOOD thing — curiosity is how real learning happens. Answer it properly, even if it goes beyond today's syllabus.
+
+STUDENT'S GOAL: {goal or 'not set'}
+{context}
+
+LEARNER PROFILE: {learner_profile}
+
+THEIR QUESTION:
+{question}
+
+Answer like a great mentor: direct, clear, from first principles, with an analogy if it helps. If the question connects to their goal or today's lesson, point out the connection. If it's completely unrelated, answer it anyway and gently bridge back. Keep it focused — 2 to 5 short paragraphs.
+
+Respond with JSON:
+{{
+  "answer": "your explanation (may use **bold** and `code`)",
+  {VISUAL_RULES}
+}}"""
+
+
 def lesson_prompt(goal, hours_per_day, day_entry, learner_profile):
     return f"""Generate today's full lesson for this student.
 
@@ -94,7 +123,7 @@ Respond with JSON:
       "explanation": "clear teaching of the concept from first principles, in plain language, a few paragraphs. Use short paragraphs.",
       "key_points": ["the 2-4 things to remember", "..."],
       "try_it": "a small concrete exercise the student should do right now (specific, not vague)",
-      "diagram": "OPTIONAL — omit this field for most sections. Only include when the concept is genuinely visual (flow of control, call stack, memory layout, tree/graph structures, step-by-step processes). Value = valid Mermaid code, e.g. 'flowchart TD; A[start] --> B{{condition}}; B -->|yes| C[do X]'. Keep diagrams under 10 nodes. NEVER include a diagram for concepts that are fine as text."
+      {VISUAL_RULES}
     }}
   ],
   "practice": ["hands-on task 1 for today", "..."],
