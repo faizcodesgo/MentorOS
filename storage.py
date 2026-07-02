@@ -18,7 +18,11 @@ def _collection():
     global _mongo
     if _mongo is None:
         from pymongo import MongoClient  # imported here so local dev doesn't need it
-        client = MongoClient(os.environ["MONGO_URI"])
+        # Strip the query string entirely — pasted URIs often carry duplicated or
+        # glued-together options (seen in the wild: "w=majorityretryWrites=true").
+        # We pass the options we need as arguments instead, and always use our own db.
+        base = os.environ["MONGO_URI"].split("?")[0]
+        client = MongoClient(base, retryWrites=True, w="majority")
         _mongo = client["mentoros"]["state"]
     return _mongo
 
