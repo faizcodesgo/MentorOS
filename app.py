@@ -622,12 +622,12 @@ def interview_submit():
                     "xp_gained": gained, "xp": state["xp"]})
 
 
-@app.post("/api/goal")
-def set_goal():
-    """Today's implementation intention. Pure state."""
+@app.post("/api/anchor")
+def set_anchor():
+    """Persistent habit-stacking cue (set once, reused). Pure state."""
     body = request.get_json(force=True)
     state = storage.load_state()
-    state["today_goal"] = {"date": _today(), "text": (body.get("text") or "").strip()[:120]}
+    state["profile"]["study_anchor"] = (body.get("text") or "").strip()[:120]
     storage.save_state(state)
     return jsonify({"ok": True})
 

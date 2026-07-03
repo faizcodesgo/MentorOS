@@ -27,7 +27,7 @@ def _collection():
     return _mongo
 
 
-SCHEMA = 7
+SCHEMA = 8
 
 
 def load_state():
@@ -75,6 +75,10 @@ def _migrate(state):
     # v7: remember every question asked so none is ever repeated
     state.setdefault("asked_questions", [])
 
+    # v8: a persistent habit-stacking cue (set once, reused daily)
+    if "profile" in state:
+        state["profile"].setdefault("study_anchor", "")
+
     state["schema"] = SCHEMA
     return state
 
@@ -107,6 +111,7 @@ def _empty_state():
         "profile": {           # Learning DNA — grows over time
             "level_notes": "",
             "name": "",        # the learner's first name (used sparingly, for familiarity)
+            "study_anchor": "",  # persistent habit-stacking cue, e.g. "after my morning coffee"
             "class": "",       # scholar | builder | consistent | challenger | allrounder
             "weak_topics": [],
             "strong_topics": [],

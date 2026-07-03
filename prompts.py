@@ -38,6 +38,9 @@ def mentor_memory(profile, dna, days_in=None, streak=None):
     cls = (profile or {}).get("class", "")
     if cls:
         bits.append(f"Class: {cls}")
+    anchor = (profile or {}).get("study_anchor", "").strip()
+    if anchor:
+        bits.append(f"studies {anchor}")
     if days_in:
         bits.append(f"Day {days_in} of their journey")
     if streak and streak.get("count"):

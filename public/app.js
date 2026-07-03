@@ -374,25 +374,27 @@ function renderGreeting() {
   $("greeting").textContent = line + (thread ? " " + thread : "");
 }
 
-/* today's implementation intention ("when/where will you study today?") */
+/* persistent habit-stacking cue — set once, reused daily */
 function renderDailyGoal() {
   const el = $("dailyGoal");
-  const today = new Date().toISOString().slice(0, 10);
-  const g = state.today_goal || {};
-  if (g.date === today && g.text) {
-    el.innerHTML = `<span class="dg-set">Today's plan: ${esc(g.text)}</span> <button class="dg-edit" id="dgEdit">change</button>`;
-    $("dgEdit").onclick = () => promptDailyGoal(g.text);
+  const anchor = (state.profile && state.profile.study_anchor) ? state.profile.study_anchor : "";
+  if (anchor) {
+    el.innerHTML = `<span class="dg-set">Study cue: ${esc(anchor)}</span> <button class="dg-edit" id="dgEdit">change</button>`;
+    $("dgEdit").onclick = () => promptAnchor(anchor);
   } else {
-    el.innerHTML = `<button class="dg-ask" id="dgAsk">＋ When &amp; where will you study today?</button>`;
-    $("dgAsk").onclick = () => promptDailyGoal("");
+    el.innerHTML = `<button class="dg-ask" id="dgAsk">＋ Set your daily study cue</button>`;
+    $("dgAsk").onclick = () => promptAnchor("");
   }
 }
 
-async function promptDailyGoal(current) {
-  const text = prompt("Anchor today's study to something you already do — e.g. \"After dinner, at my desk.\" (habit-stacking makes it stick)", current || "");
+async function promptAnchor(current) {
+  const text = prompt(
+    "Pin your study to something you already do at the SAME time every day — the more specific, the stickier.\n\ne.g. \"right after my morning coffee\", \"as soon as I get home\", \"after I brush my teeth at night\"",
+    current || "",
+  );
   if (text === null) return;
   try {
-    await api("/api/goal", { method: "POST", body: JSON.stringify({ text: text.trim() }) });
+    await api("/api/anchor", { method: "POST", body: JSON.stringify({ text: text.trim() }) });
     state = await api("/api/state");
     renderDailyGoal();
   } catch (err) { toast(err.message); }
