@@ -30,6 +30,15 @@ function rankFromLevel(lv) {
 
 function questReward(entry) { return entry && entry.is_checkpoint ? 150 : 100; }
 
+/* "~2h 30m" from estimated minutes */
+function fmtTime(min) {
+  if (!min || min < 1) return "";
+  const h = Math.floor(min / 60), m = Math.round(min / 5) * 5 % 60;
+  if (h && m) return `~${h}h ${m}m`;
+  if (h) return `~${h}h`;
+  return `~${min}m`;
+}
+
 let lastShownXp = null;
 
 /* count the XP number upward in the level chip, with a gold glow */
@@ -65,16 +74,14 @@ function loading(on, text) {
   if (text) $("loadingText").textContent = text;
 }
 
-/* achievement banner (quest complete / level up) — returns after it finishes */
-function showBanner(title, sub, levelup = false) {
+/* quiet reward pill — replaces the old full-screen victory banner */
+function rewardPill(label, amount) {
   return new Promise((resolve) => {
-    const b = $("banner");
-    $("bannerTitle").textContent = title;
-    $("bannerSub").textContent = sub;
-    b.classList.toggle("levelup", levelup);
-    b.classList.remove("hidden");
-    void b.offsetWidth; // restart the CSS animation
-    setTimeout(() => { b.classList.add("hidden"); resolve(); }, 1950);
+    const el = document.createElement("div");
+    el.className = "reward-pill";
+    el.innerHTML = amount ? `${esc(label)} <span class="amt">${esc(amount)}</span>` : esc(label);
+    document.body.appendChild(el);
+    setTimeout(() => { el.remove(); resolve(); }, 1500);
   });
 }
 
@@ -283,7 +290,8 @@ function renderDashboard() {
   $("todayObjectives").innerHTML = entry
     ? (entry.objectives || []).map((o) => `<li>${esc(o)}</li>`).join("")
     : "";
-  $("todayReward").textContent = entry ? `REWARD: +${questReward(entry)} XP` : "";
+  const estTxt = entry && entry.est_minutes ? ` · ${fmtTime(entry.est_minutes)} today` : "";
+  $("todayReward").textContent = entry ? `+${questReward(entry)} XP${estTxt}` : "";
   $("btnStartToday").textContent = entry && entry.kind === "revision" ? "Start revision" : "Start the quest";
   $("btnStartToday").onclick = () => openLesson(entry.day);
 
@@ -322,8 +330,8 @@ function renderDashboard() {
 function renderStreakChip() {
   const s = state.streak || { count: 0, shields: 0 };
   if (!s.count) return "";
-  const shields = "◈".repeat(Math.min(s.shields || 0, 3));
-  return `<span class="streak-chip">🔥 ${s.count}${shields ? " " + shields : ""}</span>`;
+  const shields = s.shields ? ` · ${s.shields} shield${s.shields > 1 ? "s" : ""}` : "";
+  return `<span class="streak-chip"><b>${s.count}</b>-day streak${shields}</span>`;
 }
 
 /* ---------- schedule awareness (welcome back) ---------- */
@@ -390,7 +398,7 @@ function renderSkillMapCard() {
 $("skillMapCard").addEventListener("click", openSkills);
 
 async function openSkills() {
-  loading(true, "✨ Opening your skill map…");
+  loading(true, "Opening your skill map…");
   try {
     const data = await api("/api/skills");
     state.notes_seen = true;
@@ -631,7 +639,7 @@ $("btnAsk").addEventListener("click", async () => {
   const question = $("askInput").value.trim();
   if (!question) { toast("Type your question first."); return; }
   $("btnAsk").disabled = true;
-  loading(true, "✨ Thinking…");
+  loading(true, "Thinking…");
   try {
     const item = await api("/api/ask", {
       method: "POST",
@@ -674,11 +682,9 @@ $("btnComplete").addEventListener("click", async () => {
     if (r.xp_gained > 0) {
       const oldLv = levelFromXp(r.xp - r.xp_gained);
       const newLv = levelFromXp(r.xp);
-      await showBanner("QUEST COMPLETE", `+${r.xp_gained} XP`);
+      await rewardPill("Quest complete", `+${r.xp_gained} XP`);
       if (newLv > oldLv) {
-        $("app").classList.add("shake");
-        setTimeout(() => $("app").classList.remove("shake"), 500);
-        await showBanner("LEVEL UP", `LV ${newLv} · ${rankFromLevel(newLv)} RANK`, true);
+        await rewardPill(`Level ${newLv} · ${rankFromLevel(newLv)}`, "");
       }
       if (quizWaiting) {
         $("bossCard").scrollIntoView({ block: "center", behavior: "smooth" });
@@ -713,7 +719,6 @@ function renderQuestion() {
   $("quizFeedback").className = "quiz-feedback hidden";
   $("btnNextQ").classList.add("hidden");
   $("wagerRow").classList.add("hidden");
-  $("comboChip").textContent = quizRun.combo >= 2 ? `COMBO ×${quizRun.combo === 2 ? "1.5" : "2"}` : "";
 
   $("quizOptions").innerHTML = q.options.map((o, i) =>
     `<button class="opt" data-i="${i}">${fmt(o)}</button>`).join("");
@@ -753,14 +758,13 @@ function revealAnswer(confidence) {
     quizRun.combo++;
     const comboMult = quizRun.combo === 1 ? 1 : quizRun.combo === 2 ? 1.5 : 2;
     gained = Math.round(10 * wager * comboMult);
-    const crit = confidence === "allin";
-    cls = crit ? "quiz-feedback crit" : "quiz-feedback win";
-    msg = `${crit ? "⚡ CRITICAL HIT — " : ""}+${gained} XP${quizRun.combo >= 2 ? ` · COMBO ×${comboMult}` : ""}`;
+    cls = "quiz-feedback win";
+    msg = `Correct · +${gained} XP`;
   } else {
     quizRun.combo = 0;
     gained = 2;
     cls = "quiz-feedback lose";
-    msg = `Weak point revealed: ${q.topic || "this topic"} · +2 XP for scouting it`;
+    msg = `Not quite — the right answer's highlighted.`;
   }
   quizRun.xp += gained;
   quizRun.answers.push({ chosen: picked, confidence });
@@ -768,10 +772,9 @@ function revealAnswer(confidence) {
   const fb = $("quizFeedback");
   fb.className = cls;
   fb.textContent = msg;
-  $("comboChip").textContent = quizRun.combo >= 2 ? `COMBO ×${quizRun.combo === 2 ? "1.5" : "2"}` : "";
 
   const last = idx === lesson.quiz.length - 1;
-  $("btnNextQ").textContent = last ? "Finish" : "Next";
+  $("btnNextQ").textContent = last ? "See results" : "Next";
   $("btnNextQ").classList.remove("hidden");
 }
 
@@ -782,7 +785,7 @@ $("btnNextQ").addEventListener("click", async () => {
     return;
   }
   // finished — server grades authoritatively and awards the XP
-  loading(true, "✨ Judging your run…");
+  loading(true, "Scoring your answers…");
   try {
     const r = await api(`/api/quiz/${quizRun.lesson.day}/submit`, {
       method: "POST",
@@ -794,20 +797,15 @@ $("btnNextQ").addEventListener("click", async () => {
     show("dashboard");
     const oldLv = levelFromXp(r.xp - r.xp_gained);
     const newLv = levelFromXp(r.xp);
-    await showBanner(
-      r.perfect ? "FLAWLESS VICTORY" : "BOSS CHECK CLEARED",
-      `${r.score}/${r.total} · +${r.xp_gained} XP${r.crits ? ` · ${r.crits} CRIT${r.crits > 1 ? "S" : ""}` : ""}`
-    );
+    await rewardPill(`Checkpoint · ${r.score}/${r.total}`, `+${r.xp_gained} XP`);
     if (newLv > oldLv) {
-      $("app").classList.add("shake");
-      setTimeout(() => $("app").classList.remove("shake"), 500);
-      await showBanner("LEVEL UP", `LV ${newLv} · ${rankFromLevel(newLv)} RANK`, true);
+      await rewardPill(`Level ${newLv} · ${rankFromLevel(newLv)}`, "");
     }
     for (const topic of r.mastered || []) {
-      await showBanner("TOPIC MASTERED", topic.toUpperCase(), true);
+      await rewardPill("Topic mastered", topic);
     }
     if (r.revision) {
-      toast(`Your mentor added a revision quest on ${r.revision.topics.join(", ")} — no worries, we'll re-nail it.`, 6000);
+      toast(`Your mentor added a revision on ${r.revision.topics.join(", ")} — we'll go over it together.`, 6000);
     }
   } catch (err) {
     loading(false);

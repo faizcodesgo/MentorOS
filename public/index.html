@@ -46,31 +46,36 @@
           <textarea id="inLevel" rows="2" placeholder="e.g. I know basic C syntax, never studied data structures"></textarea>
         </label>
 
-        <span class="label mono">CHOOSE YOUR CLASS <em>(how your mentor teaches you)</em></span>
+        <span class="label mono">HOW SHOULD I TEACH YOU?</span>
         <div class="class-grid" id="classGrid">
           <button type="button" class="class-card" data-class="scholar">
-            <span class="cname">🧙 Scholar</span>
+            <svg class="cicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+            <span class="cname">Scholar</span>
             <span class="cdesc">Deeper theory, richer explanations</span>
           </button>
           <button type="button" class="class-card" data-class="builder">
-            <span class="cname">⚒️ Builder</span>
+            <svg class="cicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m14.5 5.5 4 4"/><path d="M12 8 5.2 14.8a2 2 0 0 0 0 2.8l1.2 1.2a2 2 0 0 0 2.8 0L16 12"/><path d="m17 2 5 5-2.5 2.5-5-5z"/></svg>
+            <span class="cname">Builder</span>
             <span class="cdesc">More projects and hands-on work</span>
           </button>
           <button type="button" class="class-card" data-class="consistent">
-            <span class="cname">🛡️ Consistent</span>
+            <svg class="cicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+            <span class="cname">Consistent</span>
             <span class="cdesc">Smaller daily goals, strong habits</span>
           </button>
           <button type="button" class="class-card" data-class="challenger">
-            <span class="cname">⚔️ Challenger</span>
+            <svg class="cicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>
+            <span class="cname">Challenger</span>
             <span class="cdesc">Harder problems, interview-style</span>
           </button>
           <button type="button" class="class-card" data-class="allrounder">
-            <span class="cname">🎒 All-Rounder</span>
+            <svg class="cicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 9 5-9 5-9-5 9-5z"/><path d="m3 12 9 5 9-5"/><path d="m3 17 9 5 9-5"/></svg>
+            <span class="cname">All-Rounder</span>
             <span class="cdesc">A balanced mix of everything</span>
           </button>
         </div>
 
-        <button type="submit" class="btn primary" id="btnNegotiate">Ask the mentor</button>
+        <button type="submit" class="btn primary" id="btnNegotiate">Continue</button>
       </form>
     </section>
 
@@ -190,33 +195,32 @@
       </div>
 
       <div class="card boss-card hidden" id="bossCard">
-        <h3>⚔ Boss Check</h3>
-        <p class="sub" id="bossSub">5 questions on today's quest. Bonus XP only — you can't lose anything you've earned.</p>
-        <button class="btn primary" id="btnBoss">Fight</button>
+        <h3>Checkpoint</h3>
+        <p class="sub" id="bossSub">A few questions on today's quest. Bonus XP only — you can't lose anything you've earned.</p>
+        <button class="btn primary" id="btnBoss">Start checkpoint</button>
       </div>
     </section>
 
-    <!-- ============ BOSS CHECK (QUIZ) ============ -->
+    <!-- ============ CHECKPOINT (QUIZ) ============ -->
     <section id="view-quiz" class="view hidden">
       <div class="quiz-head">
-        <p class="mono kicker">⚔ BOSS CHECK · DAY <span id="quizDay"></span></p>
+        <p class="mono kicker">Checkpoint · Day <span id="quizDay"></span></p>
         <p class="quiz-dots mono" id="quizDots"></p>
       </div>
       <div class="card quiz-card">
         <p class="quiz-q" id="quizQ"></p>
         <div id="quizOptions" class="quiz-options"></div>
         <div id="wagerRow" class="wager-row hidden">
-          <p class="label mono">HOW SURE ARE YOU? STAKE IT</p>
+          <p class="label">How sure are you?</p>
           <div class="wager-chips">
-            <button class="wager-chip" data-w="safe">Safe ×1</button>
-            <button class="wager-chip" data-w="confident">Confident ×1.5</button>
-            <button class="wager-chip allin" data-w="allin">All-in ×2</button>
+            <button class="wager-chip" data-w="safe">Guessing</button>
+            <button class="wager-chip" data-w="confident">Fairly sure</button>
+            <button class="wager-chip allin" data-w="allin">Certain</button>
           </div>
         </div>
         <p id="quizFeedback" class="quiz-feedback hidden"></p>
         <button class="btn primary hidden" id="btnNextQ">Next</button>
       </div>
-      <p class="quiz-combo mono" id="comboChip"></p>
     </section>
 
   </main>
@@ -231,12 +235,8 @@
     </div>
   </div>
 
-  <div id="banner" class="banner hidden">
-    <p class="banner-title mono" id="bannerTitle"></p>
-    <p class="banner-sub mono" id="bannerSub"></p>
-  </div>
   <div id="toast" class="toast hidden"></div>
-  <div id="loading" class="loading hidden"><div class="orb"></div><p class="mono" id="loadingText">✨ Thinking…</p></div>
+  <div id="loading" class="loading hidden"><div class="spinner"></div><p id="loadingText">Thinking…</p></div>
 
   <script src="app.js"></script>
 </body>

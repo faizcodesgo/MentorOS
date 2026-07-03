@@ -65,11 +65,12 @@ Respond with JSON:
       "topics": ["specific topic", "..."],
       "practice": "one line describing the hands-on work for this day",
       "resource_queries": ["a YouTube search query for the single best video topic today", "..."],
+      "est_minutes": <realistic total minutes this day's work takes: watching + reading + coding + practice, close to {hours_per_day} hours ({int(hours_per_day * 60)} min) but varying by how heavy the day is>,
       "is_checkpoint": <true if this day is a revision/assessment checkpoint, else false>
     }}
   ]
 }}
-Rules: exactly {phase['days']} day entries. Every 5th overall day (day 5, 10, 15...) that falls in this phase must be a checkpoint day (revision + self-assessment, lighter new content). Fit each day's load to ~{hours_per_day} hours. Sequence topics so each day builds on the previous. 1-2 resource_queries per day."""
+Rules: exactly {phase['days']} day entries. Every 5th overall day (day 5, 10, 15...) that falls in this phase must be a checkpoint day (revision + self-assessment, lighter new content). Fit each day's load to about {hours_per_day} hours ({int(hours_per_day * 60)} minutes) — est_minutes should reflect that target, lighter on checkpoint days. Sequence topics so each day builds on the previous. 1-2 resource_queries per day."""
 
 
 VISUAL_RULES = """"visual": OPTIONAL — omit for most sections/answers. Include ONLY when a picture genuinely teaches better than text (timelines, memory layouts, call stacks, tree/graph structures, comparisons, step processes). Object: {"type": "svg" | "mermaid", "code": "..."}.
