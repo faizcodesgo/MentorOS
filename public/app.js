@@ -334,6 +334,7 @@ function renderDashboard() {
     .join("");
 
   renderGreeting();
+  renderWeeklyReport();
   renderSkillMapCard();
   renderSavedCard();
   loadWarmup();
@@ -372,6 +373,40 @@ function renderGreeting() {
   else if (dna && dna.strongest) thread = `${dna.strongest} is clicking for you.`;
   $("greeting").textContent = line + (thread ? " " + thread : "");
 }
+
+/* weekly progress report — a card that appears only after ~7 more quests done */
+function renderWeeklyReport() {
+  const card = $("weeklyCard");
+  const w = state.weekly || { last_shown: 0, snap_xp: 0, snap_mastered: [] };
+  const doneReal = orderedCurriculum().filter((d) => d.kind !== "revision" && isDone(d.day)).length;
+  if (doneReal - (w.last_shown || 0) < 7) { card.classList.add("hidden"); return; }
+
+  const xpGain = (state.xp || 0) - (w.snap_xp || 0);
+  const dna = state.dna || {};
+  const masteredNow = Object.entries(dna.topics || {}).filter(([, r]) => r.band === "mastered").map(([t]) => t);
+  const newlyMastered = masteredNow.filter((t) => !(w.snap_mastered || []).includes(t));
+  const questsThisWeek = doneReal - (w.last_shown || 0);
+
+  const rows = [
+    `<div class="wk-stat"><span class="wk-num">${questsThisWeek}</span><span class="wk-lbl">quests done</span></div>`,
+    `<div class="wk-stat"><span class="wk-num">+${xpGain}</span><span class="wk-lbl">XP earned</span></div>`,
+    `<div class="wk-stat"><span class="wk-num">${newlyMastered.length}</span><span class="wk-lbl">topics mastered</span></div>`,
+  ].join("");
+  let notes = "";
+  if (newlyMastered.length) notes += `<p class="wk-note">You locked in: <b>${newlyMastered.slice(0, 4).map(esc).join(", ")}</b>.</p>`;
+  if (dna.weakest && dna.topics[dna.weakest] && dna.topics[dna.weakest].band !== "mastered")
+    notes += `<p class="wk-note">Next week's focus: <b>${esc(dna.weakest)}</b>.</p>`;
+  else notes += `<p class="wk-note">Strong week — keep the rhythm going.</p>`;
+
+  $("weeklyBody").innerHTML = `<div class="wk-stats">${rows}</div>${notes}`;
+  card.classList.remove("hidden");
+}
+
+$("weeklyDismiss").addEventListener("click", async () => {
+  $("weeklyCard").classList.add("hidden");
+  try { await api("/api/weekly/seen", { method: "POST" }); state = await api("/api/state"); }
+  catch {}
+});
 
 /* NOTE: the habit-stacking "study cue" was removed — a static reminder can't
    fire at the anchor moment. It returns as a notification in the notifications

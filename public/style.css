@@ -326,6 +326,18 @@ code {
 .streak-chip { color: var(--muted); font-weight: 600; }
 .streak-chip b { color: var(--ink); }
 
+/* ---------- weekly report ---------- */
+.weekly-card { border-left: 3px solid var(--gold); }
+.weekly-head { display: flex; justify-content: space-between; align-items: center; }
+.weekly-x { background: none; border: none; color: var(--faint); cursor: pointer; font-size: 0.9rem; padding: 2px 6px; }
+.weekly-x:hover { color: var(--muted); }
+.wk-stats { display: flex; gap: var(--s4); margin: var(--s3) 0; }
+.wk-stat { display: flex; flex-direction: column; }
+.wk-num { font-family: "Space Grotesk", sans-serif; font-size: 1.6rem; font-weight: 600; color: var(--gold); font-variant-numeric: tabular-nums; }
+.wk-lbl { font-size: 0.78rem; color: var(--muted); }
+.wk-note { color: var(--muted); font-size: 0.92rem; margin-top: var(--s2); line-height: 1.5; }
+.wk-note b { color: var(--ink); }
+
 /* ---------- warm-up ---------- */
 .warmup-card { display: flex; align-items: center; gap: var(--s4); }
 .warmup-main { flex: 1; }

@@ -622,6 +622,23 @@ def interview_submit():
                     "xp_gained": gained, "xp": state["xp"]})
 
 
+@app.post("/api/weekly/seen")
+def weekly_seen():
+    """Snapshot progress when a weekly report is dismissed, so the next one
+    can show deltas. Pure state."""
+    state = storage.load_state()
+    plan = state.get("plan") or {}
+    done_real = sum(1 for d in plan.get("curriculum", [])
+                    if d.get("kind") != "revision"
+                    and state["progress"].get(str(d["day"]), {}).get("completed"))
+    mastered = sorted(k for k, r in (state.get("dna") or {}).get("topics", {}).items()
+                      if r.get("band") == "mastered")
+    state["weekly"] = {"last_shown": done_real, "snap_xp": state.get("xp", 0),
+                       "snap_mastered": mastered}
+    storage.save_state(state)
+    return jsonify({"ok": True})
+
+
 @app.post("/api/anchor")
 def set_anchor():
     """Persistent habit-stacking cue (set once, reused). Pure state."""

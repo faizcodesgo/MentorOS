@@ -27,7 +27,7 @@ def _collection():
     return _mongo
 
 
-SCHEMA = 8
+SCHEMA = 9
 
 
 def load_state():
@@ -79,6 +79,9 @@ def _migrate(state):
     if "profile" in state:
         state["profile"].setdefault("study_anchor", "")
 
+    # v9: weekly progress report snapshot
+    state.setdefault("weekly", {"last_shown": 0, "snap_xp": 0, "snap_mastered": []})
+
     state["schema"] = SCHEMA
     return state
 
@@ -108,6 +111,7 @@ def _empty_state():
         "bookmarks": [],       # learner-flagged lesson sections [{day, sectionIndex, heading}]
         "today_goal": {"date": None, "text": ""},  # today's implementation intention
         "asked_questions": [],  # every question text asked, so none repeats
+        "weekly": {"last_shown": 0, "snap_xp": 0, "snap_mastered": []},  # weekly report snapshot
         "profile": {           # Learning DNA — grows over time
             "level_notes": "",
             "name": "",        # the learner's first name (used sparingly, for familiarity)
