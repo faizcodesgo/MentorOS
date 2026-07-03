@@ -758,8 +758,10 @@ function revealAnswer(confidence) {
     quizRun.combo++;
     const comboMult = quizRun.combo === 1 ? 1 : quizRun.combo === 2 ? 1.5 : 2;
     gained = Math.round(10 * wager * comboMult);
-    cls = "quiz-feedback win";
-    msg = `Correct · +${gained} XP`;
+    const sure = confidence === "allin";        // "Certain" and right
+    cls = sure ? "quiz-feedback gold" : "quiz-feedback win";
+    const combo = quizRun.combo >= 2 ? ` · ${quizRun.combo} in a row` : "";
+    msg = `${sure ? "Sure and correct" : "Correct"} · +${gained} XP${combo}`;
   } else {
     quizRun.combo = 0;
     gained = 2;
@@ -797,7 +799,7 @@ $("btnNextQ").addEventListener("click", async () => {
     show("dashboard");
     const oldLv = levelFromXp(r.xp - r.xp_gained);
     const newLv = levelFromXp(r.xp);
-    await rewardPill(`Checkpoint · ${r.score}/${r.total}`, `+${r.xp_gained} XP`);
+    await rewardPill(r.perfect ? `Perfect run · ${r.score}/${r.total}` : `Checkpoint · ${r.score}/${r.total}`, `+${r.xp_gained} XP`);
     if (newLv > oldLv) {
       await rewardPill(`Level ${newLv} · ${rankFromLevel(newLv)}`, "");
     }
