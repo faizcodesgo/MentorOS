@@ -334,7 +334,6 @@ function renderDashboard() {
     .join("");
 
   renderGreeting();
-  renderDailyGoal();
   renderSkillMapCard();
   renderSavedCard();
   loadWarmup();
@@ -374,31 +373,9 @@ function renderGreeting() {
   $("greeting").textContent = line + (thread ? " " + thread : "");
 }
 
-/* persistent habit-stacking cue — set once, reused daily */
-function renderDailyGoal() {
-  const el = $("dailyGoal");
-  const anchor = (state.profile && state.profile.study_anchor) ? state.profile.study_anchor : "";
-  if (anchor) {
-    el.innerHTML = `<span class="dg-set">Study cue: ${esc(anchor)}</span> <button class="dg-edit" id="dgEdit">change</button>`;
-    $("dgEdit").onclick = () => promptAnchor(anchor);
-  } else {
-    el.innerHTML = `<button class="dg-ask" id="dgAsk">＋ Set your daily study cue</button>`;
-    $("dgAsk").onclick = () => promptAnchor("");
-  }
-}
-
-async function promptAnchor(current) {
-  const text = prompt(
-    "Pin your study to something you already do at the SAME time every day — the more specific, the stickier.\n\ne.g. \"right after my morning coffee\", \"as soon as I get home\", \"after I brush my teeth at night\"",
-    current || "",
-  );
-  if (text === null) return;
-  try {
-    await api("/api/anchor", { method: "POST", body: JSON.stringify({ text: text.trim() }) });
-    state = await api("/api/state");
-    renderDailyGoal();
-  } catch (err) { toast(err.message); }
-}
+/* NOTE: the habit-stacking "study cue" was removed — a static reminder can't
+   fire at the anchor moment. It returns as a notification in the notifications
+   phase (needs PWA/native). The study_anchor field + /api/anchor stay dormant. */
 
 function renderSavedCard() {
   const marks = state.bookmarks || [];
