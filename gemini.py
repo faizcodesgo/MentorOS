@@ -4,6 +4,7 @@ Returns parsed JSON from the model. Handles model fallback and rate-limit retrie
 """
 import json
 import os
+import re
 import time
 import urllib.request
 import urllib.error
@@ -37,7 +38,7 @@ def _call_model(model, system_prompt, user_prompt):
         "contents": [{"role": "user", "parts": [{"text": user_prompt}]}],
         "generationConfig": {
             "temperature": 0.4,
-            "maxOutputTokens": 8192,
+            "maxOutputTokens": 16384,
             "responseMimeType": "application/json",
         },
     }
@@ -71,8 +72,15 @@ def ask_json(system_prompt, user_prompt, max_retries=3):
                 try:
                     data = _call_model(model, system_prompt, user_prompt)
                     text = data["candidates"][0]["content"]["parts"][0]["text"]
+                    parsed = _parse_json(text)
                     _working_model = model
-                    return _parse_json(text)
+                    return parsed
+                except json.JSONDecodeError as e:
+                    # Model returned malformed JSON — regenerate (it's non-deterministic,
+                    # a retry almost always yields valid JSON).
+                    last_error = f"{model} returned invalid JSON: {e}"
+                    time.sleep(2)
+                    continue
                 except urllib.error.HTTPError as e:
                     detail = e.read().decode("utf-8", errors="ignore")[:500]
                     last_error = f"HTTP {e.code} from {model}: {detail}"
@@ -93,10 +101,26 @@ def ask_json(system_prompt, user_prompt, max_retries=3):
 
 
 def _parse_json(text):
-    """Model output should be pure JSON, but strip code fences just in case."""
+    """Model output should be pure JSON, but strip code fences and try a light
+    repair before giving up (a raised JSONDecodeError triggers a regenerate)."""
     text = text.strip()
     if text.startswith("```"):
         text = text.split("```")[1]
         if text.startswith("json"):
             text = text[4:]
-    return json.loads(text.strip())
+    text = text.strip()
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return json.loads(_repair_json(text))
+
+
+def _repair_json(text):
+    """Best-effort fixes for the most common model JSON slips."""
+    # Remove trailing commas before } or ]
+    text = re.sub(r",(\s*[}\]])", r"\1", text)
+    # Clip to the outermost JSON object/array (drop stray prose before/after)
+    start = min((i for i in (text.find("{"), text.find("[")) if i != -1), default=-1)
+    if start > 0:
+        text = text[start:]
+    return text
