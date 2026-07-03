@@ -169,6 +169,11 @@
         <span class="skillmap-arrow">›</span>
       </button>
 
+      <div class="card saved-card hidden" id="savedCard">
+        <p class="label mono">SAVED SECTIONS</p>
+        <div id="savedList"></div>
+      </div>
+
       <p class="label mono list-label">QUEST LOG</p>
       <div id="dayList" class="day-list"></div>
 
@@ -195,6 +200,14 @@
         <div id="recapStats" class="recap-stats"></div>
         <p class="label" id="recapCarryLabel" style="margin-top:16px">Keep sharp</p>
         <p id="recapCarry" class="recap-carry"></p>
+      </div>
+
+      <div class="card explain-card" id="explainCard">
+        <p class="label">Say it back</p>
+        <p class="explain-prompt" id="explainPrompt"></p>
+        <textarea id="explainInput" rows="3" placeholder="In a line or two, in your own words…"></textarea>
+        <div id="explainFeedback" class="explain-feedback hidden"></div>
+        <button class="btn ghost small" id="btnExplain">Check my understanding</button>
       </div>
     </section>
 

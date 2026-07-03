@@ -248,6 +248,15 @@ Councils cut 4 candidate features to 2 (owner's "don't overdo it"):
 
 **Sequence:** warm-up first (anchor, migrate schema→4 for reviews), then Focus Session (UI-heavy, riskiest — ship fullscreen+timer, wake lock second).
 
+## 14. Batch 3 — assessment tools (3-agent council, 3 July 2026)
+
+Council cut 4→3. **CUT Socratic debugger** (recognition-not-generation, duplicates the ask-mentor box — paste code there instead). Build sequence = cheapest→riskiest:
+1. **Bookmarks** (zero AI): star toggle on lesson sections → `state.bookmarks=[{day,sectionIndex,heading}]`; a "Saved" list surfaced from the dashboard only when non-empty (progressive disclosure). Learner-chosen, complements system-chosen spaced review.
+2. **Explain-it-back** (1 AI call, self-explanation effect): optional "Say it back" step in the day Recap — one concept, 2-line box, skippable. Shared grader returns {whats_good, whats_missing} — ADDITIVE feedback, never a score; soft signal to DNA. Small +XP for doing it.
+3. **AI mock interviewer** (2 AI calls, riskiest — build last): optional "Viva" after a CHAPTER. Call 1 generates+caches a question set {questions:[{id,kind:theory|coding,q,model_answer,rubric}]}; UI shows one Q at a time (canned "next" between — no per-turn AI); submit → 1 batch grade call → {results:[{score,whats_good,whats_missing}],overall}. Rewards-only ("what landed / what to tighten", XP, links back to weak lesson), NO stinging score. Dynamic follow-ups DEFERRED to v2. Shared grader + repair path; graceful degrade to model_answer if JSON fails.
+
+**Anti-clutter rule reaffirmed:** only ONE net-new surface this batch (the Viva). Explain-it-back + bookmarks are slots inside existing screens; nothing new in any menu.
+
 ## 13¾. Pending user actions
 - **YouTube Data API key** (for direct video links — Faiz will get it; remind him): console.cloud.google.com → enable "YouTube Data API v3" → Credentials → API key.
 

@@ -333,6 +333,7 @@ function renderDashboard() {
     .join("");
 
   renderSkillMapCard();
+  renderSavedCard();
   loadWarmup();
 
   $("dayList").querySelectorAll(".day-row").forEach((row) => {
@@ -345,6 +346,18 @@ function renderDashboard() {
       if (row.classList.contains("done")) openRecap(day);  // done days open their recap
       else openLesson(day);
     });
+  });
+}
+
+function renderSavedCard() {
+  const marks = state.bookmarks || [];
+  const card = $("savedCard");
+  if (!marks.length) { card.classList.add("hidden"); return; }
+  card.classList.remove("hidden");
+  $("savedList").innerHTML = marks.map((m) =>
+    `<button class="saved-row" data-day="${m.day}"><span class="saved-h">${esc(m.heading)}</span><span class="saved-day mono">Day ${m.day}</span></button>`).join("");
+  $("savedList").querySelectorAll(".saved-row").forEach((row) => {
+    row.addEventListener("click", () => openLesson(parseInt(row.dataset.day, 10)));
   });
 }
 
@@ -531,6 +544,15 @@ async function openRecap(day, opts = {}) {
     $("recapCarry").textContent = "";
   }
 
+  // "say it back" — pick a concept from today to self-explain
+  const concept = (entry.topics || [])[0] || entry.title || "today's idea";
+  explainConcept = { day, concept };
+  $("explainPrompt").textContent = `In your own words, what is “${concept}” and why does it matter?`;
+  $("explainInput").value = "";
+  $("explainFeedback").className = "explain-feedback hidden";
+  $("btnExplain").disabled = false;
+  $("explainCard").style.display = entry.kind === "revision" ? "none" : "";
+
   // chapter block only when a chapter just wrapped
   const chap = opts.chapterEnd ? phaseOfDay(day) : null;
   if (chap) {
@@ -552,6 +574,33 @@ async function openRecap(day, opts = {}) {
 }
 
 $("btnRecapBack").addEventListener("click", () => { renderDashboard(); show("dashboard"); });
+
+let explainConcept = null;
+$("btnExplain").addEventListener("click", async () => {
+  const text = $("explainInput").value.trim();
+  if (!text) { toast("Write your explanation first."); return; }
+  if (!explainConcept) return;
+  $("btnExplain").disabled = true;
+  loadingCycle(["Reading your explanation…", "Checking it against the lesson…"]);
+  try {
+    const r = await api("/api/explain", {
+      method: "POST",
+      body: JSON.stringify({ day: explainConcept.day, concept: explainConcept.concept, text }),
+    });
+    state = await api("/api/state");
+    loading(false);
+    const fb = $("explainFeedback");
+    fb.className = "explain-feedback";
+    fb.innerHTML =
+      `<p class="ef-good">✓ ${esc(r.whats_good)}</p>` +
+      (r.whats_missing ? `<p class="ef-add">+ ${esc(r.whats_missing)}</p>` : "");
+    await rewardPill("Nice — you said it back", `+${r.xp_gained} XP`);
+  } catch (err) {
+    loading(false);
+    $("btnExplain").disabled = false;
+    toast(err.message, 6000);
+  }
+});
 
 /* ---------- morning warm-up (spaced review) ---------- */
 
@@ -874,9 +923,15 @@ function renderLesson(l) {
     }
   });
 
+  const marked = (day) => (state.bookmarks || []).some((m) => m.day === l.day && m.sectionIndex === day);
   const sections = (l.sections || []).map((s, i) => `
     <div class="card lesson-section">
-      <h3>${esc(s.heading)}</h3>
+      <div class="section-head">
+        <h3>${esc(s.heading)}</h3>
+        <button class="bookmark-btn ${marked(i) ? "on" : ""}" data-sec="${i}" data-heading="${escAttr(s.heading)}" title="Save this section" aria-label="Save section">
+          <svg viewBox="0 0 24 24" fill="${marked(i) ? "currentColor" : "none"}" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+        </button>
+      </div>
       <div class="analogy">${fmt(s.analogy)}</div>
       ${s.visual ? visualHolder(s.visual)
         : (s.diagram ? `<div class="diagram" data-type="mermaid" data-code="${escAttr(s.diagram)}"></div>` : "")}
@@ -913,6 +968,22 @@ function renderLesson(l) {
   Object.entries(widgetSlots).forEach(([i, it]) => {
     const slot = $("lessonBody").querySelector(`.interaction-slot[data-slot="${i}"]`);
     if (slot) slot.appendChild(buildInteraction(it));
+  });
+
+  // bookmark stars
+  $("lessonBody").querySelectorAll(".bookmark-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const sec = parseInt(btn.dataset.sec, 10);
+      try {
+        const r = await api("/api/bookmark/toggle", {
+          method: "POST",
+          body: JSON.stringify({ day: l.day, sectionIndex: sec, heading: btn.dataset.heading }),
+        });
+        btn.classList.toggle("on", r.saved);
+        btn.querySelector("svg").setAttribute("fill", r.saved ? "currentColor" : "none");
+        state = await api("/api/state");
+      } catch (err) { toast(err.message); }
+    });
   });
 
   $("askInput").value = "";

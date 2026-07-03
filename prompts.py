@@ -85,6 +85,22 @@ Prefer "svg" — a clean, premium infographic. SVG rules: start with <svg viewBo
 STRONGLY PREFER "svg" for hierarchies, comparisons, labeled structures, and anything with descriptive text — you control the layout so it looks clean. Use "mermaid" ONLY for a simple linear flowchart with SHORT node labels (1-3 words each) and NO descriptive side-labels or annotations next to nodes (put any such explanation in the lesson text, never in the diagram — side text overlaps nodes and looks broken). Under 8 nodes."""
 
 
+def grade_prompt(question, reference, learner_text):
+    return f"""The student explained a concept in their own words. Assess it like a supportive mentor — ADDITIVE feedback, never a grade or score. Point out what they got right, then the ONE most important thing to add or correct. Be specific and brief.
+
+{question}
+{reference}
+
+STUDENT'S EXPLANATION:
+{learner_text}
+
+Respond with JSON:
+{{
+  "whats_good": "one specific thing they got right (1 sentence)",
+  "whats_missing": "the single most useful thing to add or fix, phrased encouragingly (1-2 sentences). If their explanation is already excellent, say so and add one deeper nuance."
+}}"""
+
+
 def ask_prompt(goal, day_entry, learner_profile, question):
     context = "The student is not inside a specific lesson right now."
     if day_entry:
