@@ -1034,12 +1034,13 @@ function renderQuestion() {
 
   $("quizOptions").innerHTML = q.options.map((o, i) =>
     `<button class="opt" data-i="${i}">${fmt(o)}</button>`).join("");
-  $("quizOptions").querySelectorAll(".opt").forEach((btn) => {
+  const opts = $("quizOptions").querySelectorAll(".opt");
+  opts.forEach((btn) => {
     btn.addEventListener("click", () => {
-      if (quizRun.picked !== null) return;
-      quizRun.picked = parseInt(btn.dataset.i, 10);
+      // you can freely change your answer until you commit a confidence wager
+      opts.forEach((b) => b.classList.remove("picked"));
       btn.classList.add("picked");
-      $("quizOptions").querySelectorAll(".opt").forEach((b) => (b.disabled = true));
+      quizRun.picked = parseInt(btn.dataset.i, 10);
       $("wagerRow").classList.remove("hidden");
       $("wagerRow").scrollIntoView({ block: "nearest", behavior: "smooth" });
     });
@@ -1061,6 +1062,7 @@ function revealAnswer(confidence) {
   $("wagerRow").classList.add("hidden");
 
   const opts = $("quizOptions").querySelectorAll(".opt");
+  opts.forEach((b) => (b.disabled = true));   // now locked — wager committed
   opts[q.answer].classList.add("correct");
   if (!correct) opts[picked].classList.add("wrong");
 
