@@ -1,7 +1,7 @@
 /* MentorOS frontend — plain JS, no framework. */
 
 const $ = (id) => document.getElementById(id);
-const views = ["onboarding", "negotiate", "generating", "dashboard", "lesson", "quiz"];
+const views = ["onboarding", "negotiate", "generating", "dashboard", "lesson", "quiz", "skills"];
 
 let state = null;          // slim server state (plan + progress + profile + xp)
 let negotiation = null;    // last /api/negotiate result
@@ -295,6 +295,8 @@ function renderDashboard() {
     })
     .join("");
 
+  renderSkillMapCard();
+
   $("dayList").querySelectorAll(".day-row").forEach((row) => {
     row.addEventListener("click", () => {
       const day = parseInt(row.dataset.day, 10);
@@ -319,6 +321,89 @@ $("btnReset").addEventListener("click", () =>
 
 $("btnAbandonGen").addEventListener("click", () =>
   resetAll("Abandon this plan and start over from the goal screen?"));
+
+/* ---------- skill map ---------- */
+
+function renderSkillMapCard() {
+  const dna = state.dna;
+  const dashNote = $("dashNote");
+  if (dna && dna.notes && dna.total_answered >= 3) {
+    dashNote.textContent = "Mentor's note: " + stripMd(dna.notes.split(".")[0]) + ".";
+    dashNote.style.display = "";
+  } else {
+    dashNote.style.display = "none";
+  }
+
+  const topics = dna ? Object.entries(dna.topics || {}) : [];
+  $("skillMapSub").textContent = topics.length
+    ? `${topics.length} topic${topics.length > 1 ? "s" : ""} tracked · ${Math.round((dna.overall_mastery || 0) * 100)}% overall`
+    : "Take a Boss Check and your skill map appears here.";
+
+  const top = topics.slice().sort((a, b) => b[1].attempts - a[1].attempts).slice(0, 3);
+  $("skillMapDots").innerHTML = top.map(([, r]) => `<span class="sdot ${r.band}"></span>`).join("");
+  $("noteDot").style.display = state.notes_seen === false ? "inline-block" : "none";
+}
+
+$("skillMapCard").addEventListener("click", openSkills);
+
+async function openSkills() {
+  loading(true, "✨ Opening your skill map…");
+  try {
+    const data = await api("/api/skills");
+    state.notes_seen = true;
+    renderSkills(data.dna);
+    show("skills");
+  } catch (err) {
+    toast(err.message);
+  } finally {
+    loading(false);
+  }
+}
+
+$("btnSkillsBack").addEventListener("click", () => {
+  renderDashboard();
+  show("dashboard");
+});
+
+const BAND_LABEL = { mastered: "Mastered", developing: "Developing", weak: "Not yet mastered", new: "Just started" };
+
+function renderSkills(dna) {
+  const notes = $("notesCard");
+  if (dna && dna.notes) {
+    notes.innerHTML = `<p class="label mono">MENTOR'S NOTES</p><p class="notes-body">${fmt(dna.notes)}</p>`;
+    notes.style.display = "";
+  } else {
+    notes.style.display = "none";
+  }
+
+  const topics = dna ? Object.entries(dna.topics || {}) : [];
+  if (!topics.length) {
+    $("skillsList").innerHTML = `<div class="card"><p class="sub">No skills tracked yet. Clear a Boss Check and your topics start appearing here.</p></div>`;
+    return;
+  }
+
+  const order = { mastered: 3, developing: 2, weak: 1, new: 0 };
+  topics.sort((a, b) => (order[b[1].band] - order[a[1].band]) || (b[1].mastery - a[1].mastery));
+
+  $("skillsList").innerHTML = topics.map(([name, r]) => {
+    const pct = Math.round(r.mastery * 100);
+    const thin = r.attempts < 3;
+    const barW = thin ? Math.min(pct, 35) : pct;
+    return `<div class="skill-row">
+      <span class="sdot ${r.band}"></span>
+      <div class="skill-main">
+        <div class="skill-top">
+          <span class="skill-name">${esc(name)}</span>
+          <span class="skill-band ${r.band}">${thin ? "New" : BAND_LABEL[r.band]}</span>
+        </div>
+        <div class="skill-bar"><div class="skill-fill ${r.band}" style="width:${barW}%"></div></div>
+        <p class="skill-meta mono">${r.attempts} question${r.attempts > 1 ? "s" : ""}${thin ? " · low confidence" : ""}</p>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+function stripMd(s) { return String(s).replace(/\*\*/g, ""); }
 
 /* ---------- lesson ---------- */
 
@@ -674,6 +759,9 @@ $("btnNextQ").addEventListener("click", async () => {
       $("app").classList.add("shake");
       setTimeout(() => $("app").classList.remove("shake"), 500);
       await showBanner("LEVEL UP", `LV ${newLv} · ${rankFromLevel(newLv)} RANK`, true);
+    }
+    for (const topic of r.mastered || []) {
+      await showBanner("TOPIC MASTERED", topic.toUpperCase(), true);
     }
   } catch (err) {
     loading(false);

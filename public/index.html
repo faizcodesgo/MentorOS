@@ -131,6 +131,8 @@
         <span class="career-chip mono" id="careerChip"></span>
       </div>
 
+      <p class="dash-note" id="dashNote"></p>
+
       <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
 
       <div class="card today-card" id="todayCard">
@@ -141,10 +143,31 @@
         <button class="btn primary" id="btnStartToday">Start the quest</button>
       </div>
 
+      <button class="card skillmap-card" id="skillMapCard">
+        <div class="skillmap-left">
+          <p class="label mono">SKILL MAP <span class="note-dot" id="noteDot"></span></p>
+          <p class="skillmap-sub" id="skillMapSub">Your mentor is still getting to know you.</p>
+        </div>
+        <div class="skillmap-dots" id="skillMapDots"></div>
+        <span class="skillmap-arrow">›</span>
+      </button>
+
       <p class="label mono list-label">QUEST LOG</p>
       <div id="dayList" class="day-list"></div>
 
       <button class="btn danger ghost small" id="btnReset">Start over (wipes plan)</button>
+    </section>
+
+    <!-- ============ SKILLS ============ -->
+    <section id="view-skills" class="view hidden">
+      <button class="btn ghost small" id="btnSkillsBack">&larr; Back to dashboard</button>
+      <div class="skills-head">
+        <p class="mono kicker">SKILL MAP</p>
+        <h1>What your mentor knows about you</h1>
+      </div>
+      <div class="card notes-card" id="notesCard"></div>
+      <div id="skillsList"></div>
+      <div id="undiscovered"></div>
     </section>
 
     <!-- ============ LESSON ============ -->

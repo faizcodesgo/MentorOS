@@ -360,6 +360,48 @@ code {
 .career-chip { font-size: 0.72rem; letter-spacing: 0.1em; color: var(--muted); }
 .career-chip b { color: var(--accent-2); font-weight: 600; }
 
+/* ---------- skill map (dashboard card) ---------- */
+.dash-note { font-style: italic; color: var(--accent-2); font-size: 0.92rem; margin: 2px 0 16px; }
+.skillmap-card {
+  display: flex; align-items: center; gap: 14px; width: 100%; text-align: left;
+  font: inherit; color: var(--ink); cursor: pointer; margin: 20px 0 6px;
+}
+.skillmap-card:hover { border-color: var(--accent); }
+.skillmap-left { flex: 1; }
+.skillmap-sub { font-size: 0.88rem; color: var(--muted); margin-top: 4px; }
+.skillmap-dots { display: flex; gap: 6px; }
+.skillmap-arrow { font-size: 1.6rem; color: var(--muted); line-height: 1; }
+.note-dot { display: none; width: 8px; height: 8px; border-radius: 50%; background: var(--xp);
+  box-shadow: 0 0 8px rgba(250,204,21,0.6); margin-left: 6px; vertical-align: middle; }
+
+.sdot { width: 11px; height: 11px; border-radius: 50%; display: inline-block; }
+.sdot.mastered { background: var(--xp); box-shadow: 0 0 7px rgba(250,204,21,0.5); }
+.sdot.developing { background: var(--accent); }
+.sdot.weak { background: transparent; border: 2px solid var(--accent-2); }
+.sdot.new { background: transparent; border: 2px solid var(--line); }
+
+/* ---------- skills view ---------- */
+.skills-head { margin: 16px 0 10px; }
+.notes-card { border-left: 3px solid var(--accent-2); }
+.notes-body { font-size: 1rem; line-height: 1.6; margin-top: 6px; }
+.skill-row { display: flex; align-items: flex-start; gap: 12px; padding: 14px 4px; border-bottom: 1px solid var(--line); }
+.skill-row .sdot { margin-top: 4px; flex-shrink: 0; }
+.skill-main { flex: 1; }
+.skill-top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.skill-name { font-weight: 600; text-transform: capitalize; }
+.skill-band { font-size: 0.72rem; letter-spacing: 0.05em; }
+.skill-band.mastered { color: var(--xp); }
+.skill-band.developing { color: var(--accent); }
+.skill-band.weak { color: var(--accent-2); }
+.skill-band.new { color: var(--muted); }
+.skill-bar { height: 5px; background: var(--line); border-radius: 999px; margin: 8px 0 6px; overflow: hidden; }
+.skill-fill { height: 100%; border-radius: 999px; transition: width 0.5s ease; }
+.skill-fill.mastered { background: var(--xp); }
+.skill-fill.developing { background: var(--accent); }
+.skill-fill.weak { background: var(--accent-2); }
+.skill-fill.new { background: var(--muted); }
+.skill-meta { font-size: 0.72rem; color: var(--muted); }
+
 /* ---------- boss check (quiz) ---------- */
 .boss-card { border-left: 3px solid var(--accent-2); margin-top: 18px; }
 .boss-card h3 { margin-bottom: 4px; }

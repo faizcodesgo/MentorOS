@@ -8,6 +8,7 @@ import os
 
 from flask import Flask, jsonify, request, send_from_directory
 
+import dna as dna_engine
 import gemini
 import prompts
 import storage
@@ -146,8 +147,7 @@ def get_lesson(day):
     profile_text = (
         f"Level: {profile.get('level_notes') or 'beginner'}. "
         f"Class: {profile.get('class') or 'not chosen'}. "
-        f"Weak topics so far: {profile.get('weak_topics') or 'none recorded yet'}. "
-        f"Strong topics: {profile.get('strong_topics') or 'none recorded yet'}."
+        f"{dna_engine.summary_for_prompt(state.get('dna'))}"
     )
     lesson = gemini.ask_json(
         prompts.MENTOR_PERSONA,
@@ -225,9 +225,33 @@ def submit_quiz(day):
         "taken_at": datetime.datetime.now().isoformat(),
     }
     state["xp"] = state.get("xp", 0) + xp
+
+    # rebuild Learning DNA from all quiz data (pure Python, no AI)
+    old_mastered = _mastered_set(state.get("dna"))
+    state["dna"] = dna_engine.compute(state)
+    state["notes_seen"] = False
+    new_mastered = _mastered_set(state["dna"])
+    just_mastered = sorted(new_mastered - old_mastered)
+
     storage.save_state(state)
     return jsonify({"score": correct_count, "total": len(quiz), "xp_gained": xp,
-                    "crits": crits, "perfect": perfect, "xp": state["xp"]})
+                    "crits": crits, "perfect": perfect, "xp": state["xp"],
+                    "mastered": just_mastered})
+
+
+def _mastered_set(dna):
+    if not dna:
+        return set()
+    return {k for k, r in dna.get("topics", {}).items() if r.get("band") == "mastered"}
+
+
+@app.get("/api/skills")
+def skills():
+    """Skills tab data — marks the Mentor's Notes as seen."""
+    state = storage.load_state()
+    state["notes_seen"] = True
+    storage.save_state(state)
+    return jsonify({"dna": state.get("dna"), "class": state["profile"].get("class", "")})
 
 
 @app.post("/api/ask")
@@ -248,7 +272,8 @@ def ask():
     profile = state["profile"]
     profile_text = (
         f"Level: {profile.get('level_notes') or 'beginner'}. "
-        f"Class: {profile.get('class') or 'not chosen'}."
+        f"Class: {profile.get('class') or 'not chosen'}. "
+        f"{dna_engine.summary_for_prompt(state.get('dna'))}"
     )
     result = gemini.ask_json(
         prompts.MENTOR_PERSONA,

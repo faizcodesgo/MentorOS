@@ -53,6 +53,8 @@ def _empty_state():
         "xp": 0,               # current Main Quest XP — resets when a new goal starts
         "lifetime_xp": 0,      # career total — quest XP rolls in here, never resets
         "quizzes": {},         # day -> Boss Check result (score, answers, xp_earned)
+        "dna": None,           # Learning DNA — computed from quiz data on each submit
+        "notes_seen": True,    # False when DNA updated since the user last viewed Skills
         "profile": {           # Learning DNA — grows over time
             "level_notes": "",
             "class": "",       # scholar | builder | consistent | challenger

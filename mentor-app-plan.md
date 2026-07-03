@@ -188,6 +188,30 @@ Four-specialist council (learning science, engineering, product/UX, game design)
 
 **Build order**: M1 quiz+XP rework → M2 DNA+Skills tab → M3 stable-id refactor+revision days → M4 warm-up+streak.
 
+## 13⅝. Phase 2 M2 — refined by a focused 3-agent council (3 July 2026)
+
+Learning DNA + Skills tab. Council refinements to the original spec:
+
+**Mastery math (pedagogy):**
+- Bayesian shrinkage, not raw ratio: `mastery = (correct + 1) / (total + 2)` — kills false precision at ~5 questions/topic.
+- Gate thin data: 0–2 attempts → show **"Not enough data yet"** (no number); n≥3 provisional; n≥5 solid.
+- Bands (show the WORD, not a naked %): <50% weak · 50–79% developing · ≥80% mastered.
+- Hypercorrection: an **all-in + wrong** answer is a misconception (not a gap) — flag it; it becomes the first review item next day ("You were sure about this — here's why it's actually X"). Prioritized above ordinary wrong answers.
+- **CUT** confidence-calibration analytics (Brier scores/curves) — not enough data at this scale, pure UI bloat. Keep only the raw all-in-wrong flag.
+
+**Engineering:**
+- Compute DNA **on quiz submit** (eager, pure Python, folded into the existing save), never lazily. Skills tab just reads `state["dna"]`.
+- Mentor's Notes = **template-assembled from the numbers, NOT an AI call** (free, instant, deterministic): 1 named strength + 1 prioritized fix + 1 next action, every line data-anchored.
+- Topic normalization (the sneaky-hard part): `norm_topic()` = lowercase/trim/collapse → strip qualifiers (for/while/basic/intro/concepts) → small hand-written synonym map → passthrough fallback. Also nudge the lesson prompt to reuse consistent topic tags at the source.
+- Flat `dna` key in state: `{topics:{name:{correct,total,mastery,attempts}}, overall_mastery, weakest, strongest, misconceptions:[], notes}`.
+
+**Product/UX (phone-first, cheap animation only):**
+- Skills = **vertical constellation list** (one column): state dot (hollow purple weak / half blue developing / solid gold mastered) + topic name + thin 4px mastery bar + band word. Thin-data rows show a "low confidence" ghost label (the anti-ChatGPT honesty move).
+- Future/untested topics in ONE collapsed "Undiscovered" band at the bottom — not inline locks (which read as debt).
+- Navigation: a **"Skill Map" card on the dashboard** opens Skills full-screen. NO bottom tab bar yet (two destinations don't justify permanent chrome).
+- **"TOPIC MASTERED"** banner (distinct from LEVEL UP, rarer) when a bar first crosses mastered. Weak topics styled as unlit "quest available" nodes with a "→ Sharpen this" link — never red, never ❌.
+- Mentor's Notes: full card at top of Skills + a one-line italic peek under the dashboard greeting. A **gold dot badge** on the Skill Map card when notes updated since last view — pull, not push; no toast/modal.
+
 ## 13¾. Pending user actions
 - **YouTube Data API key** (for direct video links — Faiz will get it; remind him): console.cloud.google.com → enable "YouTube Data API v3" → Credentials → API key.
 
