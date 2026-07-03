@@ -293,6 +293,46 @@ code {
 .streak-chip { color: var(--muted); font-weight: 600; }
 .streak-chip b { color: var(--ink); }
 
+/* ---------- warm-up ---------- */
+.warmup-card { display: flex; align-items: center; gap: var(--s4); }
+.warmup-main { flex: 1; }
+.warmup-sub { color: var(--muted); font-size: 0.88rem; margin-top: 2px; }
+.done-row {
+  display: flex; align-items: center; gap: var(--s2);
+  color: var(--muted); font-size: 0.85rem; padding: 10px 4px; margin: var(--s2) 0;
+  border-bottom: 1px solid var(--line);
+}
+.done-row .check { color: var(--good); font-weight: 700; }
+
+.today-actions { display: flex; gap: var(--s3); align-items: center; flex-wrap: wrap; }
+
+/* ---------- focus session ---------- */
+.focus-intent { display: block; text-align: left; margin: var(--s4) 0; }
+.focus-durs { display: flex; gap: var(--s2); justify-content: center; margin: var(--s2) 0 var(--s4); }
+.dur-chip {
+  font: inherit; font-weight: 600; color: var(--muted);
+  background: var(--bg); border: 1px solid var(--line); border-radius: 999px;
+  padding: 8px 16px; cursor: pointer; transition: border-color 0.15s ease, color 0.15s ease;
+}
+.dur-chip.selected { border-color: var(--brand); color: var(--ink); background: var(--brand-soft); }
+.focus-note { font-size: 0.8rem; color: var(--faint); margin-bottom: var(--s4); line-height: 1.5; }
+.focus-actions { display: flex; flex-direction: column; gap: var(--s2); }
+.focus-modal { text-align: center; }
+
+.focus-run {
+  position: fixed; inset: 0; z-index: 70; background: var(--bg);
+  display: flex; flex-direction: column;
+}
+.focus-bar { height: 3px; background: var(--line); }
+.focus-bar-fill { height: 100%; width: 0; background: var(--brand); transition: width 1s linear; }
+.focus-run-inner {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: var(--s4); padding: var(--s5); text-align: center;
+}
+.focus-time { font-size: 3.4rem; font-weight: 600; letter-spacing: 0.02em; }
+.focus-intent-show { color: var(--muted); max-width: 40ch; }
+.focus-status { font-size: 0.85rem; color: var(--warn); min-height: 1.2em; }
+
 /* ---------- revision quest node ---------- */
 .day-row.revision .num { color: var(--brand); }
 

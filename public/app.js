@@ -47,12 +47,16 @@ function animateXpChip(el, from, to, lv) {
   el.classList.remove("bump");
   void el.offsetWidth;
   el.classList.add("bump");
+  let done = false;
+  const finish = () => { if (!done) { done = true; el.textContent = `LV ${lv} · ${to} XP`; } };
   (function step(t) {
+    if (done) return;
     const p = Math.min(1, (t - t0) / dur);
     const eased = 1 - Math.pow(1 - p, 3);
     el.textContent = `LV ${lv} · ${Math.round(from + (to - from) * eased)} XP`;
-    if (p < 1) requestAnimationFrame(step);
+    if (p < 1) requestAnimationFrame(step); else finish();
   })(t0);
+  setTimeout(finish, dur + 120);   // guarantee the final value even if rAF is throttled
 }
 
 /* ---------- helpers ---------- */
@@ -315,6 +319,7 @@ function renderDashboard() {
     .join("");
 
   renderSkillMapCard();
+  loadWarmup();
 
   $("dayList").querySelectorAll(".day-row").forEach((row) => {
     row.addEventListener("click", () => {
@@ -455,6 +460,158 @@ function renderSkills(dna) {
 }
 
 function stripMd(s) { return String(s).replace(/\*\*/g, ""); }
+
+/* ---------- morning warm-up (spaced review) ---------- */
+
+let warmupRun = null;
+
+async function loadWarmup() {
+  $("warmupCard").classList.add("hidden");
+  $("warmupDone").classList.add("hidden");
+  let data;
+  try { data = await api("/api/warmup"); } catch { return; }
+  if (data.done) {
+    $("warmupDone").innerHTML = `<span class="check">✓</span> Warm-up done`;
+    $("warmupDone").classList.remove("hidden");
+    return;
+  }
+  if (!data.questions || !data.questions.length) return;  // nothing due yet
+  warmupRun = { questions: data.questions, idx: 0, results: [], picked: null };
+  $("warmupSub").textContent = `${data.questions.length} quick recall${data.questions.length > 1 ? "s" : ""} from earlier days · +15 XP`;
+  $("warmupCard").classList.remove("hidden");
+  $("btnWarmup").onclick = startWarmup;
+}
+
+function startWarmup() {
+  $("quizDay").textContent = "warm-up";
+  document.querySelector("#view-quiz .kicker").textContent = "Warm-up · quick recall";
+  show("quiz");
+  renderWarmupQ();
+}
+
+function renderWarmupQ() {
+  const { questions, idx } = warmupRun;
+  const q = questions[idx];
+  warmupRun.picked = null;
+  $("quizDots").textContent = questions.map((_, i) => i < idx ? "●" : i === idx ? "◉" : "○").join(" ");
+  $("quizQ").innerHTML = fmt(q.q);
+  $("quizFeedback").className = "quiz-feedback hidden";
+  $("btnNextQ").classList.add("hidden");
+  $("wagerRow").classList.add("hidden");   // warm-ups skip the confidence wager
+  $("quizOptions").innerHTML = q.options.map((o, i) => `<button class="opt" data-i="${i}">${fmt(o)}</button>`).join("");
+  $("quizOptions").querySelectorAll(".opt").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (warmupRun.picked !== null) return;
+      warmupRun.picked = parseInt(btn.dataset.i, 10);
+      const correct = warmupRun.picked === q.answer;
+      const opts = $("quizOptions").querySelectorAll(".opt");
+      opts[q.answer].classList.add("correct");
+      if (!correct) opts[warmupRun.picked].classList.add("wrong");
+      opts.forEach((b) => (b.disabled = true));
+      warmupRun.results.push({ ref: q.ref, topic: q.topic, correct });
+      const fb = $("quizFeedback");
+      fb.className = correct ? "quiz-feedback win" : "quiz-feedback lose";
+      fb.textContent = correct ? "Still got it." : "Worth another look — the answer's highlighted.";
+      $("btnNextQ").textContent = idx === questions.length - 1 ? "Done" : "Next";
+      $("btnNextQ").classList.remove("hidden");
+    });
+  });
+}
+
+async function finishWarmup() {
+  loading(true, "Saving your warm-up…");
+  try {
+    const r = await api("/api/warmup/submit", { method: "POST", body: JSON.stringify({ results: warmupRun.results }) });
+    state = await api("/api/state");
+    loading(false);
+    renderDashboard();
+    show("dashboard");
+    loadWarmup();
+    await rewardPill(`Warm-up · ${r.score}/${r.total}`, `+${r.xp_gained} XP`);
+  } catch (err) {
+    loading(false);
+    toast(err.message);
+  } finally {
+    warmupRun = null;
+  }
+}
+
+/* ---------- focus session ---------- */
+
+let focus = null;
+
+$("btnFocus") && $("btnFocus").addEventListener("click", () => {
+  const entry = currentEntry();
+  $("focusQuestName").textContent = entry ? entry.title : "Today's quest";
+  $("focusIntent").value = "";
+  $("focusSheet").classList.remove("hidden");
+});
+$("btnFocusCancel").addEventListener("click", () => $("focusSheet").classList.add("hidden"));
+document.querySelectorAll(".dur-chip").forEach((c) => c.addEventListener("click", () => {
+  document.querySelectorAll(".dur-chip").forEach((x) => x.classList.remove("selected"));
+  c.classList.add("selected");
+}));
+
+$("btnFocusStart").addEventListener("click", async () => {
+  const mins = parseInt(document.querySelector(".dur-chip.selected").dataset.min, 10);
+  const intent = $("focusIntent").value.trim();
+  $("focusSheet").classList.add("hidden");
+  focus = { total: mins * 60, left: mins * 60, left_room: false, timer: null };
+  $("focusIntentShow").textContent = intent ? `Goal: ${intent}` : "";
+  $("focusStatus").textContent = "";
+  $("focusRun").classList.remove("hidden");
+  tickFocus();
+  try { await document.getElementById("focusRun").requestFullscreen(); } catch {}
+  requestWakeLock();
+  focus.timer = setInterval(() => {
+    focus.left--;
+    tickFocus();
+    if (focus.left <= 0) endFocus(true);
+  }, 1000);
+});
+
+function tickFocus() {
+  const m = Math.floor(focus.left / 60), s = focus.left % 60;
+  $("focusTime").textContent = `${m}:${String(s).padStart(2, "0")}`;
+  $("focusBarFill").style.width = `${100 * (1 - focus.left / focus.total)}%`;
+}
+
+let wakeLock = null;
+async function requestWakeLock() {
+  try { wakeLock = await navigator.wakeLock.request("screen"); } catch {}
+}
+document.addEventListener("visibilitychange", () => {
+  if (!focus) return;
+  if (document.hidden) {
+    focus.left_room = true;
+    $("focusStatus").textContent = "";
+  } else {
+    requestWakeLock();  // wake lock drops when hidden — re-acquire
+    if (focus.left_room) $("focusStatus").textContent = "Welcome back — you left the room.";
+  }
+});
+
+$("btnFocusEnd").addEventListener("click", () => endFocus(false));
+
+async function endFocus(completed) {
+  if (!focus) return;
+  clearInterval(focus.timer);
+  const unbroken = completed && !focus.left_room;
+  focus = null;
+  try { if (wakeLock) { wakeLock.release(); wakeLock = null; } } catch {}
+  try { if (document.fullscreenElement) await document.exitFullscreen(); } catch {}
+  $("focusRun").classList.add("hidden");
+  if (completed) {
+    try {
+      const r = await api("/api/focus/done", { method: "POST", body: JSON.stringify({ unbroken }) });
+      state = await api("/api/state");
+      renderDashboard();
+      await rewardPill("Focus complete", `+${r.xp_gained} XP`);
+    } catch (err) { toast(err.message); }
+  } else {
+    toast("Paused — pick up anytime.");
+  }
+}
 
 /* ---------- lesson ---------- */
 
@@ -781,6 +938,12 @@ function revealAnswer(confidence) {
 }
 
 $("btnNextQ").addEventListener("click", async () => {
+  if (warmupRun) {   // warm-up mode reuses the quiz view
+    warmupRun.idx++;
+    if (warmupRun.idx < warmupRun.questions.length) renderWarmupQ();
+    else finishWarmup();
+    return;
+  }
   quizRun.idx++;
   if (quizRun.idx < quizRun.lesson.quiz.length) {
     renderQuestion();

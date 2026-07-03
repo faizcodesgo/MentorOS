@@ -11,6 +11,7 @@ from flask import Flask, jsonify, request, send_from_directory
 import dna as dna_engine
 import gemini
 import prompts
+import reviews as review_engine
 import storage
 import youtube
 
@@ -247,6 +248,10 @@ def submit_quiz(day):
     if len(quiz) and correct_count / len(quiz) < 0.5:
         revision = _insert_revision(state, day, wrong_topics)
 
+    # add this checkpoint's questions to the spaced-review ladder for warm-ups
+    entry = next((d for d in (state["plan"] or {}).get("curriculum", []) if d["day"] == day), None)
+    review_engine.enqueue_quiz(state, day, quiz, (entry or {}).get("order", day))
+
     storage.save_state(state)
     return jsonify({"score": correct_count, "total": len(quiz), "xp_gained": xp,
                     "crits": crits, "perfect": perfect, "xp": state["xp"],
@@ -294,6 +299,74 @@ def _mastered_set(dna):
     if not dna:
         return set()
     return {k for k, r in dna.get("topics", {}).items() if r.get("band") == "mastered"}
+
+
+def _current_order(state):
+    """Display-order of the next not-completed quest (the 'today' index)."""
+    plan = state.get("plan") or {}
+    ordered = sorted(plan.get("curriculum", []), key=lambda d: d.get("order", d["day"]))
+    for d in ordered:
+        if not state["progress"].get(str(d["day"]), {}).get("completed"):
+            return d.get("order", d["day"])
+    return ordered[-1].get("order", ordered[-1]["day"]) if ordered else 0
+
+
+@app.get("/api/warmup")
+def warmup():
+    """Today's spaced-review warm-up: a few earlier questions, misconceptions
+    first. Optional — never gates the lesson. Shuffled so answers aren't memorized."""
+    state = storage.load_state()
+    if not state.get("plan"):
+        return jsonify({"questions": []})
+    today = int(_current_order(state))
+    if (state.get("reviews") or {}).get("done_upto", 0) >= today:
+        return jsonify({"questions": [], "done": True})   # already done today
+
+    items = review_engine.due_items(state, today, limit=3)
+    questions = []
+    for it in items:
+        q = review_engine.resolve(state, it)
+        if not q:
+            continue
+        # shuffle options deterministically (no Math.random in this env for the
+        # server) — rotate by the source day so it differs from the original
+        opts = q["options"]
+        shift = (it["ref"][0] + it["ref"][1]) % max(len(opts), 1)
+        rotated = opts[shift:] + opts[:shift]
+        new_answer = (q["answer"] - shift) % len(opts) if opts else 0
+        questions.append({"ref": q["ref"], "topic": q["topic"], "q": q["q"],
+                          "options": rotated, "answer": new_answer})
+    return jsonify({"questions": questions, "today": today})
+
+
+@app.post("/api/warmup/submit")
+def warmup_submit():
+    """Grade the warm-up, advance the ladder, fold results into DNA, small XP."""
+    body = request.get_json(force=True)
+    results = body.get("results") or []   # [{ref, topic, correct}]
+    state = storage.load_state()
+    today = int(_current_order(state))
+
+    served = [r["ref"] for r in results]
+    correct_refs = [r["ref"] for r in results if r.get("correct")]
+    review_engine.advance(state, served, correct_refs, today)
+
+    # fold into DNA so warm-up retrieval counts toward mastery
+    graded = [{"topic": r.get("topic", ""), "correct": bool(r.get("correct")),
+               "confidence": "safe", "chosen": -1} for r in results]
+    if graded:
+        state.setdefault("quizzes", {})[f"w{today}"] = {
+            "score": sum(1 for r in results if r.get("correct")),
+            "total": len(results), "answers": graded, "warmup": True,
+            "taken_at": datetime.datetime.now().isoformat(),
+        }
+        state["dna"] = dna_engine.compute(state)
+
+    gained = 15 if results else 0
+    state["xp"] = state.get("xp", 0) + gained
+    storage.save_state(state)
+    return jsonify({"xp_gained": gained, "xp": state["xp"],
+                    "score": sum(1 for r in results if r.get("correct")), "total": len(results)})
 
 
 @app.get("/api/skills")
@@ -431,6 +504,18 @@ def pace_check():
         "shield_used": shield_used,
         "streak": s,
     })
+
+
+@app.post("/api/focus/done")
+def focus_done():
+    """A voluntary focus session finished — rewards-only XP (a bit more if
+    the session ran unbroken)."""
+    body = request.get_json(force=True)
+    state = storage.load_state()
+    gained = 40 if body.get("unbroken") else 25
+    state["xp"] = state.get("xp", 0) + gained
+    storage.save_state(state)
+    return jsonify({"xp_gained": gained, "xp": state["xp"]})
 
 
 @app.post("/api/reset")

@@ -140,12 +140,24 @@
 
       <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
 
+      <div class="card warmup-card hidden" id="warmupCard">
+        <div class="warmup-main">
+          <p class="label">Warm-up</p>
+          <p class="warmup-sub" id="warmupSub">3 quick recalls from earlier days.</p>
+        </div>
+        <button class="btn primary small" id="btnWarmup">Start</button>
+      </div>
+      <div class="done-row hidden" id="warmupDone"></div>
+
       <div class="card today-card" id="todayCard">
         <p class="label mono">TODAY'S QUEST</p>
         <h2 id="todayTitle"></h2>
         <ul id="todayObjectives"></ul>
         <p class="reward mono" id="todayReward"></p>
-        <button class="btn primary" id="btnStartToday">Start the quest</button>
+        <div class="today-actions">
+          <button class="btn primary" id="btnStartToday">Start the quest</button>
+          <button class="btn ghost small" id="btnFocus">Focus timer</button>
+        </div>
       </div>
 
       <button class="card skillmap-card" id="skillMapCard">
@@ -224,6 +236,40 @@
     </section>
 
   </main>
+
+  <!-- Focus session setup sheet -->
+  <div id="focusSheet" class="modal-scrim hidden">
+    <div class="modal focus-modal">
+      <p class="mono kicker">Focus session</p>
+      <h2 id="focusQuestName">Today's quest</h2>
+      <label class="focus-intent">
+        <span class="label">What will you finish?</span>
+        <input type="text" id="focusIntent" placeholder="e.g. the practice problems + watch the video" />
+      </label>
+      <span class="label">For how long?</span>
+      <div class="focus-durs" id="focusDurs">
+        <button class="dur-chip" data-min="15">15 min</button>
+        <button class="dur-chip selected" data-min="25">25 min</button>
+        <button class="dur-chip" data-min="45">45 min</button>
+      </div>
+      <p class="focus-note">A voluntary timer — it keeps your screen on and cheers you on, but it can't block other apps. Staying is on you.</p>
+      <div class="focus-actions">
+        <button class="btn primary" id="btnFocusStart">Start focus</button>
+        <button class="btn ghost" id="btnFocusCancel">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Focus session running (fullscreen) -->
+  <div id="focusRun" class="focus-run hidden">
+    <div class="focus-bar"><div class="focus-bar-fill" id="focusBarFill"></div></div>
+    <div class="focus-run-inner">
+      <p class="mono focus-time" id="focusTime">25:00</p>
+      <p class="focus-intent-show" id="focusIntentShow"></p>
+      <p class="focus-status mono" id="focusStatus"></p>
+      <button class="btn ghost small" id="btnFocusEnd">End session</button>
+    </div>
+  </div>
 
   <div id="welcomeBack" class="modal-scrim hidden">
     <div class="modal welcome-modal">

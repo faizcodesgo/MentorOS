@@ -228,6 +228,26 @@ Faiz asked for schedule-adherence ("I did Day 1 then ghosted, keep me on track")
 
 **Deferred to M4:** skip-ahead/compress on high performance (status field, offer never force), voluntary Focus Session timer, adaptive revision difficulty, push/notification nudges (needs native shell / Phase 3).
 
+## 13.9 Phase 2 M4 — spaced review + focus (3-agent council, 3 July 2026)
+
+Councils cut 4 candidate features to 2 (owner's "don't overdo it"):
+- **CUT — Second Wind** (named comeback bonus): manipulative engagement-hack, could incentivize lapses, breaks premium tone. Welcome Back already makes return frictionless.
+- **CUT — Skip-ahead**: illusion-of-mastery / Dunning-Kruger risk for a beginner; breaks streak/quest math. Ace is rewarded via gold "Sure and correct", not fast-forward.
+
+**BUILD — Morning warm-up (anchor, highest value, zero AI cost):**
+- Reuses questions already stored in `lessons[day].quiz[]` (no Gemini call). `reviews.queue` in state; ladder X+1/X+3/X+7 by `stage`, then graduate. Prioritize misconception-flagged topics first (hypercorrection). Cap 3 questions (~60s). Shuffle option order on re-serve (prevent memorizing the letter).
+- Optional, default-on, framed as reward ("+15 XP", never nag/gate). First step of the day, ABOVE today's lesson; collapses to a one-line done-row after. Warm-up answers stored into `quizzes["w<n>"]` so `dna.compute` counts them toward mastery automatically.
+- No cron: build on app open from a day-index (current quest `order`); advance ladder on submit, not build (skip = stays due).
+
+**BUILD — Focus Session (minimal, honest):**
+- Browser CAN: Fullscreen API, Wake Lock (screen on), Page Visibility (detect leaving), JS timer. CANNOT: block/close other apps, prevent app-switch. UI must call it a *voluntary* timer — no false "blocker" promise.
+- The one detail that makes it work (per pedagogy): **pre-commitment intention** before start — "What will you finish?" + self-chosen duration (15/25/45, default 25).
+- Lives as a small "Focus" text-button on the today card (NOT its own card). Fullscreen the lesson, thin top progress line (tap → "18:20 left"), no ticking clock. Complete → reward pill "Focus complete · +40 XP" (gold if unbroken + on-quest). Leave early → "Paused — pick up anytime", no XP, no punishment. Re-request wake lock on visibility-visible; fullscreen exit = pause not fail.
+
+**Layout discipline (product council):** at most ONE active "do something now" card visible; completed steps collapse to thin done-rows; Focus is a text-button never a card; Second Wind never a card. Persistent cards: today's quest, Skill Map.
+
+**Sequence:** warm-up first (anchor, migrate schema→4 for reviews), then Focus Session (UI-heavy, riskiest — ship fullscreen+timer, wake lock second).
+
 ## 13¾. Pending user actions
 - **YouTube Data API key** (for direct video links — Faiz will get it; remind him): console.cloud.google.com → enable "YouTube Data API v3" → Credentials → API key.
 

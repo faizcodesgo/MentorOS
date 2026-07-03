@@ -27,7 +27,7 @@ def _collection():
     return _mongo
 
 
-SCHEMA = 3
+SCHEMA = 4
 
 
 def load_state():
@@ -60,6 +60,10 @@ def _migrate(state):
         plan.setdefault("next_day", max_day + 1)
     state.setdefault("streak", {"count": 0, "shields": 0, "last_day": None})
     state.setdefault("repaced_at", None)
+
+    # v4: spaced-review queue for morning warm-ups
+    state.setdefault("reviews", {"queue": [], "done_upto": 0})
+
     state["schema"] = SCHEMA
     return state
 
@@ -85,6 +89,7 @@ def _empty_state():
         "notes_seen": True,    # False when DNA updated since the user last viewed Skills
         "streak": {"count": 0, "shields": 0, "last_day": None},  # rewards-only streak
         "repaced_at": None,    # date the plan was last re-paced (avoid repeat nudges)
+        "reviews": {"queue": [], "done_upto": 0},  # spaced-review ladder for warm-ups
         "profile": {           # Learning DNA — grows over time
             "level_notes": "",
             "class": "",       # scholar | builder | consistent | challenger | allrounder
