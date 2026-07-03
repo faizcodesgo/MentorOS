@@ -28,9 +28,12 @@ body {
   min-height: 100vh;
 }
 
-/* drifting starfield — barely-there depth, fixed behind everything */
+/* drifting starfield — barely-there depth, fixed behind everything.
+   Animated via transform (GPU-composited) instead of background-position,
+   so it never repaints the page while it drifts. */
 body::before {
-  content: ""; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  content: ""; position: fixed; left: 0; top: -640px; width: 100%; height: calc(100% + 640px);
+  z-index: 0; pointer-events: none;
   background-image:
     radial-gradient(1px 1px at 25% 15%, rgba(230, 237, 243, 0.7), transparent 100%),
     radial-gradient(1px 1px at 70% 45%, rgba(139, 92, 246, 0.55), transparent 100%),
@@ -38,10 +41,13 @@ body::before {
     radial-gradient(1px 1px at 90% 20%, rgba(230, 237, 243, 0.45), transparent 100%),
     radial-gradient(1px 1px at 10% 60%, rgba(230, 237, 243, 0.35), transparent 100%);
   background-size: 640px 640px;
-  animation: starDrift 180s linear infinite;
-  opacity: 0.35;
+  animation: starDrift 200s linear infinite;
+  opacity: 0.3;
 }
-@keyframes starDrift { to { background-position: 0 -640px; } }
+@keyframes starDrift {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(0, 640px, 0); }
+}
 
 h1, h2, h3, .brand {
   font-family: "Space Grotesk", "Inter", system-ui, sans-serif;
@@ -54,8 +60,7 @@ h1, h2, h3, .brand {
   display: flex; justify-content: space-between; align-items: center;
   padding: 14px 20px;
   border-bottom: 1px solid var(--line);
-  background: rgba(13, 17, 23, 0.85);
-  backdrop-filter: blur(8px);
+  background: #0f141b;   /* solid — blur-on-scroll is the #1 cause of mobile jank */
   position: sticky; top: 0; z-index: 10;
 }
 .brand { font-weight: 700; font-size: 1.15rem; letter-spacing: -0.02em; }
@@ -279,23 +284,26 @@ code {
   to { opacity: 1; transform: none; }
 }
 
-/* progress bar shine sweep — classic loading-bar sheen */
+/* progress bar shine sweep — one sweep on load, not an endless loop */
 .progress-track { position: relative; }
 .progress-fill { position: relative; overflow: hidden; }
 .progress-fill::after {
   content: ""; position: absolute; inset: 0;
   background: linear-gradient(100deg, transparent 30%, rgba(255,255,255,0.35) 50%, transparent 70%);
   transform: translateX(-100%);
-  animation: shine 2.8s ease-in-out infinite;
+  animation: shine 1.6s ease-in-out 0.3s 1 both;   /* runs once, then stops */
 }
-@keyframes shine { 60%, 100% { transform: translateX(100%); } }
+@keyframes shine { to { transform: translateX(100%); } }
 
-/* today's quest pulse — draws the eye like an active objective marker */
-.day-row.today-row { animation: pulseBorder 2.2s ease-in-out infinite; }
-@keyframes pulseBorder {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(79, 140, 255, 0); }
-  50% { box-shadow: 0 0 14px 0 rgba(79, 140, 255, 0.35); }
+/* today's quest pulse — glow via a pre-set shadow whose OPACITY animates
+   (GPU-composited, no per-frame repaint like animating box-shadow does). */
+.day-row.today-row { position: relative; }
+.day-row.today-row::after {
+  content: ""; position: absolute; inset: 0; border-radius: 8px; pointer-events: none;
+  box-shadow: 0 0 14px 0 rgba(79, 140, 255, 0.4);
+  animation: pulseGlow 2.4s ease-in-out infinite;
 }
+@keyframes pulseGlow { 0%, 100% { opacity: 0; } 50% { opacity: 1; } }
 
 /* achievement banner — Destiny/Zelda style center flash */
 .banner {
