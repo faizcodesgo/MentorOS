@@ -27,14 +27,41 @@ def _collection():
     return _mongo
 
 
+SCHEMA = 3
+
+
 def load_state():
     if os.environ.get("MONGO_URI"):
         doc = _collection().find_one({"_id": USER_ID})
-        return doc["state"] if doc else _empty_state()
-    if os.path.exists(DATA_FILE):
+        state = doc["state"] if doc else _empty_state()
+    elif os.path.exists(DATA_FILE):
         with open(DATA_FILE, encoding="utf-8") as f:
-            return json.load(f)
-    return _empty_state()
+            state = json.load(f)
+    else:
+        state = _empty_state()
+    return _migrate(state)
+
+
+def _migrate(state):
+    """Bring an older saved state up to the current schema. Idempotent."""
+    if state.get("schema", 1) >= SCHEMA:
+        return state
+
+    # v3: give each curriculum entry a stable display `order` and add the
+    # id counter + streak fields. `day` was already a stable unique key, so
+    # lessons/progress/quizzes dicts keyed by it need no rewrite.
+    plan = state.get("plan")
+    if plan and plan.get("curriculum"):
+        max_day = 0
+        for i, entry in enumerate(plan["curriculum"]):
+            entry.setdefault("order", entry.get("day", i + 1))
+            entry.setdefault("kind", "checkpoint" if entry.get("is_checkpoint") else "quest")
+            max_day = max(max_day, entry.get("day", i + 1))
+        plan.setdefault("next_day", max_day + 1)
+    state.setdefault("streak", {"count": 0, "shields": 0, "last_day": None})
+    state.setdefault("repaced_at", None)
+    state["schema"] = SCHEMA
+    return state
 
 
 def save_state(state):
@@ -47,17 +74,20 @@ def save_state(state):
 
 def _empty_state():
     return {
-        "plan": None,          # goal, days, hours, phases, curriculum days
-        "progress": {},        # day number -> {completed: bool, completed_at: iso}
-        "lessons": {},         # day number -> generated lesson content (cache)
+        "schema": SCHEMA,
+        "plan": None,          # goal, days, hours, phases, curriculum days, next_day
+        "progress": {},        # day-id -> {completed: bool, completed_at: iso}
+        "lessons": {},         # day-id -> generated lesson content (cache)
         "xp": 0,               # current Main Quest XP — resets when a new goal starts
         "lifetime_xp": 0,      # career total — quest XP rolls in here, never resets
-        "quizzes": {},         # day -> Boss Check result (score, answers, xp_earned)
+        "quizzes": {},         # day-id -> Boss Check result (score, answers, xp_earned)
         "dna": None,           # Learning DNA — computed from quiz data on each submit
         "notes_seen": True,    # False when DNA updated since the user last viewed Skills
+        "streak": {"count": 0, "shields": 0, "last_day": None},  # rewards-only streak
+        "repaced_at": None,    # date the plan was last re-paced (avoid repeat nudges)
         "profile": {           # Learning DNA — grows over time
             "level_notes": "",
-            "class": "",       # scholar | builder | consistent | challenger
+            "class": "",       # scholar | builder | consistent | challenger | allrounder
             "weak_topics": [],
             "strong_topics": [],
             "preferences": {},

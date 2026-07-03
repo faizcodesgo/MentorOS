@@ -82,10 +82,15 @@ def plan_init():
         "mentor_message": body.get("mentor_message", ""),
         "curriculum": [],                    # filled phase by phase
         "phases_generated": 0,
+        "next_day": 1,                       # id counter (bumped as days are added)
         "created_at": datetime.datetime.now().isoformat(),
     }
     state["progress"] = {}
     state["lessons"] = {}
+    state["quizzes"] = {}
+    state["dna"] = None
+    state["streak"] = {"count": 0, "shields": 0, "last_day": None}
+    state["repaced_at"] = None
     state["profile"]["level_notes"] = body.get("level_notes", "")
     state["profile"]["class"] = body.get("learner_class", "")
     storage.save_state(state)
@@ -118,6 +123,10 @@ def generate_phase():
             plan["phases"], idx, prior,
         ),
     )
+    for entry in result["days"]:
+        entry["order"] = entry["day"]        # display position (day is the stable id)
+        entry["kind"] = "checkpoint" if entry.get("is_checkpoint") else "quest"
+        plan["next_day"] = max(plan.get("next_day", 1), entry["day"] + 1)
     plan["curriculum"].extend(result["days"])
     plan["phases_generated"] = idx + 1
     storage.save_state(state)
@@ -233,10 +242,52 @@ def submit_quiz(day):
     new_mastered = _mastered_set(state["dna"])
     just_mastered = sorted(new_mastered - old_mastered)
 
+    # struggled badly → the mentor inserts a revision quest (local, no AI)
+    revision = None
+    if len(quiz) and correct_count / len(quiz) < 0.5:
+        revision = _insert_revision(state, day, wrong_topics)
+
     storage.save_state(state)
     return jsonify({"score": correct_count, "total": len(quiz), "xp_gained": xp,
                     "crits": crits, "perfect": perfect, "xp": state["xp"],
-                    "mastered": just_mastered})
+                    "mastered": just_mastered, "revision": revision})
+
+
+def _insert_revision(state, after_day, wrong_topics):
+    """Add a revision quest right after `after_day`. No AI — the lesson for it
+    is generated on demand when opened, like any other day."""
+    plan = state["plan"]
+    curriculum = plan["curriculum"]
+    after = next((d for d in curriculum if d["day"] == after_day), None)
+    if not after:
+        return None
+    # cap: only one revision trailing any given boss
+    if any(d.get("kind") == "revision" and d.get("revision_for") == after_day
+           for d in curriculum):
+        return None
+
+    seen, deduped = set(), []
+    for t in wrong_topics:
+        if t.lower() not in seen:
+            seen.add(t.lower())
+            deduped.append(t)
+    topics = deduped[:3] or after.get("topics", [])[:2]
+    new_id = plan["next_day"]
+    plan["next_day"] = new_id + 1
+    entry = {
+        "day": new_id,
+        "order": after["order"] + 0.5,       # sits just after the boss in the log
+        "title": "Revision: " + ", ".join(topics),
+        "objectives": ["Re-master " + t for t in topics],
+        "topics": topics,
+        "practice": "Redo the parts that tripped you up.",
+        "resource_queries": topics[:1],
+        "is_checkpoint": False,
+        "kind": "revision",
+        "revision_for": after_day,
+    }
+    curriculum.append(entry)
+    return {"title": entry["title"], "topics": topics}
 
 
 def _mastered_set(dna):
@@ -298,14 +349,88 @@ def complete_day(day):
     }
 
     gained = 0
+    streak_event = None
     if not already_done:  # XP is awarded once per quest
         plan = state.get("plan") or {}
         entry = next((d for d in plan.get("curriculum", []) if d["day"] == day), None)
         gained = 150 if (entry and entry.get("is_checkpoint")) else 100
         state["xp"] = state.get("xp", 0) + gained
+        streak_event = _bump_streak(state)
 
     storage.save_state(state)
-    return jsonify({"ok": True, "xp_gained": gained, "xp": state.get("xp", 0)})
+    return jsonify({"ok": True, "xp_gained": gained, "xp": state.get("xp", 0),
+                    "streak": state.get("streak"), "streak_event": streak_event})
+
+
+def _today():
+    return datetime.date.today().isoformat()
+
+
+def _bump_streak(state):
+    """Rewards-only streak: a day of activity extends it; consecutive-day
+    milestones grant Shields. Never decrements here (gaps are handled by the
+    re-pace welcome-back, which spends a shield or just pauses)."""
+    s = state.setdefault("streak", {"count": 0, "shields": 0, "last_day": None})
+    today = _today()
+    if s["last_day"] == today:
+        return None  # already counted today
+    yesterday = (datetime.date.today() - datetime.timedelta(days=1)).isoformat()
+    if s["last_day"] == yesterday or s["last_day"] is None:
+        s["count"] += 1
+    else:
+        # returning after a gap that the welcome-back already reconciled
+        s["count"] = max(s["count"], 1)
+    s["last_day"] = today
+    event = None
+    if s["count"] > 0 and s["count"] % 5 == 0 and s["shields"] < 3:
+        s["shields"] += 1
+        event = {"type": "shield", "count": s["count"], "shields": s["shields"]}
+    return event
+
+
+@app.post("/api/pace-check")
+def pace_check():
+    """Called when the dashboard loads. If the user has fallen behind, re-pace
+    the plan forward from today and return a welcome-back payload (once/day)."""
+    state = storage.load_state()
+    plan = state.get("plan")
+    if not plan or not plan.get("curriculum"):
+        return jsonify({"behind": False})
+
+    completed = [p for p in state["progress"].values() if p.get("completed")]
+    total_quests = sum(1 for d in plan["curriculum"] if d.get("kind") != "revision")
+    if not completed or len(completed) >= total_quests:
+        return jsonify({"behind": False})
+
+    last_iso = max(p["completed_at"] for p in completed)
+    last_date = datetime.date.fromisoformat(last_iso[:10])
+    days_away = (datetime.date.today() - last_date).days
+
+    if days_away < 3:
+        return jsonify({"behind": False})
+    if state.get("repaced_at") == _today():
+        return jsonify({"behind": False})  # already welcomed back today
+
+    # re-pace: nothing is regenerated or lost — we just award a comeback bonus
+    # and (if available) auto-spend a shield so the streak pauses, not breaks.
+    bonus = 50
+    state["xp"] = state.get("xp", 0) + bonus
+    s = state.setdefault("streak", {"count": 0, "shields": 0, "last_day": None})
+    shield_used = False
+    if s["shields"] > 0:
+        s["shields"] -= 1
+        shield_used = True
+    else:
+        s["shields"] = s.get("shields", 0) + 1  # gift one on return
+    state["repaced_at"] = _today()
+    storage.save_state(state)
+    return jsonify({
+        "behind": True,
+        "days_away": days_away,
+        "bonus_xp": bonus,
+        "shield_used": shield_used,
+        "streak": s,
+    })
 
 
 @app.post("/api/reset")

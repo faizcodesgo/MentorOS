@@ -360,6 +360,29 @@ code {
 .career-chip { font-size: 0.72rem; letter-spacing: 0.1em; color: var(--muted); }
 .career-chip b { color: var(--accent-2); font-weight: 600; }
 
+/* ---------- streak chip ---------- */
+.streak-chip { color: var(--warn); font-weight: 600; }
+
+/* ---------- revision quest node ---------- */
+.day-row.revision { border-style: dashed; border-color: var(--accent-2); }
+.day-row.revision .num { color: var(--accent-2); }
+
+/* ---------- welcome back modal ---------- */
+.modal-scrim {
+  position: fixed; inset: 0; z-index: 55; display: flex; align-items: center; justify-content: center;
+  background: rgba(8, 10, 15, 0.72); padding: 20px;
+  animation: bannerBg 0.3s ease both;
+}
+.modal {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 16px;
+  padding: 28px 24px; max-width: 440px; width: 100%; text-align: center;
+  animation: viewIn 0.35s ease both;
+}
+.welcome-modal h2 { margin: 6px 0 12px; }
+.wb-rewards { display: flex; flex-direction: column; gap: 6px; margin: 18px 0 20px; }
+.wb-reward { color: var(--xp); font-size: 0.85rem; letter-spacing: 0.04em; }
+.welcome-modal .btn { width: 100%; }
+
 /* ---------- skill map (dashboard card) ---------- */
 .dash-note { font-style: italic; color: var(--accent-2); font-size: 0.92rem; margin: 2px 0 16px; }
 .skillmap-card {

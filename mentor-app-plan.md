@@ -212,6 +212,22 @@ Learning DNA + Skills tab. Council refinements to the original spec:
 - **"TOPIC MASTERED"** banner (distinct from LEVEL UP, rarer) when a bar first crosses mastered. Weak topics styled as unlit "quest available" nodes with a "→ Sharpen this" link — never red, never ❌.
 - Mentor's Notes: full card at top of Skills + a one-line italic peek under the dashboard greeting. A **gold dot badge** on the Skill Map card when notes updated since last view — pull, not push; no toast/modal.
 
+## 13¾. Phase 2 M3 — dynamic roadmap + accountability (3-agent council, 3 July 2026)
+
+Faiz asked for schedule-adherence ("I did Day 1 then ghosted, keep me on track") and a device blocker. Council verdict + build plan:
+
+**Device blocker — REJECTED as asked, redirected.** A PWA physically cannot block apps or lock the phone (browser sandbox; only native apps with OS permissions can). A forced "lock my whole phone until a milestone" also violates the project's no-punishment pillar (self-determination theory → reactance → uninstall) and fails empirically (users route around it). The good, autonomy-respecting version = a **voluntary in-app Focus Session** the user starts himself (fullscreen + timer + honor commitment, leave anytime, reward on completion). Deferred to M4/Phase 5.
+
+**What actually keeps a lapsed learner (ranked):** reminders + implementation intentions > forgiving streaks > comeback/fresh-start bonus > opt-in commitment devices > safe loss-aversion > social (skip, solo user). Never hard daily streaks with visible failure counters (shame spiral = day-5 quit).
+
+**M3 BUILD SCOPE (build now):**
+1. **Stable-id refactor + migration (riskiest, do first).** Each curriculum entry gets a monotonic `sid` ("d1","d2"…, counter `plan.next_sid`), never renumbered; positional `day` is display-only. Re-key lessons/progress/quizzes by sid. One-time `migrate` in load_state guarded by `schema` version, idempotent, backs up the doc before rewriting. (Live + local state currently empty, so low real-data risk, but must be correct for real plans.)
+2. **Revision-day insertion.** On a Boss Check <50%, insert a revision entry from a LOCAL template (no AI at insert; lesson generated on open) right after the boss; cap 1 per boss; `kind:"revision"`. Shows as a distinct "Mentor Adjustment / Revision" node in the Quest Log + a one-line mentor banner ("Arrays tripped you up — added a quick revision before we move on"). Never a gap/strikethrough/overdue.
+3. **Schedule-awareness (no cron — compute on app open from timestamps).** From `created_at` + `completed_at`s: if `behind ≥ 2` days or `>3 days` since last activity with plan incomplete → silently re-pace (anchor remaining active days forward from today, don't regenerate/punish) and show a **"Welcome Back" modal**: days away, "I re-paced your roadmap — goal still on track", comeback bonus (+50 XP + a Streak Shield), one button "Resume Quest" → easiest next quest. Store `repaced_at` so it doesn't repeat same session.
+4. **Rewards-only streak + earned Shields.** Streak counts up; a miss FREEZES (never zeroes). Shields earned (+1 per 5-day streak or Boss crit, max 3), auto-spent to hold a streak on a missed day. Dashboard: flame + number + up to 3 shield dots (opacity/transform only — keep it cheap post-lag-fix).
+
+**Deferred to M4:** skip-ahead/compress on high performance (status field, offer never force), voluntary Focus Session timer, adaptive revision difficulty, push/notification nudges (needs native shell / Phase 3).
+
 ## 13¾. Pending user actions
 - **YouTube Data API key** (for direct video links — Faiz will get it; remind him): console.cloud.google.com → enable "YouTube Data API v3" → Credentials → API key.
 

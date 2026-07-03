@@ -120,6 +120,7 @@ async function boot() {
       plan.phases_generated >= plan.phases.length) {
     renderDashboard();
     show("dashboard");
+    checkPace();
   } else if (plan && (plan.phases || []).length > 0) {
     // plan exists but curriculum unfinished — resume generation
     show("generating");
@@ -237,27 +238,34 @@ async function generatePhases() {
 
 /* ---------- dashboard ---------- */
 
-function currentDay() {
-  // first not-completed day in the curriculum
-  const days = state.plan.curriculum.map((d) => d.day).sort((a, b) => a - b);
-  for (const d of days) {
-    if (!(state.progress[String(d)] && state.progress[String(d)].completed)) return d;
-  }
-  return days[days.length - 1]; // everything done
+const isDone = (dayId) => !!(state.progress[String(dayId)] && state.progress[String(dayId)].completed);
+
+/* curriculum in display order (day is the stable id; order is the sequence) */
+function orderedCurriculum() {
+  return state.plan.curriculum.slice().sort((a, b) => (a.order ?? a.day) - (b.order ?? b.day));
+}
+
+/* the next quest to do — first not-completed in display order */
+function currentEntry() {
+  const ord = orderedCurriculum();
+  return ord.find((d) => !isDone(d.day)) || ord[ord.length - 1];
 }
 
 function renderDashboard() {
   const plan = state.plan;
-  const doneCount = Object.values(state.progress).filter((p) => p.completed).length;
-  const today = currentDay();
+  const ord = orderedCurriculum();
+  const realQuests = ord.filter((d) => d.kind !== "revision");
+  const doneReal = realQuests.filter((d) => isDone(d.day)).length;
+  const allDone = ord.every((d) => isDone(d.day));
+  const entry = currentEntry();
   const xp = state.xp || 0;
   const lv = levelFromXp(xp);
 
   $("dashGoal").textContent = "MAIN QUEST · " + plan.goal.toUpperCase();
-  $("dashDayTitle").textContent = doneCount >= plan.curriculum.length
+  $("dashDayTitle").textContent = allDone
     ? "Main quest complete. Well done."
-    : `Day ${today} of ${plan.days}`;
-  $("dashCount").textContent = `${doneCount}/${plan.curriculum.length} QUESTS DONE`;
+    : entry.kind === "revision" ? "Revision Quest" : `Day ${entry.day} of ${plan.days}`;
+  $("dashCount").textContent = `${doneReal}/${plan.days} QUESTS DONE`;
   if (lastShownXp !== null && xp > lastShownXp) {
     animateXpChip($("levelChip"), lastShownXp, xp, lv);
   } else {
@@ -267,28 +275,31 @@ function renderDashboard() {
   $("rankChip").textContent = rankFromLevel(lv) + " RANK";
   const career = state.lifetime_xp || 0;
   $("careerChip").innerHTML = career > 0 ? `CAREER <b>${career + xp} XP</b>` : "";
-  $("progressFill").style.width = `${(doneCount / plan.curriculum.length) * 100}%`;
+  $("progressFill").style.width = `${(doneReal / plan.days) * 100}%`;
   $("topbarStatus").innerHTML =
-    `<span class="xp-chip">LV ${lv} · ${xp} XP</span><span>DAY ${today}/${plan.days}</span>`;
+    `<span class="xp-chip">LV ${lv} · ${xp} XP</span>${renderStreakChip()}`;
 
-  const entry = plan.curriculum.find((d) => d.day === today);
   $("todayTitle").textContent = entry ? entry.title : "";
   $("todayObjectives").innerHTML = entry
-    ? entry.objectives.map((o) => `<li>${esc(o)}</li>`).join("")
+    ? (entry.objectives || []).map((o) => `<li>${esc(o)}</li>`).join("")
     : "";
   $("todayReward").textContent = entry ? `REWARD: +${questReward(entry)} XP` : "";
-  $("btnStartToday").onclick = () => openLesson(today);
+  $("btnStartToday").textContent = entry && entry.kind === "revision" ? "Start revision" : "Start the quest";
+  $("btnStartToday").onclick = () => openLesson(entry.day);
 
-  $("dayList").innerHTML = plan.curriculum
-    .slice().sort((a, b) => a.day - b.day)
+  const currentId = entry.day;
+  const currentOrder = entry.order ?? entry.day;
+  $("dayList").innerHTML = ord
     .map((d) => {
-      const done = state.progress[String(d.day)] && state.progress[String(d.day)].completed;
-      const isToday = d.day === today && !done;
-      const locked = d.day > today;
-      const cls = ["day-row", done ? "done" : "", isToday ? "today-row" : "", locked ? "locked" : "", d.is_checkpoint ? "checkpoint" : ""].join(" ");
+      const done = isDone(d.day);
+      const isToday = d.day === currentId && !done;
+      const locked = (d.order ?? d.day) > currentOrder && !done;
+      const revision = d.kind === "revision";
+      const cls = ["day-row", done ? "done" : "", isToday ? "today-row" : "", locked ? "locked" : "", d.is_checkpoint ? "checkpoint" : "", revision ? "revision" : ""].join(" ");
       const stateTxt = done ? `✓ +${questReward(d)} XP` : isToday ? "TODAY" : locked ? "LOCKED" : "";
+      const label = revision ? "◆ REVISION" : `${d.is_checkpoint ? "◈" : ""} DAY ${d.day}`;
       return `<button class="${cls}" data-day="${d.day}">
-        <span class="num mono">${d.is_checkpoint ? "◈" : ""} DAY ${d.day}</span>
+        <span class="num mono">${label}</span>
         <span class="t">${esc(d.title)}</span>
         <span class="state mono">${stateTxt}</span>
       </button>`;
@@ -299,15 +310,47 @@ function renderDashboard() {
 
   $("dayList").querySelectorAll(".day-row").forEach((row) => {
     row.addEventListener("click", () => {
-      const day = parseInt(row.dataset.day, 10);
-      if (day > currentDay()) {
-        toast("One day at a time — finish today first.");
+      if (row.classList.contains("locked")) {
+        toast("One quest at a time — finish this one first.");
         return;
       }
-      openLesson(day);
+      openLesson(parseInt(row.dataset.day, 10));
     });
   });
 }
+
+function renderStreakChip() {
+  const s = state.streak || { count: 0, shields: 0 };
+  if (!s.count) return "";
+  const shields = "◈".repeat(Math.min(s.shields || 0, 3));
+  return `<span class="streak-chip">🔥 ${s.count}${shields ? " " + shields : ""}</span>`;
+}
+
+/* ---------- schedule awareness (welcome back) ---------- */
+
+async function checkPace() {
+  let r;
+  try {
+    r = await api("/api/pace-check", { method: "POST" });
+  } catch { return; }
+  if (!r.behind) return;
+
+  state = await api("/api/state");
+  renderDashboard();
+
+  $("wbBody").textContent =
+    `You stepped away for ${r.days_away} days — no problem. I've re-paced your roadmap so you pick up right where it makes sense. Nothing lost, goal still on track.`;
+  const rewards = [`+${r.bonus_xp} XP return bonus`];
+  rewards.push(r.shield_used ? "streak shield spent to keep your streak" : "+1 streak shield, on the house");
+  $("wbRewards").innerHTML = rewards.map((t) => `<span class="wb-reward">✦ ${esc(t)}</span>`).join("");
+  $("welcomeBack").classList.remove("hidden");
+}
+
+$("wbResume").addEventListener("click", () => {
+  $("welcomeBack").classList.add("hidden");
+  const entry = currentEntry();
+  if (entry) openLesson(entry.day);
+});
 
 async function resetAll(msg) {
   if (!confirm(msg)) return;
@@ -762,6 +805,9 @@ $("btnNextQ").addEventListener("click", async () => {
     }
     for (const topic of r.mastered || []) {
       await showBanner("TOPIC MASTERED", topic.toUpperCase(), true);
+    }
+    if (r.revision) {
+      toast(`Your mentor added a revision quest on ${r.revision.topics.join(", ")} — no worries, we'll re-nail it.`, 6000);
     }
   } catch (err) {
     loading(false);
