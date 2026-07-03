@@ -224,6 +224,16 @@ input:focus, textarea:focus { outline: none; border-color: var(--brand); box-sha
 .analogy::before { content: "ANALOGY "; font-family: "IBM Plex Mono", monospace; font-size: 0.65rem; letter-spacing: 0.12em; color: var(--accent-2); display: block; margin-bottom: 4px; }
 .explanation { white-space: pre-line; margin-bottom: 12px; line-height: 1.68; max-width: 62ch; }
 .lesson-intro { max-width: 62ch; }
+.probe {
+  border-left: 2px solid var(--accent-2); padding: 4px 0 4px 12px; margin-bottom: 12px;
+  color: var(--muted); font-style: italic; font-size: 0.95rem;
+}
+.probe::before { content: "Think first — "; font-style: normal; font-weight: 600; color: var(--accent-2); }
+.worked {
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px;
+  padding: 12px 14px; margin-bottom: 12px;
+}
+.worked-body { white-space: pre-line; line-height: 1.6; font-size: 0.95rem; margin-top: 6px; }
 code {
   font-family: "IBM Plex Mono", monospace; font-size: 0.88em;
   background: var(--panel-2); border-radius: 4px; padding: 1px 5px; color: #b8c2ff;

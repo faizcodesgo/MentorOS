@@ -403,8 +403,11 @@ def warmup_submit():
 
     gained = 15 if results else 0
     state["xp"] = state.get("xp", 0) + gained
+    # tiny-habits "minimum day": even a 2-minute warm-up keeps the streak alive
+    if results:
+        _bump_streak(state)
     storage.save_state(state)
-    return jsonify({"xp_gained": gained, "xp": state["xp"],
+    return jsonify({"xp_gained": gained, "xp": state["xp"], "streak": state.get("streak"),
                     "score": sum(1 for r in results if r.get("correct")), "total": len(results)})
 
 

@@ -364,7 +364,9 @@ function renderGreeting() {
   const s = state.streak || {};
   const doneReal = orderedCurriculum().filter((d) => d.kind !== "revision" && isDone(d.day)).length;
   let thread = "";
-  if (doneReal === 0) thread = "Let's get your first quest done.";
+  if (new Date().getDay() === 1 && doneReal > 0)   // fresh-start effect: Monday = clean slate
+    thread = "New week, clean slate — let's make it count.";
+  else if (doneReal === 0) thread = "Let's get your first quest done.";
   else if (dna && dna.weakest && dna.topics && dna.topics[dna.weakest] && dna.topics[dna.weakest].band !== "mastered")
     thread = `We'll keep chipping at ${dna.weakest} today.`;
   else if (s.count >= 3) thread = `${s.count} days running — nice rhythm.`;
@@ -387,7 +389,7 @@ function renderDailyGoal() {
 }
 
 async function promptDailyGoal(current) {
-  const text = prompt("When and where will you study today? (a specific plan sticks better)", current || "");
+  const text = prompt("Anchor today's study to something you already do — e.g. \"After dinner, at my desk.\" (habit-stacking makes it stick)", current || "");
   if (text === null) return;
   try {
     await api("/api/goal", { method: "POST", body: JSON.stringify({ text: text.trim() }) });
@@ -740,7 +742,11 @@ async function loadWarmup() {
     return;
   }
   if (!data.available) return;  // nothing due yet
-  $("warmupSub").textContent = `${data.count} quick recall${data.count > 1 ? "s" : ""} on earlier topics · +15 XP`;
+  // tiny-habits framing: if today's quest isn't done yet, sell it as a "minimum day"
+  const questDone = isDone(currentEntry().day);
+  $("warmupSub").textContent = questDone
+    ? `${data.count} quick recall${data.count > 1 ? "s" : ""} on earlier topics · +15 XP`
+    : `Short on time? A 2-minute warm-up keeps your streak alive.`;
   $("warmupCard").classList.remove("hidden");
   $("btnWarmup").onclick = startWarmup;
 }
@@ -1061,10 +1067,12 @@ function renderLesson(l) {
           <svg viewBox="0 0 24 24" fill="${marked(i) ? "currentColor" : "none"}" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
         </button>
       </div>
+      ${s.probe ? `<div class="probe">${fmt(s.probe)}</div>` : ""}
       <div class="analogy">${fmt(s.analogy)}</div>
       ${s.visual ? visualHolder(s.visual)
         : (s.diagram ? `<div class="diagram" data-type="mermaid" data-code="${escAttr(s.diagram)}"></div>` : "")}
       <div class="explanation">${fmt(s.explanation)}</div>
+      ${s.worked_example ? `<div class="worked"><p class="label">Worked example</p><div class="worked-body">${fmt(s.worked_example)}</div></div>` : ""}
       <ul class="keypoints">${(s.key_points || []).map((k) => `<li>${fmt(k)}</li>`).join("")}</ul>
       <div class="tryit">${fmt(s.try_it)}</div>
       ${widgetSlots[i] ? `<div class="interaction-slot" data-slot="${i}"></div>` : ""}

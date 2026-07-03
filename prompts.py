@@ -236,8 +236,10 @@ Respond with JSON:
   "sections": [
     {{
       "heading": "topic name",
+      "probe": "OPTIONAL — for a KEY concept only, one short 'why/how' question for the student to think about BEFORE reading (elaborative interrogation: 'Why do you think X needs Y?'). Omit for simple/intro sections.",
       "analogy": "a simple real-life analogy that makes the concept intuitive",
       "explanation": "clear teaching of the concept from first principles, in plain language, a few paragraphs. Use short paragraphs.",
+      "worked_example": "OPTIONAL — for an APPLIED / problem-solving / coding section, a COMPLETE step-by-step worked solution to a concrete example, so the student studies the full solution BEFORE trying their own (worked-example effect). Number the steps. Omit for purely conceptual sections.",
       "key_points": ["the 2-4 things to remember", "..."],
       "try_it": "a small concrete exercise the student should do right now (specific, not vague)",
       {INTERACTION_RULES},
