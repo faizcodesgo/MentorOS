@@ -73,6 +73,13 @@ Respond with JSON:
 Rules: exactly {phase['days']} day entries. Every 5th overall day (day 5, 10, 15...) that falls in this phase must be a checkpoint day (revision + self-assessment, lighter new content). Fit each day's load to about {hours_per_day} hours ({int(hours_per_day * 60)} minutes) — est_minutes should reflect that target, lighter on checkpoint days. Sequence topics so each day builds on the previous. 1-2 resource_queries per day."""
 
 
+INTERACTION_RULES = """"interaction": OPTIONAL — omit for MOST sections. Across the WHOLE lesson, AT MOST 2 sections may have one, and ONLY where guessing wrong is plausible and genuinely instructive (test the single thing that section taught). NEVER on a definition/intro/analogy section. Object:
+{"type": "mcq" | "predict", "prompt": "the question, or for predict a description like 'What does this print?'", "code": "predict ONLY: one SHORT single-line snippet, NO double-quotes/backslashes/newlines inside — if it would need those, omit the interaction", "options": ["3-4 short answer strings"], "answer": <0-based index of the correct option>, "explanation": "one sentence saying WHY it is right (the real reason, not just the letter)"}.
+- "mcq": a concept check with 3-4 plausible options; omit "code".
+- "predict": show a tiny snippet ("code") and ask which output is correct; "options" are candidate outputs.
+Both grade by option index. Keep the explanation genuinely teaching. Max 2 per lesson."""
+
+
 VISUAL_RULES = """"visual": OPTIONAL — omit for most sections/answers. Include ONLY when a picture genuinely teaches better than text (timelines, memory layouts, call stacks, tree/graph structures, comparisons, step processes). Object: {"type": "svg" | "mermaid", "code": "..."}.
 Prefer "svg" — a clean, premium infographic. SVG rules: start with <svg viewBox="0 0 600 380" xmlns="http://www.w3.org/2000/svg"> (height 240-450 as needed), TRANSPARENT background (no full-size background rect), colors ONLY from this palette: #4f8cff (blue, primary), #8b5cf6 (purple, secondary), #facc15 (gold, highlights), #22c55e (green, success), #e6edf3 (text), #8b949e (muted text/arrows), #1c2330 (box fills) with #283042 (box strokes). Use font-family="Inter, sans-serif", text size 13-16, rounded rects (rx="8"), generous spacing, label EVERYTHING clearly, max ~50 elements. No scripts, no images, no links.
 Use "mermaid" only for flowcharts/trees where automatic layout helps: valid Mermaid code, under 10 nodes."""
@@ -124,6 +131,7 @@ Respond with JSON:
       "explanation": "clear teaching of the concept from first principles, in plain language, a few paragraphs. Use short paragraphs.",
       "key_points": ["the 2-4 things to remember", "..."],
       "try_it": "a small concrete exercise the student should do right now (specific, not vague)",
+      {INTERACTION_RULES},
       {VISUAL_RULES}
     }}
   ],

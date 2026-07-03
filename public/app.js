@@ -793,6 +793,52 @@ function visualHolder(visual) {
   return `<div class="diagram" data-type="${escAttr(visual.type)}" data-code="${escAttr(visual.code)}"></div>`;
 }
 
+/* ---------- interactive lesson widgets ---------- */
+
+/* drop anything malformed so a bad widget never breaks a lesson (mirrors the SVG guard) */
+function validInteraction(it) {
+  if (!it || (it.type !== "mcq" && it.type !== "predict")) return false;
+  if (!Array.isArray(it.options) || it.options.length < 2 || it.options.length > 5) return false;
+  if (!it.options.every((o) => typeof o === "string" && o.length)) return false;
+  if (typeof it.answer !== "number" || it.answer < 0 || it.answer >= it.options.length) return false;
+  if (it.type === "predict" && (typeof it.code !== "string" || !it.code.length)) return false;
+  return true;
+}
+
+/* build the widget DOM (with handlers) — commit-before-reveal, rewards-only */
+function buildInteraction(it) {
+  const wrap = document.createElement("div");
+  wrap.className = "interaction";
+  const label = it.type === "predict" ? "Predict the output" : "Quick check";
+  const codeHtml = it.type === "predict"
+    ? `<pre class="interaction-code"><code>${esc(it.code)}</code></pre>` : "";
+  wrap.innerHTML = `
+    <p class="label">${label}</p>
+    ${it.prompt ? `<p class="interaction-q">${fmt(it.prompt)}</p>` : ""}
+    ${codeHtml}
+    <div class="interaction-opts">${it.options.map((o, i) => `<button class="iopt" data-i="${i}">${fmt(o)}</button>`).join("")}</div>
+    <p class="interaction-feedback hidden"></p>`;
+
+  let answered = false;
+  wrap.querySelectorAll(".iopt").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (answered) return;                    // commit-before-reveal, one shot to think
+      answered = true;
+      const picked = parseInt(btn.dataset.i, 10);
+      const correct = picked === it.answer;
+      const opts = wrap.querySelectorAll(".iopt");
+      opts[it.answer].classList.add("correct");
+      if (!correct) opts[picked].classList.add("wrong");
+      opts.forEach((b) => (b.disabled = true));
+      const fb = wrap.querySelector(".interaction-feedback");
+      fb.className = "interaction-feedback " + (correct ? "good" : "off");
+      const why = it.explanation ? " " + stripMd(it.explanation) : "";
+      fb.textContent = (correct ? "Right." : "Not quite.") + why;
+    });
+  });
+  return wrap;
+}
+
 function renderLesson(l) {
   currentLesson = l;
   const direct = (l.videos || [])
@@ -803,7 +849,17 @@ function renderLesson(l) {
         href="https://www.youtube.com/results?search_query=${encodeURIComponent(q)}">▶ ${esc(q)}</a>`)
     .join("");
 
-  const sections = (l.sections || []).map((s) => `
+  // choose at most 2 sections to carry an interactive widget
+  const widgetSlots = {};
+  let widgetCount = 0;
+  (l.sections || []).forEach((s, i) => {
+    if (widgetCount < 2 && validInteraction(s.interaction)) {
+      widgetSlots[i] = s.interaction;
+      widgetCount++;
+    }
+  });
+
+  const sections = (l.sections || []).map((s, i) => `
     <div class="card lesson-section">
       <h3>${esc(s.heading)}</h3>
       <div class="analogy">${fmt(s.analogy)}</div>
@@ -812,6 +868,7 @@ function renderLesson(l) {
       <div class="explanation">${fmt(s.explanation)}</div>
       <ul class="keypoints">${(s.key_points || []).map((k) => `<li>${fmt(k)}</li>`).join("")}</ul>
       <div class="tryit">${fmt(s.try_it)}</div>
+      ${widgetSlots[i] ? `<div class="interaction-slot" data-slot="${i}"></div>` : ""}
     </div>`).join("");
 
   $("lessonBody").innerHTML = `
@@ -836,6 +893,12 @@ function renderLesson(l) {
   const done = state.progress[String(l.day)] && state.progress[String(l.day)].completed;
   $("completeCard").style.display = done ? "none" : "";
   $("completeReward").textContent = `REWARD: +${l.is_checkpoint ? 150 : 100} XP`;
+
+  // inject interactive widgets into their slots (need real DOM + handlers)
+  Object.entries(widgetSlots).forEach(([i, it]) => {
+    const slot = $("lessonBody").querySelector(`.interaction-slot[data-slot="${i}"]`);
+    if (slot) slot.appendChild(buildInteraction(it));
+  });
 
   $("askInput").value = "";
   $("explorations").innerHTML = (l.explorations || []).map(explorationHtml).join("");
