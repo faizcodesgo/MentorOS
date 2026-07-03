@@ -64,7 +64,7 @@ Respond with JSON:
       "objectives": ["by the end of this day the student can ...", "..."],
       "topics": ["specific topic", "..."],
       "practice": "one line describing the hands-on work for this day",
-      "resource_queries": ["a YouTube search query for the single best video topic today", "..."],
+      "resource_queries": ["ONLY when a video genuinely helps THIS day (a new visual/complex concept) — omit entirely for pure-practice, revision, or simple days. At most 1 query: the single best topic to search."],
       "est_minutes": <realistic total minutes this day's work takes: watching + reading + coding + practice, close to {hours_per_day} hours ({int(hours_per_day * 60)} min) but varying by how heavy the day is>,
       "is_checkpoint": <true if this day is a revision/assessment checkpoint, else false>
     }}
@@ -82,7 +82,7 @@ Both grade by option index. Keep the explanation genuinely teaching. Max 2 per l
 
 VISUAL_RULES = """"visual": OPTIONAL — omit for most sections/answers. Include ONLY when a picture genuinely teaches better than text (timelines, memory layouts, call stacks, tree/graph structures, comparisons, step processes). Object: {"type": "svg" | "mermaid", "code": "..."}.
 Prefer "svg" — a clean, premium infographic. SVG rules: start with <svg viewBox="0 0 600 380" xmlns="http://www.w3.org/2000/svg"> (height 240-450 as needed), TRANSPARENT background (no full-size background rect), colors ONLY from this palette: #4f8cff (blue, primary), #8b5cf6 (purple, secondary), #facc15 (gold, highlights), #22c55e (green, success), #e6edf3 (text), #8b949e (muted text/arrows), #1c2330 (box fills) with #283042 (box strokes). Use font-family="Inter, sans-serif", text size 13-16, rounded rects (rx="8"), generous spacing, label EVERYTHING clearly, max ~50 elements. No scripts, no images, no links.
-Use "mermaid" only for flowcharts/trees where automatic layout helps: valid Mermaid code, under 10 nodes."""
+STRONGLY PREFER "svg" for hierarchies, comparisons, labeled structures, and anything with descriptive text — you control the layout so it looks clean. Use "mermaid" ONLY for a simple linear flowchart with SHORT node labels (1-3 words each) and NO descriptive side-labels or annotations next to nodes (put any such explanation in the lesson text, never in the diagram — side text overlaps nodes and looks broken). Under 8 nodes."""
 
 
 def ask_prompt(goal, day_entry, learner_profile, question):
@@ -100,12 +100,11 @@ LEARNER PROFILE: {learner_profile}
 THEIR QUESTION:
 {question}
 
-Answer like a great mentor: direct, clear, from first principles, with an analogy if it helps. If the question connects to their goal or today's lesson, point out the connection. If it's completely unrelated, answer it anyway and gently bridge back. Keep it focused — 2 to 5 short paragraphs.
+Answer like a great mentor: direct, clear, from first principles, with an analogy if it helps. If the question connects to their goal or today's lesson, point out the connection. If it's completely unrelated, answer it anyway and gently bridge back. Keep it SHORT and focused — 2 to 4 short paragraphs, no filler.
 
 Respond with JSON:
 {{
-  "answer": "your explanation (may use **bold** and `code`)",
-  {VISUAL_RULES}
+  "answer": "your explanation (may use **bold** and `code`)"
 }}"""
 
 
@@ -135,6 +134,7 @@ Respond with JSON:
       {VISUAL_RULES}
     }}
   ],
+  "resources_note": "ONE short line telling the student HOW to use today's recommended video(s): what to focus on and whether to watch the whole thing or just a part (e.g. 'You only need the first ~15 minutes, on how arrays are stored' or 'Short and worth watching fully'). Omit this field entirely if today has no video worth recommending.",
   "practice": ["hands-on task 1 for today", "..."],
   "homework": ["homework item to complete before tomorrow", "..."],
   "common_mistakes": ["mistake beginners make with today's topics", "..."],

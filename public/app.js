@@ -73,9 +73,23 @@ function toast(msg, ms = 4000) {
   setTimeout(() => el.classList.add("hidden"), ms);
 }
 
+let loadingRotator = null;
 function loading(on, text) {
   $("loading").classList.toggle("hidden", !on);
+  if (loadingRotator) { clearInterval(loadingRotator); loadingRotator = null; }
   if (text) $("loadingText").textContent = text;
+}
+
+/* on the long generation steps, rotate encouraging lines so it feels alive */
+function loadingCycle(messages) {
+  $("loading").classList.remove("hidden");
+  let i = 0;
+  $("loadingText").textContent = messages[0];
+  if (loadingRotator) clearInterval(loadingRotator);
+  loadingRotator = setInterval(() => {
+    i = (i + 1) % messages.length;
+    $("loadingText").textContent = messages[i];
+  }, 2800);
 }
 
 /* quiet reward pill — replaces the old full-screen victory banner */
@@ -721,6 +735,7 @@ function ensureMermaid() {
         mermaid.initialize({
           startOnLoad: false, securityLevel: "strict", suppressErrorRendering: true,
           theme: "base",
+          flowchart: { nodeSpacing: 45, rankSpacing: 50, padding: 14, useMaxWidth: true, htmlLabels: false },
           themeVariables: {
             darkMode: true, background: "#161b22",
             primaryColor: "#1c2330", primaryTextColor: "#e6edf3", primaryBorderColor: "#4f8cff",
@@ -877,7 +892,7 @@ function renderLesson(l) {
       <h1>${esc(l.title)}</h1>
     </div>
     <p class="lesson-intro">${fmt(l.intro)}</p>
-    ${resources ? `<div class="card"><p class="label mono">WATCH (best matches on YouTube)</p>${resources}</div>` : ""}
+    ${resources ? `<div class="card"><p class="label mono">WATCH</p>${l.resources_note ? `<p class="resources-note">${fmt(l.resources_note)}</p>` : ""}${resources}</div>` : ""}
     ${sections}
     <div class="card">
       <p class="label mono">PRACTICE</p>
@@ -937,7 +952,7 @@ $("btnAsk").addEventListener("click", async () => {
   const question = $("askInput").value.trim();
   if (!question) { toast("Type your question first."); return; }
   $("btnAsk").disabled = true;
-  loading(true, "Thinking…");
+  loadingCycle(["Thinking about your question…", "Pulling the threads together…", "Almost there…"]);
   try {
     const item = await api("/api/ask", {
       method: "POST",
