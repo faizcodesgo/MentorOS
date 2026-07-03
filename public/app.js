@@ -1092,9 +1092,12 @@ function renderLesson(l) {
       ${widgetSlots[i] ? `<div class="interaction-slot" data-slot="${i}"></div>` : ""}
     </div>`).join("");
 
+  const lessonEntry = state.plan.curriculum.find((d) => d.day === l.day) || {};
+  const headKicker = lessonEntry.kind === "revision" ? "REVISION"
+    : `DAY ${l.day}${l.is_checkpoint ? " · CHECKPOINT" : ""}`;
   $("lessonBody").innerHTML = `
     <div class="lesson-head">
-      <p class="mono kicker">DAY ${l.day}${l.is_checkpoint ? " · CHECKPOINT" : ""}</p>
+      <p class="mono kicker">${headKicker}</p>
       <h1>${esc(l.title)}</h1>
     </div>
     <p class="lesson-intro">${fmt(l.intro)}</p>
