@@ -63,6 +63,8 @@ function animateXpChip(el, from, to, lv) {
 
 function show(view) {
   views.forEach((v) => $("view-" + v).classList.toggle("hidden", v !== view));
+  $("askFab").classList.toggle("hidden", view !== "lesson");   // floating Ask only in a lesson
+  $("askSheet").classList.add("hidden");
   window.scrollTo(0, 0);
 }
 
@@ -713,6 +715,14 @@ function renderVivaResults(r) {
 }
 
 $("btnVivaDone").addEventListener("click", () => { vivaRun = null; renderDashboard(); show("dashboard"); });
+
+/* floating ask button → bottom sheet */
+$("askFab").addEventListener("click", () => {
+  $("askSheet").classList.remove("hidden");
+  $("askInput").focus();
+});
+$("askClose").addEventListener("click", () => $("askSheet").classList.add("hidden"));
+$("askSheet").addEventListener("click", (e) => { if (e.target === $("askSheet")) $("askSheet").classList.add("hidden"); });
 
 let explainConcept = null;
 $("btnExplain").addEventListener("click", async () => {

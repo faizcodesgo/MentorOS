@@ -274,13 +274,6 @@
       <button class="btn ghost small" id="btnBack">&larr; Back to plan</button>
       <div id="lessonBody"></div>
 
-      <div class="card ask-card">
-        <p class="label mono">CURIOUS? ASK YOUR MENTOR ANYTHING</p>
-        <div id="explorations"></div>
-        <textarea id="askInput" rows="2" placeholder="e.g. Wait — but how did this work before computers existed?"></textarea>
-        <button class="btn primary small" id="btnAsk">Ask</button>
-      </div>
-
       <div class="card complete-card" id="completeCard">
         <h3>Quest complete?</h3>
         <p class="sub">Claim it once you've finished the practice work.</p>
@@ -364,6 +357,24 @@
       <p id="wbBody" class="sub"></p>
       <div class="wb-rewards mono" id="wbRewards"></div>
       <button class="btn primary" id="wbResume">Resume quest</button>
+    </div>
+  </div>
+
+  <!-- floating "ask your mentor" button (shown only during a lesson) -->
+  <button id="askFab" class="ask-fab hidden" aria-label="Ask your mentor">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+    <span>Ask</span>
+  </button>
+
+  <div id="askSheet" class="sheet-scrim hidden">
+    <div class="sheet">
+      <div class="sheet-head">
+        <p class="label">Ask your mentor anything</p>
+        <button class="sheet-x" id="askClose" aria-label="Close">✕</button>
+      </div>
+      <div id="explorations"></div>
+      <textarea id="askInput" rows="2" placeholder="e.g. Wait — how did this work before computers existed?"></textarea>
+      <button class="btn primary small" id="btnAsk">Ask</button>
     </div>
   </div>
 

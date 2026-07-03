@@ -602,6 +602,36 @@ code {
 #btnNextQ { margin-top: 16px; }
 .quiz-combo { text-align: right; margin-top: 10px; color: var(--accent-2); letter-spacing: 0.1em; font-size: 0.8rem; min-height: 1.2em; }
 
+/* ---------- floating ask button + sheet ---------- */
+.ask-fab {
+  position: fixed; right: 18px; bottom: 20px; z-index: 45;
+  display: flex; align-items: center; gap: 8px;
+  background: var(--brand); color: #08111f; border: none; border-radius: 999px;
+  padding: 12px 18px; font: inherit; font-weight: 600; cursor: pointer;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+}
+.ask-fab svg { width: 19px; height: 19px; }
+.ask-fab:active { transform: translateY(1px); }
+
+.sheet-scrim {
+  position: fixed; inset: 0; z-index: 55; display: flex; align-items: flex-end;
+  background: rgba(6, 8, 12, 0.6); animation: viewIn 0.18s ease both;
+}
+.sheet {
+  background: var(--panel); border-top: 1px solid var(--line);
+  border-radius: 16px 16px 0 0; padding: var(--s5); width: 100%;
+  max-height: 82vh; overflow-y: auto; animation: sheetUp 0.24s ease both;
+}
+@media (min-width: 620px) {
+  .sheet-scrim { align-items: center; justify-content: center; }
+  .sheet { max-width: 560px; border-radius: 14px; border: 1px solid var(--line); }
+}
+@keyframes sheetUp { from { transform: translateY(20px); opacity: 0.6; } to { transform: none; opacity: 1; } }
+.sheet-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--s3); }
+.sheet-x { background: none; border: none; color: var(--faint); cursor: pointer; font-size: 0.95rem; padding: 2px 6px; }
+.sheet-x:hover { color: var(--muted); }
+.sheet #askInput { margin-bottom: var(--s3); }
+
 /* ---------- toast & loading ---------- */
 .toast {
   position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%);
