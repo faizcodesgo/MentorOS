@@ -269,10 +269,19 @@
       <div id="undiscovered"></div>
     </section>
 
-    <!-- ============ LESSON ============ -->
+    <!-- ============ LESSON (stepped) ============ -->
     <section id="view-lesson" class="view hidden">
       <button class="btn ghost small" id="btnBack">&larr; Back to plan</button>
-      <div id="lessonBody"></div>
+      <div id="lessonHead"></div>
+      <div class="step-progress">
+        <div class="step-bar"><div class="step-bar-fill" id="stepBarFill"></div></div>
+        <span class="step-count mono" id="stepCount"></span>
+      </div>
+      <div id="stepContent"></div>
+      <div class="step-nav" id="stepNav">
+        <button class="btn ghost small" id="btnStepBack">&larr; Back</button>
+        <button class="btn primary" id="btnStepNext">Next</button>
+      </div>
 
       <div class="card complete-card" id="completeCard">
         <h3>Quest complete?</h3>

@@ -208,6 +208,16 @@ input:focus, textarea:focus { outline: none; border-color: var(--brand); box-sha
 
 #btnReset { margin-top: 26px; }
 
+/* ---------- stepped lesson ---------- */
+.step-progress { display: flex; align-items: center; gap: var(--s3); margin: var(--s3) 0 var(--s4); }
+.step-bar { flex: 1; height: 3px; background: var(--line); border-radius: 999px; overflow: hidden; }
+.step-bar-fill { height: 100%; background: var(--brand); border-radius: 999px; transition: width 0.3s ease; }
+.step-count { font-size: 0.75rem; color: var(--muted); white-space: nowrap; }
+.step-nav { display: flex; justify-content: space-between; align-items: center; gap: var(--s3); margin: var(--s4) 0 var(--s6); }
+.step-nav .btn.primary { min-width: 120px; }
+#stepContent.step-in { animation: stepIn 0.2s ease both; }
+@keyframes stepIn { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: none; } }
+
 /* ---------- lesson ---------- */
 #view-lesson { padding-top: 10px; }
 .lesson-head { margin: 18px 0 6px; }

@@ -1062,8 +1062,19 @@ function buildInteraction(it) {
   return wrap;
 }
 
+let lessonSteps = [];
+let stepIdx = 0;
+
 function renderLesson(l) {
   currentLesson = l;
+
+  // header (rendered once, fixed across steps)
+  const lessonEntry = state.plan.curriculum.find((d) => d.day === l.day) || {};
+  const headKicker = lessonEntry.kind === "revision" ? "REVISION"
+    : `DAY ${l.day}${l.is_checkpoint ? " · CHECKPOINT" : ""}`;
+  $("lessonHead").innerHTML = `<p class="mono kicker">${headKicker}</p><h1>${esc(l.title)}</h1>`;
+
+  // videos / watch links
   const direct = (l.videos || [])
     .map((v) => `<a class="resource-link" target="_blank" rel="noopener" href="${esc(v.url)}">▶ ${esc(v.title)} <span class="channel">· ${esc(v.channel)}</span></a>`)
     .join("");
@@ -1072,23 +1083,48 @@ function renderLesson(l) {
         href="https://www.youtube.com/results?search_query=${encodeURIComponent(q)}">▶ ${esc(q)}</a>`)
     .join("");
 
-  // choose at most 2 sections to carry an interactive widget
+  // at most 2 sections carry an interactive widget
   const widgetSlots = {};
   let widgetCount = 0;
   (l.sections || []).forEach((s, i) => {
-    if (widgetCount < 2 && validInteraction(s.interaction)) {
-      widgetSlots[i] = s.interaction;
-      widgetCount++;
-    }
+    if (widgetCount < 2 && validInteraction(s.interaction)) { widgetSlots[i] = s.interaction; widgetCount++; }
   });
 
-  const marked = (day) => (state.bookmarks || []).some((m) => m.day === l.day && m.sectionIndex === day);
-  const sections = (l.sections || []).map((s, i) => `
-    <div class="card lesson-section">
+  // build the step list: intro(+watch) → each section → practice bundle → summary
+  lessonSteps = [];
+  lessonSteps.push({ kind: "intro", html:
+    `<p class="lesson-intro">${fmt(l.intro)}</p>` +
+    (resources ? `<div class="card"><p class="label mono">WATCH</p>${l.resources_note ? `<p class="resources-note">${fmt(l.resources_note)}</p>` : ""}${resources}</div>` : "")
+  });
+  (l.sections || []).forEach((s, i) => lessonSteps.push({ kind: "section", i, s, widget: widgetSlots[i], html: sectionHtml(l, s, i) }));
+  lessonSteps.push({ kind: "practice", html:
+    `<div class="card">
+      <p class="label mono">PRACTICE</p>
+      <ul class="plain-list">${(l.practice || []).map((p) => `<li>${fmt(p)}</li>`).join("")}</ul>
+      <p class="label mono" style="margin-top:14px">HOMEWORK</p>
+      <ul class="plain-list">${(l.homework || []).map((h) => `<li>${fmt(h)}</li>`).join("")}</ul>
+      <p class="label mono" style="margin-top:14px">COMMON MISTAKES</p>
+      <ul class="plain-list">${(l.common_mistakes || []).map((m) => `<li>${fmt(m)}</li>`).join("")}</ul>
+    </div>`
+  });
+  lessonSteps.push({ kind: "summary", html: `<div class="card"><p class="label mono">SUMMARY</p><p>${fmt(l.summary)}</p></div>` });
+
+  const done = state.progress[String(l.day)] && state.progress[String(l.day)].completed;
+  $("completeReward").textContent = `REWARD: +${l.is_checkpoint ? 150 : 100} XP`;
+  $("askInput").value = "";
+  $("explorations").innerHTML = (l.explorations || []).map(explorationHtml).join("");
+
+  stepIdx = 0;
+  renderStep();
+}
+
+function sectionHtml(l, s, i) {
+  const marked = (state.bookmarks || []).some((m) => m.day === l.day && m.sectionIndex === i);
+  return `<div class="card lesson-section">
       <div class="section-head">
         <h3>${esc(s.heading)}</h3>
-        <button class="bookmark-btn ${marked(i) ? "on" : ""}" data-sec="${i}" data-heading="${escAttr(s.heading)}" title="Save this section" aria-label="Save section">
-          <svg viewBox="0 0 24 24" fill="${marked(i) ? "currentColor" : "none"}" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+        <button class="bookmark-btn ${marked ? "on" : ""}" data-sec="${i}" data-heading="${escAttr(s.heading)}" aria-label="Save section">
+          <svg viewBox="0 0 24 24" fill="${marked ? "currentColor" : "none"}" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
         </button>
       </div>
       ${s.probe ? `<div class="probe">${fmt(s.probe)}</div>` : ""}
@@ -1099,62 +1135,56 @@ function renderLesson(l) {
       ${s.worked_example ? `<div class="worked"><p class="label">Worked example</p><div class="worked-body">${fmt(s.worked_example)}</div></div>` : ""}
       <ul class="keypoints">${(s.key_points || []).map((k) => `<li>${fmt(k)}</li>`).join("")}</ul>
       <div class="tryit">${fmt(s.try_it)}</div>
-      ${widgetSlots[i] ? `<div class="interaction-slot" data-slot="${i}"></div>` : ""}
-    </div>`).join("");
+      ${s.interaction && validInteraction(s.interaction) ? `<div class="interaction-slot" data-slot="${i}"></div>` : ""}
+    </div>`;
+}
 
-  const lessonEntry = state.plan.curriculum.find((d) => d.day === l.day) || {};
-  const headKicker = lessonEntry.kind === "revision" ? "REVISION"
-    : `DAY ${l.day}${l.is_checkpoint ? " · CHECKPOINT" : ""}`;
-  $("lessonBody").innerHTML = `
-    <div class="lesson-head">
-      <p class="mono kicker">${headKicker}</p>
-      <h1>${esc(l.title)}</h1>
-    </div>
-    <p class="lesson-intro">${fmt(l.intro)}</p>
-    ${resources ? `<div class="card"><p class="label mono">WATCH</p>${l.resources_note ? `<p class="resources-note">${fmt(l.resources_note)}</p>` : ""}${resources}</div>` : ""}
-    ${sections}
-    <div class="card">
-      <p class="label mono">PRACTICE</p>
-      <ul class="plain-list">${(l.practice || []).map((p) => `<li>${fmt(p)}</li>`).join("")}</ul>
-      <p class="label mono" style="margin-top:14px">HOMEWORK</p>
-      <ul class="plain-list">${(l.homework || []).map((h) => `<li>${fmt(h)}</li>`).join("")}</ul>
-      <p class="label mono" style="margin-top:14px">COMMON MISTAKES</p>
-      <ul class="plain-list">${(l.common_mistakes || []).map((m) => `<li>${fmt(m)}</li>`).join("")}</ul>
-    </div>
-    <div class="card"><p class="label mono">SUMMARY</p><p>${fmt(l.summary)}</p></div>
-  `;
-
+function renderStep() {
+  const l = currentLesson;
+  const step = lessonSteps[stepIdx];
+  const last = stepIdx === lessonSteps.length - 1;
   const done = state.progress[String(l.day)] && state.progress[String(l.day)].completed;
-  $("completeCard").style.display = done ? "none" : "";
-  $("completeReward").textContent = `REWARD: +${l.is_checkpoint ? 150 : 100} XP`;
 
-  // inject interactive widgets into their slots (need real DOM + handlers)
-  Object.entries(widgetSlots).forEach(([i, it]) => {
-    const slot = $("lessonBody").querySelector(`.interaction-slot[data-slot="${i}"]`);
-    if (slot) slot.appendChild(buildInteraction(it));
-  });
+  const cont = $("stepContent");
+  cont.innerHTML = step.html;
+  cont.classList.remove("step-in"); void cont.offsetWidth; cont.classList.add("step-in");
 
-  // bookmark stars
-  $("lessonBody").querySelectorAll(".bookmark-btn").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const sec = parseInt(btn.dataset.sec, 10);
+  // progress
+  $("stepBarFill").style.width = `${((stepIdx + 1) / lessonSteps.length) * 100}%`;
+  $("stepCount").textContent = `${stepIdx + 1} / ${lessonSteps.length}`;
+
+  // nav
+  $("btnStepBack").style.visibility = stepIdx === 0 ? "hidden" : "visible";
+  $("btnStepNext").style.display = last ? "none" : "";
+  $("completeCard").style.display = last && !done ? "" : "none";
+
+  // wire this step's dynamic bits
+  if (step.kind === "section") {
+    if (step.widget) {
+      const slot = cont.querySelector(`.interaction-slot[data-slot="${step.i}"]`);
+      if (slot) slot.appendChild(buildInteraction(step.widget));
+    }
+    const btn = cont.querySelector(".bookmark-btn");
+    if (btn) btn.addEventListener("click", async () => {
       try {
-        const r = await api("/api/bookmark/toggle", {
-          method: "POST",
-          body: JSON.stringify({ day: l.day, sectionIndex: sec, heading: btn.dataset.heading }),
-        });
+        const r = await api("/api/bookmark/toggle", { method: "POST",
+          body: JSON.stringify({ day: l.day, sectionIndex: step.i, heading: btn.dataset.heading }) });
         btn.classList.toggle("on", r.saved);
         btn.querySelector("svg").setAttribute("fill", r.saved ? "currentColor" : "none");
         state = await api("/api/state");
       } catch (err) { toast(err.message); }
     });
-  });
+    renderDiagrams(cont);   // render on reveal (offscreen diagrams render blank)
+  }
 
-  $("askInput").value = "";
-  $("explorations").innerHTML = (l.explorations || []).map(explorationHtml).join("");
-  renderBossCard(l, done);
-  renderDiagrams();
+  // checkpoint offer lives on the last step
+  if (last) renderBossCard(l, done); else $("bossCard").classList.add("hidden");
+
+  window.scrollTo(0, 0);
 }
+
+$("btnStepNext").addEventListener("click", () => { if (stepIdx < lessonSteps.length - 1) { stepIdx++; renderStep(); } });
+$("btnStepBack").addEventListener("click", () => { if (stepIdx > 0) { stepIdx--; renderStep(); } });
 
 /* Boss Check offer/result card at the bottom of a lesson */
 function renderBossCard(l, done) {
