@@ -121,6 +121,23 @@ Prefer "svg" — a clean, premium infographic. SVG rules: start with <svg viewBo
 STRONGLY PREFER "svg" for hierarchies, comparisons, labeled structures, and anything with descriptive text — you control the layout so it looks clean. Use "mermaid" ONLY for a simple linear flowchart with SHORT node labels (1-3 words each) and NO descriptive side-labels or annotations next to nodes (put any such explanation in the lesson text, never in the diagram — side text overlaps nodes and looks broken). Under 8 nodes."""
 
 
+def warmup_generate_prompt(goal, topics, avoid_questions):
+    avoid = ""
+    if avoid_questions:
+        avoid = "\nNEVER repeat these already-asked questions (or close paraphrases): " + " | ".join(avoid_questions[-40:])
+    return f"""Write a short spaced-review warm-up: {len(topics)} quick multiple-choice questions that RETEST these already-learned topics (fresh questions, testing the SAME concepts a different way so the student re-derives rather than remembers): {topics}.
+
+Goal context: {goal}.{avoid}
+
+Respond with JSON:
+{{
+  "questions": [
+    {{"q": "the question (may include `code`)", "options": ["3-4 short options"], "answer": <0-based index of the correct option>, "topic": "which topic this retests"}}
+  ]
+}}
+Rules: exactly {len(topics)} questions, one per topic in order. Genuinely new wording, plausible distractors, vary the correct option's position."""
+
+
 def interview_generate_prompt(goal, chapter_name, topics):
     return f"""Create a short MOCK INTERVIEW (viva) for a student who just finished a chapter of study. It should feel like a real interviewer for their goal: a mix of understanding and applied reasoning.
 
@@ -196,7 +213,11 @@ Respond with JSON:
 }}"""
 
 
-def lesson_prompt(goal, hours_per_day, day_entry, learner_profile):
+def lesson_prompt(goal, hours_per_day, day_entry, learner_profile, progression="", avoid_questions=None):
+    avoid = ""
+    if avoid_questions:
+        joined = " | ".join(avoid_questions[-40:])
+        avoid = f"\nQUESTIONS ALREADY ASKED (never repeat these or close paraphrases — write genuinely NEW ones): {joined}"
     return f"""Generate today's full lesson for this student.
 
 GOAL: {goal} (~{hours_per_day} hours today)
@@ -204,6 +225,7 @@ TODAY (Day {day_entry['day']}): {day_entry['title']}
 Objectives: {day_entry['objectives']}
 Topics: {day_entry['topics']}
 Checkpoint day: {day_entry.get('is_checkpoint', False)}
+{progression}{avoid}
 
 LEARNER PROFILE (adapt your teaching to this, including their class):
 {learner_profile}
@@ -232,4 +254,4 @@ Respond with JSON:
   ]
 }}
 Rules: one section per major topic (3-6 sections). If it is a checkpoint day, sections should be revision-style (recall prompts, self-test questions) instead of new content.
-Quiz rules: exactly 5 questions testing TODAY's topics only — 2 recall, 2 application, 1 code-reading ("what does this print/do") if the goal involves programming, otherwise a 3rd application question. Plausible distractors, exactly one correct option, vary the position of the correct answer, never make the longest option the correct one."""
+Quiz rules: exactly 5 questions testing TODAY's topics only — 2 recall, 2 application, 1 code-reading ("what does this print/do") if the goal involves programming, otherwise a 3rd application question. Plausible distractors, exactly one correct option, vary the position of the correct answer, never make the longest option the correct one. SCALE the difficulty to the PROGRESSION above — later in the plan and for a student who is doing well, make questions harder and more interview-like. NEVER reuse a question the student has already seen; write fresh ones."""

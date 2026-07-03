@@ -161,14 +161,30 @@ def get_lesson(day):
         f"{prompts.mentor_memory(profile, state.get('dna'), days_in=done_count + 1, streak=state.get('streak'))} "
         f"{dna_engine.summary_for_prompt(state.get('dna'))}"
     )
+    # difficulty ramps with progress and with how well they're doing
+    total = plan.get("days", 1)
+    avg = round((state.get("dna") or {}).get("overall_mastery", 0) * 100)
+    progression = (
+        f"PROGRESSION: day {entry['day']} of {total}. Ramp difficulty as the plan advances — "
+        f"early days build foundations, later days get harder and more interview-like. "
+        f"Their overall quiz mastery so far is {avg}% — if high (>80%), push harder; if low (<50%), reinforce fundamentals first."
+    )
     lesson = gemini.ask_json(
         prompts.MENTOR_PERSONA,
-        prompts.lesson_prompt(plan["goal"], plan["hours_per_day"], entry, profile_text),
+        prompts.lesson_prompt(plan["goal"], plan["hours_per_day"], entry, profile_text,
+                              progression=progression, avoid_questions=state.get("asked_questions", [])),
     )
     lesson["day"] = day
     lesson["title"] = entry["title"]
     lesson["resource_queries"] = entry.get("resource_queries", [])
     lesson["is_checkpoint"] = entry.get("is_checkpoint", False)
+
+    # remember every quiz question so it's never asked again (cap the list)
+    asked = state.setdefault("asked_questions", [])
+    for q in lesson.get("quiz") or []:
+        if q.get("q"):
+            asked.append(q["q"])
+    state["asked_questions"] = asked[-200:]
 
     # Direct video links via YouTube API (cached with the lesson); falls back
     # to search links in the UI when empty.
@@ -315,29 +331,50 @@ def _current_order(state):
 
 @app.get("/api/warmup")
 def warmup():
-    """Today's spaced-review warm-up: a few earlier questions, misconceptions
-    first. Optional — never gates the lesson. Shuffled so answers aren't memorized."""
+    """Cheap check (no AI): is a warm-up due today? The questions are generated
+    only when the student taps Start (/api/warmup/start)."""
+    state = storage.load_state()
+    if not state.get("plan"):
+        return jsonify({"available": False})
+    today = int(_current_order(state))
+    if (state.get("reviews") or {}).get("done_upto", 0) >= today:
+        return jsonify({"available": False, "done": True})
+    items = review_engine.due_items(state, today, limit=3)
+    return jsonify({"available": bool(items), "count": len(items)})
+
+
+@app.post("/api/warmup/start")
+def warmup_start():
+    """Generate FRESH questions for today's due topics (1 AI call, never repeats)."""
     state = storage.load_state()
     if not state.get("plan"):
         return jsonify({"questions": []})
     today = int(_current_order(state))
-    if (state.get("reviews") or {}).get("done_upto", 0) >= today:
-        return jsonify({"questions": [], "done": True})   # already done today
-
     items = review_engine.due_items(state, today, limit=3)
-    questions = []
-    for it in items:
-        q = review_engine.resolve(state, it)
-        if not q:
+    if not items:
+        return jsonify({"questions": []})
+    topics = [it["topic"] or "review" for it in items]
+
+    try:
+        gen = gemini.ask_json(prompts.MENTOR_PERSONA,
+                              prompts.warmup_generate_prompt(state["plan"].get("goal", ""),
+                                                             topics, state.get("asked_questions", [])))
+        fresh = gen.get("questions", [])
+    except Exception:
+        return jsonify({"questions": []})   # skip warm-up rather than break the day
+
+    questions, asked = [], state.setdefault("asked_questions", [])
+    for it, q in zip(items, fresh):
+        if not q.get("q") or not isinstance(q.get("options"), list) or len(q["options"]) < 2:
             continue
-        # shuffle options deterministically (no Math.random in this env for the
-        # server) — rotate by the source day so it differs from the original
-        opts = q["options"]
-        shift = (it["ref"][0] + it["ref"][1]) % max(len(opts), 1)
-        rotated = opts[shift:] + opts[:shift]
-        new_answer = (q["answer"] - shift) % len(opts) if opts else 0
-        questions.append({"ref": q["ref"], "topic": q["topic"], "q": q["q"],
-                          "options": rotated, "answer": new_answer})
+        ans = q.get("answer", 0)
+        if not isinstance(ans, int) or ans < 0 or ans >= len(q["options"]):
+            ans = 0
+        questions.append({"ref": it["ref"], "topic": it["topic"],
+                          "q": q["q"], "options": q["options"], "answer": ans})
+        asked.append(q["q"])
+    state["asked_questions"] = asked[-200:]
+    storage.save_state(state)
     return jsonify({"questions": questions, "today": today})
 
 

@@ -733,20 +733,26 @@ async function loadWarmup() {
   $("warmupCard").classList.add("hidden");
   $("warmupDone").classList.add("hidden");
   let data;
-  try { data = await api("/api/warmup"); } catch { return; }
+  try { data = await api("/api/warmup"); } catch { return; }   // cheap check, no AI
   if (data.done) {
     $("warmupDone").innerHTML = `<span class="check">✓</span> Warm-up done`;
     $("warmupDone").classList.remove("hidden");
     return;
   }
-  if (!data.questions || !data.questions.length) return;  // nothing due yet
-  warmupRun = { questions: data.questions, idx: 0, results: [], picked: null };
-  $("warmupSub").textContent = `${data.questions.length} quick recall${data.questions.length > 1 ? "s" : ""} from earlier days · +15 XP`;
+  if (!data.available) return;  // nothing due yet
+  $("warmupSub").textContent = `${data.count} quick recall${data.count > 1 ? "s" : ""} on earlier topics · +15 XP`;
   $("warmupCard").classList.remove("hidden");
   $("btnWarmup").onclick = startWarmup;
 }
 
-function startWarmup() {
+async function startWarmup() {
+  loadingCycle(["Setting up your warm-up…", "Fresh questions, not repeats…"]);
+  let data;
+  try { data = await api("/api/warmup/start", { method: "POST" }); }
+  catch (err) { loading(false); toast(err.message); return; }
+  loading(false);
+  if (!data.questions || !data.questions.length) { toast("No warm-up due right now."); return; }
+  warmupRun = { questions: data.questions, idx: 0, results: [], picked: null };
   $("quizDay").textContent = "warm-up";
   document.querySelector("#view-quiz .kicker").textContent = "Warm-up · quick recall";
   show("quiz");

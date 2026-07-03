@@ -27,7 +27,7 @@ def _collection():
     return _mongo
 
 
-SCHEMA = 6
+SCHEMA = 7
 
 
 def load_state():
@@ -72,6 +72,9 @@ def _migrate(state):
         state["profile"].setdefault("name", "")
     state.setdefault("today_goal", {"date": None, "text": ""})
 
+    # v7: remember every question asked so none is ever repeated
+    state.setdefault("asked_questions", [])
+
     state["schema"] = SCHEMA
     return state
 
@@ -100,6 +103,7 @@ def _empty_state():
         "reviews": {"queue": [], "done_upto": 0},  # spaced-review ladder for warm-ups
         "bookmarks": [],       # learner-flagged lesson sections [{day, sectionIndex, heading}]
         "today_goal": {"date": None, "text": ""},  # today's implementation intention
+        "asked_questions": [],  # every question text asked, so none repeats
         "profile": {           # Learning DNA — grows over time
             "level_notes": "",
             "name": "",        # the learner's first name (used sparingly, for familiarity)
