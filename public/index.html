@@ -189,6 +189,7 @@
         <p id="chapterBody" class="sub"></p>
         <div id="chapterSolid" class="recap-chips"></div>
         <p id="chapterNext" class="chapter-next"></p>
+        <button class="btn primary small" id="btnStartViva" style="margin-top:14px">Try the mock interview</button>
       </div>
       <div class="recap-head">
         <p class="mono kicker" id="recapKicker">Day recap</p>
@@ -208,6 +209,30 @@
         <textarea id="explainInput" rows="3" placeholder="In a line or two, in your own words…"></textarea>
         <div id="explainFeedback" class="explain-feedback hidden"></div>
         <button class="btn ghost small" id="btnExplain">Check my understanding</button>
+      </div>
+    </section>
+
+    <!-- ============ MOCK INTERVIEW (VIVA) ============ -->
+    <section id="view-viva" class="view hidden">
+      <div class="viva-head">
+        <p class="mono kicker">Mock interview</p>
+        <p class="quiz-dots mono" id="vivaDots"></p>
+      </div>
+
+      <div id="vivaAsk">
+        <div class="card viva-card">
+          <p class="viva-kind mono" id="vivaKind"></p>
+          <p class="viva-q" id="vivaQ"></p>
+          <textarea id="vivaInput" rows="5" placeholder="Answer like you would in a real interview — a few sentences."></textarea>
+          <button class="btn primary" id="btnVivaNext">Next</button>
+          <button class="btn ghost small" id="btnVivaQuit">Leave interview</button>
+        </div>
+      </div>
+
+      <div id="vivaResults" class="hidden">
+        <div class="card viva-overall" id="vivaOverall"></div>
+        <div id="vivaResultList"></div>
+        <button class="btn primary" id="btnVivaDone">Back to dashboard</button>
       </div>
     </section>
 

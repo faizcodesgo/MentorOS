@@ -396,6 +396,26 @@ code {
 .sdot.weak { background: transparent; border: 2px solid var(--accent-2); }
 .sdot.new { background: transparent; border: 2px solid var(--line); }
 
+/* ---------- mock interview (viva) ---------- */
+.viva-head { display: flex; justify-content: space-between; align-items: center; margin: 18px 0 6px; }
+.viva-kind { color: var(--muted); font-size: 0.75rem; letter-spacing: 0.04em; margin-bottom: var(--s2); }
+.viva-q { font-size: 1.15rem; font-weight: 600; line-height: 1.45; margin-bottom: var(--s4); }
+#vivaInput { margin-bottom: var(--s4); }
+.viva-card .btn.primary { width: 100%; margin-bottom: var(--s2); }
+.viva-card .btn.ghost { width: 100%; }
+.viva-overall { border-left: 3px solid var(--brand); }
+.viva-overall-text { line-height: 1.6; margin-top: var(--s1); }
+.viva-result { border-left: 3px solid var(--line); }
+.viva-result.strong { border-left-color: var(--good); }
+.viva-result.shaky { border-left-color: var(--warn); }
+.viva-rq { font-weight: 600; margin-bottom: var(--s3); }
+.vr-good { color: var(--good); margin-bottom: var(--s2); line-height: 1.5; }
+.vr-tighten { color: var(--ink); margin-bottom: var(--s2); line-height: 1.5; }
+.vr-model { margin-top: var(--s2); }
+.vr-model summary { color: var(--muted); font-size: 0.85rem; cursor: pointer; }
+.vr-model p { color: var(--muted); margin-top: var(--s2); line-height: 1.55; }
+#btnVivaDone { width: 100%; margin-top: var(--s3); }
+
 /* ---------- bookmarks ---------- */
 .section-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s3); }
 .section-head h3 { margin-bottom: 10px; }

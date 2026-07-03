@@ -1,7 +1,7 @@
 /* MentorOS frontend — plain JS, no framework. */
 
 const $ = (id) => document.getElementById(id);
-const views = ["onboarding", "negotiate", "generating", "dashboard", "lesson", "quiz", "skills", "recap"];
+const views = ["onboarding", "negotiate", "generating", "dashboard", "lesson", "quiz", "skills", "recap", "viva"];
 
 let state = null;          // slim server state (plan + progress + profile + xp)
 let negotiation = null;    // last /api/negotiate result
@@ -556,6 +556,8 @@ async function openRecap(day, opts = {}) {
   // chapter block only when a chapter just wrapped
   const chap = opts.chapterEnd ? phaseOfDay(day) : null;
   if (chap) {
+    vivaChapter = chap.index;
+    $("btnStartViva").onclick = () => startViva(chap.index);
     $("chapterBlock").classList.remove("hidden");
     $("chapterTitle").textContent = chap.phase.name;
     $("chapterBody").textContent = `Chapter ${chap.index + 1} done — days ${chap.startDay}–${chap.endDay}. ${chap.phase.focus || ""}`;
@@ -574,6 +576,80 @@ async function openRecap(day, opts = {}) {
 }
 
 $("btnRecapBack").addEventListener("click", () => { renderDashboard(); show("dashboard"); });
+
+/* ---------- mock interview (viva) ---------- */
+
+let vivaChapter = 0;
+let vivaRun = null; // {questions, idx, answers}
+
+async function startViva(chapter) {
+  loadingCycle(["Setting up your interview…", "Thinking up good questions…"]);
+  try {
+    const r = await api("/api/interview/start", { method: "POST", body: JSON.stringify({ chapter }) });
+    loading(false);
+    if (!r.questions || !r.questions.length) { toast("Couldn't set up the interview — try again."); return; }
+    vivaRun = { chapter, questions: r.questions, idx: 0, answers: [] };
+    $("vivaAsk").classList.remove("hidden");
+    $("vivaResults").classList.add("hidden");
+    show("viva");
+    renderVivaQ();
+  } catch (err) { loading(false); toast(err.message, 6000); }
+}
+
+function renderVivaQ() {
+  const { questions, idx } = vivaRun;
+  const q = questions[idx];
+  $("vivaDots").textContent = questions.map((_, i) => i < idx ? "●" : i === idx ? "◉" : "○").join(" ");
+  $("vivaKind").textContent = (q.kind === "applied" ? "Applied" : "Theory") + ` · Question ${idx + 1} of ${questions.length}`;
+  $("vivaQ").innerHTML = fmt(q.q);
+  $("vivaInput").value = "";
+  $("btnVivaNext").textContent = idx === questions.length - 1 ? "Finish & get feedback" : "Next question";
+  $("vivaInput").focus();
+}
+
+$("btnVivaNext").addEventListener("click", async () => {
+  const q = vivaRun.questions[vivaRun.idx];
+  vivaRun.answers.push({ id: q.id, text: $("vivaInput").value.trim() });
+  if (vivaRun.idx < vivaRun.questions.length - 1) {
+    vivaRun.idx++;
+    renderVivaQ();
+    return;
+  }
+  loadingCycle(["Reviewing your interview…", "Weighing each answer…", "Writing your feedback…"]);
+  try {
+    const r = await api("/api/interview/submit", {
+      method: "POST",
+      body: JSON.stringify({ chapter: vivaRun.chapter, answers: vivaRun.answers }),
+    });
+    state = await api("/api/state");
+    loading(false);
+    renderVivaResults(r);
+  } catch (err) { loading(false); toast(err.message, 6000); }
+});
+
+$("btnVivaQuit").addEventListener("click", () => {
+  if (!confirm("Leave the interview? Your answers won't be saved.")) return;
+  vivaRun = null; renderDashboard(); show("dashboard");
+});
+
+function renderVivaResults(r) {
+  $("vivaAsk").classList.add("hidden");
+  $("vivaResults").classList.remove("hidden");
+  $("vivaDots").textContent = "";
+  $("vivaOverall").innerHTML = `<p class="label">How you did</p><p class="viva-overall-text">${fmt(r.overall || "")}</p>`;
+  const qById = {};
+  vivaRun.questions.forEach((q) => (qById[q.id] = q.q));
+  $("vivaResultList").innerHTML = (r.results || []).map((res) => `
+    <div class="card viva-result ${esc(res.verdict || "okay")}">
+      <p class="viva-rq">${fmt(qById[res.id] || "")}</p>
+      <p class="vr-good">✓ ${esc(res.whats_good || "")}</p>
+      ${res.tighten ? `<p class="vr-tighten">→ ${esc(res.tighten)}</p>` : ""}
+      ${res.model_answer ? `<details class="vr-model"><summary>Model answer</summary><p>${fmt(res.model_answer)}</p></details>` : ""}
+    </div>`).join("");
+  rewardPill("Mock interview complete", `+${r.xp_gained} XP`);
+}
+
+$("btnVivaDone").addEventListener("click", () => { vivaRun = null; renderDashboard(); show("dashboard"); });
 
 let explainConcept = null;
 $("btnExplain").addEventListener("click", async () => {

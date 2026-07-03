@@ -85,6 +85,42 @@ Prefer "svg" — a clean, premium infographic. SVG rules: start with <svg viewBo
 STRONGLY PREFER "svg" for hierarchies, comparisons, labeled structures, and anything with descriptive text — you control the layout so it looks clean. Use "mermaid" ONLY for a simple linear flowchart with SHORT node labels (1-3 words each) and NO descriptive side-labels or annotations next to nodes (put any such explanation in the lesson text, never in the diagram — side text overlaps nodes and looks broken). Under 8 nodes."""
 
 
+def interview_generate_prompt(goal, chapter_name, topics):
+    return f"""Create a short MOCK INTERVIEW (viva) for a student who just finished a chapter of study. It should feel like a real interviewer for their goal: a mix of understanding and applied reasoning.
+
+GOAL: {goal}
+CHAPTER: {chapter_name}
+TOPICS COVERED: {topics}
+
+Respond with JSON:
+{{
+  "questions": [
+    {{"id": 1, "kind": "theory" | "applied", "q": "the interview question (conversational, like a real interviewer)", "model_answer": "a concise strong answer", "rubric": "the 2-3 things a good answer must include"}}
+  ]
+}}
+Rules: exactly 4 questions on THIS chapter's topics only. Mix theory ("explain X", "why does Y matter") and applied ("how would you use X to do Z", "what happens if..."). Real-interview tone. Keep each question answerable in a few sentences of typing."""
+
+
+def interview_grade_prompt(goal, graded_items):
+    lines = []
+    for it in graded_items:
+        lines.append(f'Q{it["id"]} ({it["q"]}) | expected: {it["rubric"]} | student said: "{it["text"]}"')
+    joined = "\n".join(lines)
+    return f"""You are a supportive but honest interviewer grading a mock interview for: {goal}. For EACH answer give rewards-only, useful feedback — what landed and the one thing to tighten. Never harsh, but specific enough to actually improve. If an answer is blank or off-topic, gently note what a good answer would cover.
+
+ANSWERS:
+{joined}
+
+Respond with JSON:
+{{
+  "results": [
+    {{"id": <question id>, "verdict": "strong" | "okay" | "shaky", "whats_good": "1 sentence on what landed (or what a good answer needs, if blank)", "tighten": "1 sentence on the single thing to sharpen"}}
+  ],
+  "overall": "2 sentences of encouraging, honest overall feedback — how they'd do in a real interview and what to focus on next."
+}}
+Rules: one result per answer, same ids. Encouraging tone, real substance."""
+
+
 def grade_prompt(question, reference, learner_text):
     return f"""The student explained a concept in their own words. Assess it like a supportive mentor — ADDITIVE feedback, never a grade or score. Point out what they got right, then the ONE most important thing to add or correct. Be specific and brief.
 

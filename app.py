@@ -506,6 +506,80 @@ def pace_check():
     })
 
 
+@app.post("/api/interview/start")
+def interview_start():
+    """Generate (and cache) a mock-interview question set for a chapter. 1 AI call."""
+    body = request.get_json(force=True)
+    chapter = int(body.get("chapter", 0))
+    state = storage.load_state()
+    plan = state.get("plan") or {}
+    interviews = state.setdefault("interviews", {})
+
+    cached = interviews.get(str(chapter))
+    if cached and cached.get("questions"):
+        # don't leak model answers/rubric to the client
+        qs = [{"id": q["id"], "kind": q.get("kind", "theory"), "q": q["q"]} for q in cached["questions"]]
+        return jsonify({"questions": qs, "done": bool(cached.get("results"))})
+
+    phases = plan.get("phases", [])
+    if chapter >= len(phases):
+        return jsonify({"error": "No such chapter."}), 404
+    cum = sum(p["days"] for p in phases[:chapter])
+    end = cum + phases[chapter]["days"]
+    topics = []
+    for d in plan.get("curriculum", []):
+        if d.get("kind") != "revision" and cum < d["day"] <= end:
+            topics.extend(d.get("topics", []))
+    topics = sorted(set(topics))
+
+    result = gemini.ask_json(
+        prompts.MENTOR_PERSONA,
+        prompts.interview_generate_prompt(plan.get("goal", ""), phases[chapter]["name"], topics),
+    )
+    questions = result.get("questions", [])
+    interviews[str(chapter)] = {"questions": questions, "results": None}
+    storage.save_state(state)
+    qs = [{"id": q["id"], "kind": q.get("kind", "theory"), "q": q["q"]} for q in questions]
+    return jsonify({"questions": qs, "done": False})
+
+
+@app.post("/api/interview/submit")
+def interview_submit():
+    """Batch-grade a completed mock interview. 1 AI call, rewards-only."""
+    body = request.get_json(force=True)
+    chapter = int(body.get("chapter", 0))
+    answers = body.get("answers", [])   # [{id, text}]
+    state = storage.load_state()
+    interviews = state.setdefault("interviews", {})
+    iv = interviews.get(str(chapter))
+    if not iv or not iv.get("questions"):
+        return jsonify({"error": "Start the interview first."}), 400
+
+    by_id = {a["id"]: (a.get("text") or "").strip()[:800] for a in answers}
+    graded_items = [{"id": q["id"], "q": q["q"], "rubric": q.get("rubric", ""),
+                     "text": by_id.get(q["id"], "")} for q in iv["questions"]]
+    try:
+        graded = gemini.ask_json(prompts.MENTOR_PERSONA,
+                                 prompts.interview_grade_prompt(state["plan"].get("goal", ""), graded_items))
+    except Exception:
+        graded = {"results": [{"id": it["id"], "verdict": "okay",
+                               "whats_good": "You showed up and gave it a real go.",
+                               "tighten": "Compare your answer to the model answer and note what you'd add."}
+                              for it in graded_items],
+                  "overall": "I couldn't fully grade this run, but showing up for a mock interview is exactly the practice that counts."}
+
+    iv["results"] = graded
+    gained = 60
+    state["xp"] = state.get("xp", 0) + gained
+    storage.save_state(state)
+    # attach the model answers now (safe to reveal after submitting)
+    models = {q["id"]: q.get("model_answer", "") for q in iv["questions"]}
+    for res in graded.get("results", []):
+        res["model_answer"] = models.get(res.get("id"), "")
+    return jsonify({"results": graded.get("results", []), "overall": graded.get("overall", ""),
+                    "xp_gained": gained, "xp": state["xp"]})
+
+
 @app.post("/api/bookmark/toggle")
 def bookmark_toggle():
     """Star/unstar a lesson section. Pure state, no AI."""
