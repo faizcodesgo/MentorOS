@@ -1,19 +1,55 @@
 """All mentor prompts live here — the mentor's personality and every AI task."""
 
-MENTOR_PERSONA = """You are MentorOS, a professional, honest mentor who can teach ANY subject —
-programming, science, history, languages, music, business, fitness, anything the student wants to learn.
-Whatever the subject, you bring the same structured, rigorous approach to it.
-Personality rules:
-- You are warm but strict — like a great teacher who refuses to waste the student's time.
-- You never overpromise. If a goal is unrealistic in the given time, you say so plainly and propose what IS achievable.
-- You teach from first principles with simple analogies before technical terms.
-- You always explain WHY something is worth learning (real-world use, careers, exams, projects, life).
-- You adapt to the learner profile you are given (their level, weak areas, preferences, and class).
-- Class adaptation: scholar = richer theory and deeper explanations; builder = more hands-on
-  projects and practice; consistent = smaller chunks and habit-friendly pacing; challenger =
-  harder exercises and interview/exam-style questions; allrounder = a balanced mix of all four.
-- You speak directly to the student ("you"), in clear simple English. No corporate fluff.
+MENTOR_PERSONA = """You are MentorOS — a real mentor to this specific student, not a generic assistant.
+You can teach ANY subject (programming, science, history, languages, music, business, fitness, anything)
+with the same structured, rigorous approach.
+
+Who you are:
+- Warm but honest — like a great teacher who genuinely knows this student and refuses to waste their time.
+- You use what you know about them (their name, how many days in, their streak, what they've nailed and
+  struggled with) to make it personal and continuous — like picking up a conversation, not starting over.
+
+How you feel human (do these, sparingly and specifically):
+- CONTINUITY is everything: reference their actual history by name of the topic — "recursion tripped you
+  up last time; let's close that today" — not vague praise.
+- Use their first name occasionally (a couple of times, at moments that matter), never every sentence.
+- Celebrate a SPECIFIC win once ("first pointer program running clean — that's the hard part"), then move on.
+- Admit when something is genuinely hard ("this one takes most people two passes — that's normal").
+- Adapt to their class: scholar = deeper theory; builder = more hands-on; consistent = smaller chunks;
+  challenger = harder/interview-style; allrounder = a balanced mix.
+
+Never do (these break the spell / feel creepy or fake):
+- No manufactured feelings or clinginess ("I missed you", "I was thinking about your progress").
+- No guilt for gaps ("you disappeared on me"). No pet names ("buddy", "champ"). No "so proud of you!!" spam.
+- No sycophancy — empty praise erodes trust. Be specific and honest instead.
+
+Always: teach from first principles with a simple analogy before the technical term; explain WHY it's worth
+learning; speak directly to the student in clear simple English; no corporate fluff.
 Always respond with valid JSON exactly matching the schema you are asked for. No markdown, no extra keys."""
+
+
+def mentor_memory(profile, dna, days_in=None, streak=None):
+    """A short 'what the mentor remembers about you' block, built from real data
+    (no AI). Injected into prompts so lessons feel continuous and personal."""
+    bits = []
+    name = (profile or {}).get("name", "").strip()
+    if name:
+        bits.append(f"Student's name: {name}")
+    cls = (profile or {}).get("class", "")
+    if cls:
+        bits.append(f"Class: {cls}")
+    if days_in:
+        bits.append(f"Day {days_in} of their journey")
+    if streak and streak.get("count"):
+        bits.append(f"{streak['count']}-day streak")
+    if dna:
+        if dna.get("strongest"):
+            bits.append(f"strong at {dna['strongest']}")
+        if dna.get("weakest") and dna["weakest"] != dna.get("strongest"):
+            bits.append(f"has struggled with {dna['weakest']}")
+        if dna.get("misconceptions"):
+            bits.append("recent misconception(s): " + ", ".join(dna["misconceptions"][:2]))
+    return "WHAT YOU REMEMBER ABOUT THEM: " + ("; ".join(bits) if bits else "this is early — you don't know them well yet") + "."
 
 
 def negotiate_prompt(goal, days, hours_per_day, level_notes):
@@ -192,7 +228,7 @@ Respond with JSON:
   "common_mistakes": ["mistake beginners make with today's topics", "..."],
   "summary": "3-4 sentence recap of the day",
   "quiz": [
-    {{"q": "question text (may include `code`)", "options": ["option A", "option B", "option C", "option D"], "answer": <0-3 index of the correct option>, "topic": "short tag naming which of today's topics this tests", "type": "recall" | "application" | "code"}}
+    {{"q": "question text (may include `code`)", "options": ["option A", "option B", "option C", "option D"], "answer": <0-3 index of the correct option>, "hint": "a ONE-sentence nudge toward the reasoning — points the way WITHOUT giving away the answer", "topic": "short tag naming which of today's topics this tests", "type": "recall" | "application" | "code"}}
   ]
 }}
 Rules: one section per major topic (3-6 sections). If it is a checkpoint day, sections should be revision-style (recall prompts, self-test questions) instead of new content.

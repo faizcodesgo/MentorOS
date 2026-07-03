@@ -94,6 +94,7 @@ def plan_init():
     state["repaced_at"] = None
     state["profile"]["level_notes"] = body.get("level_notes", "")
     state["profile"]["class"] = body.get("learner_class", "")
+    state["profile"]["name"] = (body.get("name") or "").strip()[:24]
     storage.save_state(state)
     return jsonify({"ok": True, "total_phases": len(body["phases"])})
 
@@ -154,9 +155,10 @@ def get_lesson(day):
         return jsonify({"error": f"Day {day} is not in the curriculum."}), 404
 
     profile = state["profile"]
+    done_count = sum(1 for p in state["progress"].values() if p.get("completed"))
     profile_text = (
         f"Level: {profile.get('level_notes') or 'beginner'}. "
-        f"Class: {profile.get('class') or 'not chosen'}. "
+        f"{prompts.mentor_memory(profile, state.get('dna'), days_in=done_count + 1, streak=state.get('streak'))} "
         f"{dna_engine.summary_for_prompt(state.get('dna'))}"
     )
     lesson = gemini.ask_json(
@@ -578,6 +580,16 @@ def interview_submit():
         res["model_answer"] = models.get(res.get("id"), "")
     return jsonify({"results": graded.get("results", []), "overall": graded.get("overall", ""),
                     "xp_gained": gained, "xp": state["xp"]})
+
+
+@app.post("/api/goal")
+def set_goal():
+    """Today's implementation intention. Pure state."""
+    body = request.get_json(force=True)
+    state = storage.load_state()
+    state["today_goal"] = {"date": _today(), "text": (body.get("text") or "").strip()[:120]}
+    storage.save_state(state)
+    return jsonify({"ok": True})
 
 
 @app.post("/api/bookmark/toggle")

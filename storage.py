@@ -27,7 +27,7 @@ def _collection():
     return _mongo
 
 
-SCHEMA = 5
+SCHEMA = 6
 
 
 def load_state():
@@ -67,6 +67,11 @@ def _migrate(state):
     # v5: learner-chosen bookmarks
     state.setdefault("bookmarks", [])
 
+    # v6: the mentor gets to know you — name + today's intention
+    if "profile" in state:
+        state["profile"].setdefault("name", "")
+    state.setdefault("today_goal", {"date": None, "text": ""})
+
     state["schema"] = SCHEMA
     return state
 
@@ -94,8 +99,10 @@ def _empty_state():
         "repaced_at": None,    # date the plan was last re-paced (avoid repeat nudges)
         "reviews": {"queue": [], "done_upto": 0},  # spaced-review ladder for warm-ups
         "bookmarks": [],       # learner-flagged lesson sections [{day, sectionIndex, heading}]
+        "today_goal": {"date": None, "text": ""},  # today's implementation intention
         "profile": {           # Learning DNA — grows over time
             "level_notes": "",
+            "name": "",        # the learner's first name (used sparingly, for familiarity)
             "class": "",       # scholar | builder | consistent | challenger | allrounder
             "weak_topics": [],
             "strong_topics": [],

@@ -173,6 +173,7 @@ $("goalForm").addEventListener("submit", async (e) => {
     return;
   }
   pendingInput = {
+    name: $("inName").value.trim(),
     goal: $("inGoal").value.trim(),
     days: parseInt($("inDays").value, 10),
     hours_per_day: parseFloat($("inHours").value),
@@ -332,6 +333,8 @@ function renderDashboard() {
     })
     .join("");
 
+  renderGreeting();
+  renderDailyGoal();
   renderSkillMapCard();
   renderSavedCard();
   loadWarmup();
@@ -347,6 +350,50 @@ function renderDashboard() {
       else openLesson(day);
     });
   });
+}
+
+/* time-of-day + name + one continuity thread — built client-side, no AI */
+function renderGreeting() {
+  const name = (state.profile && state.profile.name) ? state.profile.name : "";
+  const h = new Date().getHours();
+  const part = h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : h < 22 ? "Good evening" : "Late one";
+  let line = name ? `${part}, ${name}.` : `${part}.`;
+
+  // one honest continuity thread from real data
+  const dna = state.dna;
+  const s = state.streak || {};
+  const doneReal = orderedCurriculum().filter((d) => d.kind !== "revision" && isDone(d.day)).length;
+  let thread = "";
+  if (doneReal === 0) thread = "Let's get your first quest done.";
+  else if (dna && dna.weakest && dna.topics && dna.topics[dna.weakest] && dna.topics[dna.weakest].band !== "mastered")
+    thread = `We'll keep chipping at ${dna.weakest} today.`;
+  else if (s.count >= 3) thread = `${s.count} days running — nice rhythm.`;
+  else if (dna && dna.strongest) thread = `${dna.strongest} is clicking for you.`;
+  $("greeting").textContent = line + (thread ? " " + thread : "");
+}
+
+/* today's implementation intention ("when/where will you study today?") */
+function renderDailyGoal() {
+  const el = $("dailyGoal");
+  const today = new Date().toISOString().slice(0, 10);
+  const g = state.today_goal || {};
+  if (g.date === today && g.text) {
+    el.innerHTML = `<span class="dg-set">Today's plan: ${esc(g.text)}</span> <button class="dg-edit" id="dgEdit">change</button>`;
+    $("dgEdit").onclick = () => promptDailyGoal(g.text);
+  } else {
+    el.innerHTML = `<button class="dg-ask" id="dgAsk">＋ When &amp; where will you study today?</button>`;
+    $("dgAsk").onclick = () => promptDailyGoal("");
+  }
+}
+
+async function promptDailyGoal(current) {
+  const text = prompt("When and where will you study today? (a specific plan sticks better)", current || "");
+  if (text === null) return;
+  try {
+    await api("/api/goal", { method: "POST", body: JSON.stringify({ text: text.trim() }) });
+    state = await api("/api/state");
+    renderDailyGoal();
+  } catch (err) { toast(err.message); }
 }
 
 function renderSavedCard() {
@@ -1178,6 +1225,21 @@ function renderQuestion() {
   $("quizFeedback").className = "quiz-feedback hidden";
   $("btnNextQ").classList.add("hidden");
   $("wagerRow").classList.add("hidden");
+
+  // optional one-hint "Stuck?" reveal (pre-generated, no AI call)
+  const hintWrap = $("quizHintWrap");
+  if (q.hint) {
+    hintWrap.style.display = "";
+    $("quizHint").textContent = q.hint;
+    $("quizHint").classList.add("hidden");
+    $("quizHintBtn").style.display = "";
+    $("quizHintBtn").onclick = () => {
+      $("quizHint").classList.remove("hidden");
+      $("quizHintBtn").style.display = "none";
+    };
+  } else {
+    hintWrap.style.display = "none";
+  }
 
   $("quizOptions").innerHTML = q.options.map((o, i) =>
     `<button class="opt" data-i="${i}">${fmt(o)}</button>`).join("");

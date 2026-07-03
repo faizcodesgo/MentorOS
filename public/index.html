@@ -28,6 +28,10 @@
 
       <form id="goalForm" class="card form-card">
         <label>
+          <span class="label mono">YOUR FIRST NAME</span>
+          <input type="text" id="inName" placeholder="What should I call you?" maxlength="24" />
+        </label>
+        <label>
           <span class="label mono">GOAL</span>
           <input type="text" id="inGoal" placeholder="e.g. Data Structures & Algorithms in C for placement prep" required />
         </label>
@@ -122,6 +126,9 @@
 
     <!-- ============ DASHBOARD ============ -->
     <section id="view-dashboard" class="view hidden">
+      <p class="greeting" id="greeting"></p>
+      <div class="daily-goal" id="dailyGoal"></div>
+
       <div class="dash-head">
         <div>
           <p class="mono kicker" id="dashGoal"></p>
@@ -282,6 +289,10 @@
       </div>
       <div class="card quiz-card">
         <p class="quiz-q" id="quizQ"></p>
+        <div class="quiz-hint-wrap" id="quizHintWrap">
+          <button class="quiz-hint-btn" id="quizHintBtn">Stuck? Show a hint</button>
+          <p class="quiz-hint hidden" id="quizHint"></p>
+        </div>
         <div id="quizOptions" class="quiz-options"></div>
         <div id="wagerRow" class="wager-row hidden">
           <p class="label">How sure are you?</p>
