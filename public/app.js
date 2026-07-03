@@ -1,7 +1,7 @@
 /* MentorOS frontend — plain JS, no framework. */
 
 const $ = (id) => document.getElementById(id);
-const views = ["onboarding", "negotiate", "generating", "dashboard", "lesson", "quiz", "skills"];
+const views = ["onboarding", "negotiate", "generating", "dashboard", "lesson", "quiz", "skills", "recap"];
 
 let state = null;          // slim server state (plan + progress + profile + xp)
 let negotiation = null;    // last /api/negotiate result
@@ -327,7 +327,9 @@ function renderDashboard() {
         toast("One quest at a time — finish this one first.");
         return;
       }
-      openLesson(parseInt(row.dataset.day, 10));
+      const day = parseInt(row.dataset.day, 10);
+      if (row.classList.contains("done")) openRecap(day);  // done days open their recap
+      else openLesson(day);
     });
   });
 }
@@ -460,6 +462,82 @@ function renderSkills(dna) {
 }
 
 function stripMd(s) { return String(s).replace(/\*\*/g, ""); }
+
+/* ---------- day / chapter recap ---------- */
+
+/* which phase (chapter) a real quest-day belongs to, by its day number */
+function phaseOfDay(day) {
+  const phases = state.plan.phases || [];
+  let cum = 0;
+  for (let i = 0; i < phases.length; i++) {
+    cum += phases[i].days;
+    if (day <= cum) return { index: i, phase: phases[i], startDay: cum - phases[i].days + 1, endDay: cum };
+  }
+  return phases.length ? { index: phases.length - 1, phase: phases[phases.length - 1], startDay: 1, endDay: state.plan.days } : null;
+}
+
+/* is this real quest the last one of its chapter? (chapter just completed) */
+function isChapterEnd(day) {
+  const p = phaseOfDay(day);
+  if (!p) return false;
+  // the highest-day real quest at or below endDay
+  const real = state.plan.curriculum.filter((d) => d.kind !== "revision" && d.day <= p.endDay);
+  const lastDay = Math.max(...real.map((d) => d.day));
+  return day === lastDay;
+}
+
+async function openRecap(day, opts = {}) {
+  loading(true, "Putting today together…");
+  let lesson;
+  try { lesson = await api("/api/lesson/" + day); } catch { loading(false); return; }
+  loading(false);
+
+  const entry = state.plan.curriculum.find((d) => d.day === day) || {};
+  const quiz = (state.quizzes || {})[String(day)];
+  const dna = state.dna || {};
+
+  $("recapKicker").textContent = entry.kind === "revision" ? "Revision recap" : `Day ${day} recap`;
+  $("recapTitle").textContent = lesson.title || entry.title || "";
+  $("recapSummary").textContent = stripMd(lesson.summary || "");
+
+  const xpToday = questReward(entry) + (quiz ? quiz.xp_earned : 0);
+  const stats = [`+${xpToday} XP earned`];
+  if (quiz) stats.push(`Checkpoint ${quiz.score}/${quiz.total}`);
+  stats.push(`${(entry.topics || []).length} topic${(entry.topics || []).length === 1 ? "" : "s"}`);
+  $("recapStats").innerHTML = stats.map((s) => `<span class="recap-stat">${esc(s)}</span>`).join("");
+
+  // one thing to carry forward — a weak topic, tied to spaced review
+  const carry = dna.weakest && dna.topics && dna.topics[dna.weakest] && dna.topics[dna.weakest].band !== "mastered"
+    ? dna.weakest : ((entry.topics || [])[0] || "");
+  if (carry) {
+    $("recapCarryLabel").style.display = "";
+    $("recapCarry").textContent = `${carry} — it'll come back in a warm-up soon, so it stays fresh.`;
+  } else {
+    $("recapCarryLabel").style.display = "none";
+    $("recapCarry").textContent = "";
+  }
+
+  // chapter block only when a chapter just wrapped
+  const chap = opts.chapterEnd ? phaseOfDay(day) : null;
+  if (chap) {
+    $("chapterBlock").classList.remove("hidden");
+    $("chapterTitle").textContent = chap.phase.name;
+    $("chapterBody").textContent = `Chapter ${chap.index + 1} done — days ${chap.startDay}–${chap.endDay}. ${chap.phase.focus || ""}`;
+    const solid = Object.entries(dna.topics || {})
+      .filter(([, r]) => r.band === "mastered").map(([t]) => t).slice(0, 6);
+    $("chapterSolid").innerHTML = solid.length
+      ? `<p class="label">Solid now</p>` + solid.map((t) => `<span class="recap-chip">${esc(t)}</span>`).join("")
+      : "";
+    const next = (state.plan.phases || [])[chap.index + 1];
+    $("chapterNext").textContent = next ? `Next chapter: ${next.name} — ${next.focus || ""}` : "Final chapter — you're almost there.";
+  } else {
+    $("chapterBlock").classList.add("hidden");
+  }
+
+  show("recap");
+}
+
+$("btnRecapBack").addEventListener("click", () => { renderDashboard(); show("dashboard"); });
 
 /* ---------- morning warm-up (spaced review) ---------- */
 
@@ -827,13 +905,11 @@ $("btnComplete").addEventListener("click", async () => {
     const quizWaiting = lesson && lesson.quiz && lesson.quiz.length &&
       !(state.quizzes || {})[String(openDay)];
 
+    const finishedDay = openDay;
     if (quizWaiting) {
       // stay on the lesson — reveal the Boss Check right where the user is
       $("completeCard").style.display = "none";
       renderBossCard(lesson, true);
-    } else {
-      renderDashboard();
-      show("dashboard");
     }
 
     if (r.xp_gained > 0) {
@@ -843,11 +919,12 @@ $("btnComplete").addEventListener("click", async () => {
       if (newLv > oldLv) {
         await rewardPill(`Level ${newLv} · ${rankFromLevel(newLv)}`, "");
       }
-      if (quizWaiting) {
-        $("bossCard").scrollIntoView({ block: "center", behavior: "smooth" });
-      }
+    }
+    if (quizWaiting) {
+      $("bossCard").scrollIntoView({ block: "center", behavior: "smooth" });
     } else {
-      toast(`Day ${openDay} complete.`);
+      // no checkpoint on this day — go straight to the day recap
+      openRecap(finishedDay, { chapterEnd: isChapterEnd(finishedDay) });
     }
   } catch (err) {
     toast(err.message);
@@ -950,16 +1027,15 @@ $("btnNextQ").addEventListener("click", async () => {
     return;
   }
   // finished — server grades authoritatively and awards the XP
+  const finishedDay = quizRun.lesson.day;
   loading(true, "Scoring your answers…");
   try {
-    const r = await api(`/api/quiz/${quizRun.lesson.day}/submit`, {
+    const r = await api(`/api/quiz/${finishedDay}/submit`, {
       method: "POST",
       body: JSON.stringify({ answers: quizRun.answers }),
     });
     state = await api("/api/state");
     loading(false);
-    renderDashboard();
-    show("dashboard");
     const oldLv = levelFromXp(r.xp - r.xp_gained);
     const newLv = levelFromXp(r.xp);
     await rewardPill(r.perfect ? `Perfect run · ${r.score}/${r.total}` : `Checkpoint · ${r.score}/${r.total}`, `+${r.xp_gained} XP`);
@@ -972,6 +1048,7 @@ $("btnNextQ").addEventListener("click", async () => {
     if (r.revision) {
       toast(`Your mentor added a revision on ${r.revision.topics.join(", ")} — we'll go over it together.`, 6000);
     }
+    openRecap(finishedDay, { chapterEnd: isChapterEnd(finishedDay) });
   } catch (err) {
     loading(false);
     toast(err.message, 6000);

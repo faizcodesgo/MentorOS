@@ -175,6 +175,29 @@
       <button class="btn danger ghost small" id="btnReset">Start over (wipes plan)</button>
     </section>
 
+    <!-- ============ DAY / CHAPTER RECAP ============ -->
+    <section id="view-recap" class="view hidden">
+      <button class="btn ghost small" id="btnRecapBack">&larr; Back to dashboard</button>
+      <div id="chapterBlock" class="chapter-block hidden">
+        <p class="mono kicker">Chapter complete</p>
+        <h1 id="chapterTitle"></h1>
+        <p id="chapterBody" class="sub"></p>
+        <div id="chapterSolid" class="recap-chips"></div>
+        <p id="chapterNext" class="chapter-next"></p>
+      </div>
+      <div class="recap-head">
+        <p class="mono kicker" id="recapKicker">Day recap</p>
+        <h1 id="recapTitle"></h1>
+      </div>
+      <div class="card recap-card">
+        <p class="label">What you covered</p>
+        <p id="recapSummary" class="recap-summary"></p>
+        <div id="recapStats" class="recap-stats"></div>
+        <p class="label" id="recapCarryLabel" style="margin-top:16px">Keep sharp</p>
+        <p id="recapCarry" class="recap-carry"></p>
+      </div>
+    </section>
+
     <!-- ============ SKILLS ============ -->
     <section id="view-skills" class="view hidden">
       <button class="btn ghost small" id="btnSkillsBack">&larr; Back to dashboard</button>

@@ -373,6 +373,28 @@ code {
 .sdot.weak { background: transparent; border: 2px solid var(--accent-2); }
 .sdot.new { background: transparent; border: 2px solid var(--line); }
 
+/* ---------- day / chapter recap ---------- */
+.recap-head { margin: 16px 0 10px; }
+.recap-summary { font-size: 1.02rem; line-height: 1.6; margin-top: 6px; }
+.recap-stats { display: flex; flex-wrap: wrap; gap: var(--s2); margin-top: var(--s4); }
+.recap-stat {
+  font-size: 0.82rem; color: var(--muted); font-weight: 600;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px;
+}
+.recap-carry { color: var(--ink); }
+.chapter-block {
+  border: 1px solid var(--line); border-left: 3px solid var(--gold);
+  border-radius: var(--radius); padding: var(--s5); margin: var(--s4) 0 var(--s5);
+  background: var(--panel);
+}
+.chapter-block h1 { font-size: 1.5rem; margin: var(--s1) 0 var(--s3); }
+.chapter-next { color: var(--muted); font-size: 0.9rem; margin-top: var(--s3); }
+.recap-chips { display: flex; flex-wrap: wrap; gap: var(--s2); align-items: center; margin-top: var(--s2); }
+.recap-chip {
+  font-size: 0.8rem; color: var(--gold); font-weight: 600;
+  border: 1px solid rgba(245, 197, 66, 0.35); border-radius: 999px; padding: 5px 11px;
+}
+
 /* ---------- skills view ---------- */
 .skills-head { margin: 16px 0 10px; }
 .notes-card { border-left: 3px solid var(--accent-2); }
