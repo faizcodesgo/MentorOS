@@ -31,11 +31,13 @@ app = Flask(__name__, static_folder="public", static_url_path="")
 
 @app.errorhandler(Exception)
 def handle_error(e):
-    """API calls should always get JSON back, with the real reason."""
+    """API calls always get JSON back. Real errors are logged server-side, not
+    leaked to the client (they can contain URIs/paths/upstream detail)."""
     from werkzeug.exceptions import HTTPException
     if isinstance(e, HTTPException):
         return jsonify({"error": e.description}), e.code
-    return jsonify({"error": str(e)}), 500
+    app.logger.exception("Unhandled error")
+    return jsonify({"error": "Something went wrong. Please try again."}), 500
 
 
 @app.get("/")
@@ -915,4 +917,5 @@ def reset():
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), debug=True)
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)),
+            debug=os.environ.get("FLASK_DEBUG") == "1")

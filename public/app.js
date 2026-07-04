@@ -1365,7 +1365,7 @@ $("btnProjSubmit").addEventListener("click", async () => {
     loading(false);
     $("projSubmitCard").style.display = "none";
     renderProjectReview(r.review);
-    if (r.xp_gained) await showBanner("MILESTONE BUILT", `+${r.xp_gained} XP`, true);
+    if (r.xp_gained) await rewardPill("Milestone built", `+${r.xp_gained} XP`);
   } catch (err) {
     loading(false); $("btnProjSubmit").disabled = false; toast(err.message, 6000);
   }

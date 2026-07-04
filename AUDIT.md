@@ -1,5 +1,14 @@
 # MentorOS — Professional Audit (flag-only, 4 October 2026)
 
+> **DECISION (Faiz): VOICE = (A) confident mentor. EXECUTE THE ENTIRE AUDIT — all batches A/B/C/D + the voice rename.**
+> **Progress so far (commit pending):** Batch A #1 showBanner crash FIXED (→ rewardPill), #4 debug=True → FLASK_DEBUG env-gated, #5 error handler no longer leaks str(e) (logs server-side, returns generic). REMAINING = everything else below.
+> **Execution plan for a fresh session (context was full when approved):**
+> - **A (bugs):** guard /api/reset (require JSON confirm + same-origin header; note real fix = auth), validate AI JSON shape in generate_phase/get_lesson/interview_start, bind quiz answers by id, fix int(_current_order) truncation, MAX_CONTENT_LENGTH, remove duplicate manifest.webmanifest.
+> - **B (copy) + VOICE A:** rename Quest/Boss Check/Main Quest/Quest Log → Today / Checkpoint / your plan / (plain); delete all reassurance ("never spam never guilt" etc.), neutralize loading/error narration, unify label casing to sentence-case, drop "AI" from tagline. One term per concept.
+> - **C (visual):** strip ~80% uppercase-mono labels; named font-size/radius/shadow scales; unify --brand/--accent (delete aliases); add elevation + reduce borders; fix primary-btn hover inversion; kill perpetual orb + glow-hover; add :focus-visible; cap prose at ~65ch; move raw px to --s* scale.
+> - **D (declutter):** dashboard = Today + Skill Map only (warm-up→thin row, weekly/saved conditional); cut career chip; thin/cut weekly report; cut explain-it-back; max 1 in-lesson widget; hide reminders in settings; material scope→default+advanced; drop All-Rounder class; mute combo/crit math; DELETE dead code (study_anchor/api/anchor, today_goal, mermaid loader ~80 lines).
+
+
 Four independent auditors (copy, visual design, features/clutter, code quality) read the real source. Nothing was changed. Verdict: **a genuinely well-built app with real learning-science backing** — what keeps it from feeling like a $1000 pro-team product is (1) a few real bugs, (2) copy that "reassures" like a chatbot, (3) an incompletely-systematized design system, and (4) it has out-run its own "don't overdo it" rule (8+ dashboard cards).
 
 Findings are grouped into approval batches. Execute in any combination.
