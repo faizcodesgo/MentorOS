@@ -63,15 +63,16 @@ def material_context(material):
     scope = material.get("scope", "essentials")
     if scope == "only":
         rule = ("SCOPE = ONLY THIS MATERIAL: teach STRICTLY from the uploaded material below. "
-                "Cover exactly what it contains; do not add topics that aren't in it.")
+                "Cover exactly what it contains and nothing else; do not add any topic that isn't in it.")
     elif scope == "master":
-        rule = ("SCOPE = FULL MASTERY: use the uploaded material as the backbone, but go deep — "
-                "add the prerequisites, connected ideas, and advanced depth needed to truly master this subject, "
-                "beyond what the material alone covers.")
-    else:  # essentials (default)
-        rule = ("SCOPE = MATERIAL + ESSENTIALS: teach the uploaded material PLUS the background and "
-                "prerequisites needed to actually understand it. Stay close to the material's scope; "
-                "don't wander far beyond it.")
+        rule = ("SCOPE = FULL DEPTH ON THE SUBJECT: treat the SUBJECT of the uploaded material as the goal and "
+                "teach it COMPLETELY — the uploaded content PLUS everything else needed to fully master that "
+                "subject. E.g. if they uploaded only notes on photosynthesis, teach ALL of photosynthesis and "
+                "every connected thing needed to truly, deeply know it.")
+    else:  # essentials (default) — material + helpful extras the mentor chooses
+        rule = ("SCOPE = MATERIAL + HELPFUL EXTRAS: teach the uploaded material AND, wherever it helps, add "
+                "related topics YOU judge will genuinely help the student understand and use it better "
+                "(background, connected ideas, useful context) — beyond the material itself, but still centered on it.")
     return (f"\nTHE STUDENT UPLOADED THEIR OWN STUDY MATERIAL (syllabus/notes/textbook). "
             f"Base the plan and lessons on it. {rule}\n"
             f"--- MATERIAL START ---\n{material['text']}\n--- MATERIAL END ---\n")
