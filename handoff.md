@@ -1,5 +1,11 @@
 # MentorOS — Handoff
 
+> **STATUS UPDATE (4 Jul 2026): THE AUDIT IS DONE.** All batches A/B/C/D + the
+> voice rename were executed, tested, committed per batch, pushed, and verified
+> live (commits `9801ce8` A, `df80cb0` B, `0b6ac67` C, `e12a1a6` D). See the
+> status block at the top of `AUDIT.md`. Next step is **Phase 5** (native Play
+> Store app, council-first) — section 6 below is otherwise stale.
+
 _Paste-this-in-a-new-chat handoff. Read `AUDIT.md` (checklist at the very top) and the memory file `mentor-app-project.md` alongside this._
 
 ---
