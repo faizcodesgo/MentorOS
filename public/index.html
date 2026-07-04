@@ -329,6 +329,25 @@
       </div>
     </section>
 
+    <!-- ============ PROJECT (milestone) ============ -->
+    <section id="view-project" class="view hidden">
+      <button class="btn ghost small" id="btnProjectBack">&larr; Back to plan</button>
+      <div class="lesson-head"><p class="mono kicker">MILESTONE · BUILD IT</p><h1 id="projTitle"></h1></div>
+      <div class="card"><p id="projBrief" class="lesson-intro"></p></div>
+      <div class="card" id="projReqCard">
+        <p class="label mono">WHAT IT NEEDS</p>
+        <ul class="plain-list" id="projReqs"></ul>
+        <div id="projStarter"></div>
+      </div>
+      <div class="card" id="projSubmitCard">
+        <p class="label mono">SUBMIT YOUR WORK</p>
+        <p class="sub">Paste your code or text, drop a link (GitHub / sandbox), or describe what you built.</p>
+        <textarea id="projInput" rows="6" placeholder="Your code, a link, or a description…"></textarea>
+        <button class="btn primary" id="btnProjSubmit">Submit for review</button>
+      </div>
+      <div class="card review-card hidden" id="projReviewCard"></div>
+    </section>
+
     <!-- ============ CHECKPOINT (QUIZ) ============ -->
     <section id="view-quiz" class="view hidden">
       <div class="quiz-head">

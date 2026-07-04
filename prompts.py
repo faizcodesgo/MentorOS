@@ -55,6 +55,50 @@ def mentor_memory(profile, dna, days_in=None, streak=None):
     return "WHAT YOU REMEMBER ABOUT THEM: " + ("; ".join(bits) if bits else "this is early — you don't know them well yet") + "."
 
 
+def project_brief_prompt(goal, project, learner_profile, material=None):
+    diff = project.get("difficulty", 1)
+    level = ("GUIDED: give the exact steps/stubs and a checklist — the learner fills in the work"
+             if diff <= 1 else
+             "SEMI-GUIDED: give the goal + acceptance criteria, but let the learner design the steps"
+             if diff == 2 else
+             "OPEN-ENDED: give only the goal and constraints; the learner designs everything")
+    return f"""Design a hands-on PROJECT the student builds to prove they've learned this phase.
+
+GOAL: {goal}
+PROJECT TOPIC: {project.get('title')} — topics: {project.get('topics')}
+DIFFICULTY: {level}. Adapt to the learner (keep scaffolding on any topic they're still weak at).
+LEARNER: {learner_profile}
+{material_context(material)}
+Respond with JSON:
+{{
+  "brief": "2-4 sentences: what to build and why it proves the skill. Motivating, concrete.",
+  "requirements": ["clear acceptance criterion the finished work must meet", "..."],
+  "rubric": ["what you'll look at when reviewing (e.g. correctness, edge cases)", "..."],
+  "starter": "for GUIDED only: steps or stubs to start from (empty string otherwise)"
+}}
+Rules: 3-5 requirements. Make it doable in one focused session. For non-coding subjects the 'project' is an essay / worked problem set / analysis / taught-back explanation — same structure."""
+
+
+def project_review_prompt(project, submission):
+    return f"""You are reviewing the student's submitted project like a real mentor — warm, specific, rewards-only (NO score, NO pass/fail).
+
+PROJECT: {project.get('brief')}
+REQUIREMENTS: {project.get('requirements')}
+RUBRIC: {project.get('rubric')}
+
+THE STUDENT'S SUBMISSION:
+{submission[:8000]}
+
+Respond with JSON:
+{{
+  "opener": "one warm human sentence reacting to their work",
+  "whats_good": ["specific thing they did well", "..."],
+  "whats_missing": ["the SINGLE most important thing to sharpen — keep this to ONE item"],
+  "next_focus": "one concrete forward nudge — what to do/learn next"
+}}
+Rules: celebrate specifics; exactly ONE item in whats_missing (never a pile of corrections); never harsh, never a grade."""
+
+
 def material_context(material):
     """A prompt block telling the mentor how to use the learner's uploaded
     study material, honoring their chosen scope."""

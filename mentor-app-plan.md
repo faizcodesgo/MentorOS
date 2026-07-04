@@ -257,6 +257,16 @@ Council cut 4→3. **CUT Socratic debugger** (recognition-not-generation, duplic
 
 **Anti-clutter rule reaffirmed:** only ONE net-new surface this batch (the Viva). Explain-it-back + bookmarks are slots inside existing screens; nothing new in any menu.
 
+## 15. Projects — 3-agent council synthesis (build spec)
+
+**Shape:** a project = a curriculum day with `kind:"project"` (inherits Quest Log/ordering/progress) + a parallel `plan.projects[id]` dict. ~4 per 50-day plan: last day of each phase + a capstone; a project day replaces that day's lesson.
+**Difficulty ramp:** guided (steps/stubs given) → semi (goal+criteria) → open (goal only) → capstone (learner picks brief). Gate on Learning DNA: a still-weak topic keeps its scaffold even late. Brief generated LAZILY on first open (1 AI call, uses current mastery → ramps to where the learner actually is), cached.
+**Data (schema 11):** curriculum day `{kind:"project", project_id:"p<day>", ...}`; `plan.projects[id] = {brief, requirements[], rubric[], difficulty, status:assigned|submitted|reviewed, submission:{type,content,submitted_at}, review:{whats_good[],whats_missing[],next_focus,reviewed_at}}`. migrate v11: `plan.projects={}`, set project_id on any project days.
+**Submission (phone):** one sheet, tabs Paste / Link / Describe; one autosizing field + one "Submit for review" button; link is the real path on mobile; cap ~6-8k chars.
+**Review:** 1 Gemini call (brief+requirements+rubric+submission → `{whats_good[], whats_missing[], next_focus}`), reuse repair+retry; degrade gracefully (keep status=submitted so they can retry, never hard-fail). Present as a mentor talking, rewards-only, NO score: **What's strong · One thing to sharpen (singular!) · Do this next**. Feed the weak spot back into DNA (nice-to-have).
+**UX:** distinct **Milestone** node in Quest Log (larger, blue ring not fill, line icon, "Milestone — Build it"), LOCKED until the chapter's lessons are cleared. Stepped renderer branches on `kind:"project"` → brief + submit box + (if reviewed) review panel; reuse checkpoint styling. Reward ~300 XP (4-6× a lesson) + a one-time gold milestone banner (reuse level-up banner shell) + the Skill Map node fills gold. A project day is completable ONLY when `status=="reviewed"`.
+**Build order:** Step 1 = schema 11 + data model + curriculum marks project days + render project day read-only in stepped view (NO AI, verify nothing breaks). Step 2 = lazy brief generation on open + submit endpoint. Step 3 = review call + panel + XP/completion. Riskiest = Step 3 (JSON contract + graceful degrade + don't break stepped flow; ensure quiz/DNA paths key off `kind` and never grade a project as a quiz).
+
 ## 13¾. Pending user actions
 - **YouTube Data API key** (for direct video links — Faiz will get it; remind him): console.cloud.google.com → enable "YouTube Data API v3" → Credentials → API key.
 

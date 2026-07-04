@@ -1,7 +1,7 @@
 /* MentorOS frontend — plain JS, no framework. */
 
 const $ = (id) => document.getElementById(id);
-const views = ["onboarding", "negotiate", "generating", "dashboard", "lesson", "quiz", "skills", "recap", "viva"];
+const views = ["onboarding", "negotiate", "generating", "dashboard", "lesson", "quiz", "skills", "recap", "viva", "project"];
 
 let state = null;          // slim server state (plan + progress + profile + xp)
 let negotiation = null;    // last /api/negotiate result
@@ -28,7 +28,10 @@ function rankFromLevel(lv) {
   return "BRONZE";
 }
 
-function questReward(entry) { return entry && entry.is_checkpoint ? 150 : 100; }
+function questReward(entry) {
+  if (entry && entry.kind === "project") return 300;   // milestones are worth ~4-6 lessons
+  return entry && entry.is_checkpoint ? 150 : 100;
+}
 
 /* "~2h 30m" from estimated minutes */
 function fmtTime(min) {
@@ -343,7 +346,9 @@ function renderDashboard() {
   $("dashGoal").textContent = "MAIN QUEST · " + plan.goal.toUpperCase();
   $("dashDayTitle").textContent = allDone
     ? "Main quest complete. Well done."
-    : entry.kind === "revision" ? "Revision Quest" : `Day ${entry.day} of ${plan.days}`;
+    : entry.kind === "revision" ? "Revision Quest"
+    : entry.kind === "project" ? "Milestone — Build it"
+    : `Day ${entry.day} of ${plan.days}`;
   $("dashCount").textContent = `${doneReal}/${plan.days} QUESTS DONE`;
   if (lastShownXp !== null && xp > lastShownXp) {
     animateXpChip($("levelChip"), lastShownXp, xp, lv);
@@ -375,9 +380,10 @@ function renderDashboard() {
       const isToday = d.day === currentId && !done;
       const locked = (d.order ?? d.day) > currentOrder && !done;
       const revision = d.kind === "revision";
-      const cls = ["day-row", done ? "done" : "", isToday ? "today-row" : "", locked ? "locked" : "", d.is_checkpoint ? "checkpoint" : "", revision ? "revision" : ""].join(" ");
+      const project = d.kind === "project";
+      const cls = ["day-row", done ? "done" : "", isToday ? "today-row" : "", locked ? "locked" : "", d.is_checkpoint && !project ? "checkpoint" : "", revision ? "revision" : "", project ? "project" : ""].join(" ");
       const stateTxt = done ? `✓ +${questReward(d)} XP` : isToday ? "TODAY" : locked ? "LOCKED" : "";
-      const label = revision ? "◆ REVISION" : `${d.is_checkpoint ? "◈" : ""} DAY ${d.day}`;
+      const label = revision ? "◆ REVISION" : project ? "◆ MILESTONE" : `${d.is_checkpoint ? "◈" : ""} DAY ${d.day}`;
       return `<button class="${cls}" data-day="${d.day}">
         <span class="num mono">${label}</span>
         <span class="t">${esc(d.title)}</span>
@@ -972,6 +978,7 @@ let currentLesson = null;
 async function openLesson(day) {
   openDay = day;
   const entry = (state.plan.curriculum || []).find((d) => d.day === day) || {};
+  if (entry.kind === "project") return openProject(entry);
   const label = entry.kind === "revision" ? "Preparing your revision…"
     : entry.is_checkpoint ? "Preparing your checkpoint…"
     : "Preparing Day " + day + "…";
@@ -1240,6 +1247,67 @@ function renderStep() {
 
 $("btnStepNext").addEventListener("click", () => { if (stepIdx < lessonSteps.length - 1) { stepIdx++; renderStep(); } });
 $("btnStepBack").addEventListener("click", () => { if (stepIdx > 0) { stepIdx--; renderStep(); } });
+
+/* ---------- projects (build-it milestones) ---------- */
+
+let currentProject = null;
+
+async function openProject(entry) {
+  currentProject = entry;
+  loadingCycle(["Setting up your milestone…", "Designing a project for where you're at…"]);
+  let proj;
+  try { proj = await api("/api/project/" + entry.project_id); }
+  catch (err) { loading(false); toast(err.message, 6000); return; }
+  loading(false);
+  renderProject(entry, proj);
+  show("project");
+}
+
+function renderProject(entry, proj) {
+  $("projTitle").textContent = proj.title || entry.title;
+  $("projBrief").innerHTML = fmt(proj.brief || "");
+  $("projReqs").innerHTML = (proj.requirements || []).map((r) => `<li>${fmt(r)}</li>`).join("");
+  $("projStarter").innerHTML = proj.starter
+    ? `<p class="label mono" style="margin-top:12px">START FROM</p><div class="worked-body">${fmt(proj.starter)}</div>` : "";
+
+  const reviewed = proj.status === "reviewed" && proj.review;
+  $("projSubmitCard").style.display = reviewed ? "none" : "";
+  if (reviewed) renderProjectReview(proj.review); else $("projReviewCard").classList.add("hidden");
+  $("projInput").value = "";
+  $("btnProjSubmit").disabled = false;
+}
+
+function renderProjectReview(r) {
+  $("projReviewCard").innerHTML = `
+    <p class="label mono">MENTOR REVIEW</p>
+    ${r.opener ? `<p class="review-opener">${fmt(r.opener)}</p>` : ""}
+    <p class="review-h good">What's strong</p>
+    <ul class="plain-list">${(r.whats_good || []).map((x) => `<li>${fmt(x)}</li>`).join("")}</ul>
+    <p class="review-h sharpen">One thing to sharpen</p>
+    <ul class="plain-list">${(r.whats_missing || []).map((x) => `<li>${fmt(x)}</li>`).join("")}</ul>
+    ${r.next_focus ? `<p class="review-h next">Do this next</p><p class="review-next">${fmt(r.next_focus)}</p>` : ""}`;
+  $("projReviewCard").classList.remove("hidden");
+}
+
+$("btnProjectBack").addEventListener("click", () => { renderDashboard(); show("dashboard"); });
+
+$("btnProjSubmit").addEventListener("click", async () => {
+  const content = $("projInput").value.trim();
+  if (!content) { toast("Add your work first."); return; }
+  $("btnProjSubmit").disabled = true;
+  loadingCycle(["Reviewing your work…", "Reading it like a mentor…"]);
+  try {
+    const r = await api("/api/project/" + currentProject.project_id + "/submit", {
+      method: "POST", body: JSON.stringify({ content, type: "submit" }) });
+    state = await api("/api/state");
+    loading(false);
+    $("projSubmitCard").style.display = "none";
+    renderProjectReview(r.review);
+    if (r.xp_gained) await showBanner("MILESTONE BUILT", `+${r.xp_gained} XP`, true);
+  } catch (err) {
+    loading(false); $("btnProjSubmit").disabled = false; toast(err.message, 6000);
+  }
+});
 
 /* Boss Check offer/result card at the bottom of a lesson */
 function renderBossCard(l, done) {

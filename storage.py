@@ -27,7 +27,7 @@ def _collection():
     return _mongo
 
 
-SCHEMA = 10
+SCHEMA = 11
 
 
 def load_state():
@@ -84,6 +84,10 @@ def _migrate(state):
 
     # v10: learner-uploaded study material the mentor teaches from
     state.setdefault("material", {"text": "", "scope": "", "name": ""})
+
+    # v11: build-it milestone projects
+    if state.get("plan"):
+        state["plan"].setdefault("projects", {})
 
     state["schema"] = SCHEMA
     return state

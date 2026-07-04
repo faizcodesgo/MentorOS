@@ -388,6 +388,17 @@ code {
 .focus-intent-show { color: var(--muted); max-width: 40ch; }
 .focus-status { font-size: 0.85rem; color: var(--warn); min-height: 1.2em; }
 
+/* ---------- project milestone ---------- */
+.day-row.project { border-color: var(--brand); border-left: 3px solid var(--brand); }
+.day-row.project .num { color: var(--brand); font-weight: 600; }
+.review-opener { font-size: 1.02rem; margin: 6px 0 14px; }
+.review-h { font-weight: 600; font-size: 0.9rem; margin: 14px 0 4px; }
+.review-h.good { color: var(--good); }
+.review-h.sharpen { color: var(--gold); }
+.review-h.next { color: var(--brand); }
+.review-next { color: var(--muted); }
+#projInput { margin: 10px 0; }
+
 /* ---------- revision quest node ---------- */
 .day-row.revision .num { color: var(--brand); }
 

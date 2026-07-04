@@ -168,11 +168,25 @@ def generate_phase():
             plan["phases"], idx, prior, material=state.get("material"),
         ),
     )
-    for entry in result["days"]:
+    days = result["days"]
+    for entry in days:
         entry["order"] = entry["day"]        # display position (day is the stable id)
         entry["kind"] = "checkpoint" if entry.get("is_checkpoint") else "quest"
         plan["next_day"] = max(plan.get("next_day", 1), entry["day"] + 1)
-    plan["curriculum"].extend(result["days"])
+    # the LAST day of each phase becomes a build-it PROJECT milestone
+    if days:
+        last = days[-1]
+        pid = f"p{last['day']}"
+        last["kind"] = "project"
+        last["project_id"] = pid
+        plan.setdefault("projects", {})[pid] = {
+            "title": last["title"], "topics": last.get("topics", []),
+            "phase_index": idx, "difficulty": idx + 1,   # ramps by phase
+            "status": "assigned",
+            "brief": "", "requirements": [], "rubric": [],
+            "submission": None, "review": None,
+        }
+    plan["curriculum"].extend(days)
     plan["phases_generated"] = idx + 1
     storage.save_state(state)
     return jsonify({
@@ -239,6 +253,73 @@ def get_lesson(day):
     state["lessons"][str(day)] = lesson
     storage.save_state(state)
     return jsonify(lesson)
+
+
+@app.get("/api/project/<pid>")
+def get_project(pid):
+    """Return a project, generating its brief lazily on first open (1 AI call,
+    difficulty calibrated to current mastery), then caching it."""
+    state = storage.load_state()
+    proj = (state.get("plan") or {}).get("projects", {}).get(pid)
+    if not proj:
+        return jsonify({"error": "Project not found."}), 404
+
+    if not proj.get("brief"):
+        profile = state["profile"]
+        profile_text = (f"Level: {profile.get('level_notes') or 'beginner'}. "
+                        f"{dna_engine.summary_for_prompt(state.get('dna'))}")
+        gen = gemini.ask_json(
+            prompts.MENTOR_PERSONA,
+            prompts.project_brief_prompt(state["plan"]["goal"], proj, profile_text,
+                                         material=state.get("material")))
+        proj["brief"] = gen.get("brief", "")
+        proj["requirements"] = gen.get("requirements", [])
+        proj["rubric"] = gen.get("rubric", [])
+        proj["starter"] = gen.get("starter", "")
+        storage.save_state(state)
+    return jsonify(proj)
+
+
+@app.post("/api/project/<pid>/submit")
+def submit_project(pid):
+    """Store the submission and review it (1 AI call, rewards-only). On review
+    the project day is marked complete and XP awarded."""
+    body = request.get_json(force=True)
+    content = (body.get("content") or "").strip()
+    if not content:
+        return jsonify({"error": "Add your work first."}), 400
+
+    state = storage.load_state()
+    plan = state.get("plan") or {}
+    proj = plan.get("projects", {}).get(pid)
+    if not proj:
+        return jsonify({"error": "Project not found."}), 404
+
+    proj["submission"] = {"type": body.get("type", "describe"), "content": content[:8000],
+                          "submitted_at": datetime.datetime.now().isoformat()}
+    proj["status"] = "submitted"
+
+    try:
+        review = gemini.ask_json(prompts.MENTOR_PERSONA,
+                                 prompts.project_review_prompt(proj, content))
+    except Exception:
+        storage.save_state(state)   # keep the submission so they can retry
+        return jsonify({"error": "The review couldn't be generated — please submit again."}), 503
+
+    proj["review"] = {**review, "reviewed_at": datetime.datetime.now().isoformat()}
+    proj["status"] = "reviewed"
+
+    # award XP + mark the project day complete (rewards-only)
+    day = int(pid[1:]) if pid[1:].isdigit() else None
+    gained = 0
+    if day is not None and not state["progress"].get(str(day), {}).get("completed"):
+        gained = 300
+        state["xp"] = state.get("xp", 0) + gained
+        state["progress"][str(day)] = {"completed": True,
+                                       "completed_at": datetime.datetime.now().isoformat()}
+        _bump_streak(state)
+    storage.save_state(state)
+    return jsonify({"review": proj["review"], "xp_gained": gained, "xp": state.get("xp", 0)})
 
 
 @app.post("/api/quiz/<int:day>/submit")
