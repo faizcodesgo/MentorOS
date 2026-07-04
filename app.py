@@ -27,6 +27,8 @@ if os.path.exists(_env_path):
                 os.environ.setdefault(key.strip(), value.strip())
 
 app = Flask(__name__, static_folder="public", static_url_path="")
+# reject oversized uploads early with a 413 instead of reading them into memory
+app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
 
 
 @app.errorhandler(Exception)
@@ -177,7 +179,13 @@ def generate_phase():
             plan["phases"], idx, prior, material=state.get("material"),
         ),
     )
-    days = result["days"]
+    # a malformed model response must not brick onboarding — reject and let the
+    # frontend retry this phase (nothing has been saved yet)
+    days = result.get("days") if isinstance(result, dict) else None
+    if (not isinstance(days, list) or not days
+            or not all(isinstance(d, dict) and isinstance(d.get("day"), int) and d.get("title")
+                       for d in days)):
+        return jsonify({"error": "Couldn't build this part of the plan. Try again."}), 502
     for entry in days:
         entry["order"] = entry["day"]        # display position (day is the stable id)
         entry["kind"] = "checkpoint" if entry.get("is_checkpoint") else "quest"
@@ -241,6 +249,18 @@ def get_lesson(day):
                               progression=progression, avoid_questions=state.get("asked_questions", []),
                               material=state.get("material")),
     )
+    # shape guard: a malformed lesson is rejected (nothing cached), not 500ed
+    if isinstance(lesson, dict):
+        lesson["sections"] = [s for s in lesson.get("sections") or [] if isinstance(s, dict)]
+    if not isinstance(lesson, dict) or not lesson["sections"]:
+        return jsonify({"error": "Couldn't build this lesson. Try again."}), 502
+    # keep only well-formed quiz questions (a bad answer key would corrupt grading)
+    lesson["quiz"] = [
+        q for q in (lesson.get("quiz") or [])
+        if isinstance(q, dict) and q.get("q")
+        and isinstance(q.get("options"), list) and len(q["options"]) >= 2
+        and isinstance(q.get("answer"), int) and 0 <= q["answer"] < len(q["options"])
+    ]
     lesson["day"] = day
     lesson["title"] = entry["title"]
     lesson["resource_queries"] = entry.get("resource_queries", [])
@@ -353,8 +373,11 @@ def submit_quiz(day):
     wrong_topics = []
     graded = []
 
+    # bind each answer to its question by explicit index — never by list position
+    by_index = {a["i"]: a for a in answers
+                if isinstance(a, dict) and isinstance(a.get("i"), int)}
     for i, q in enumerate(quiz):
-        a = answers[i] if i < len(answers) and isinstance(answers[i], dict) else {}
+        a = by_index.get(i) or (answers[i] if i < len(answers) and isinstance(answers[i], dict) else {})
         chosen = a.get("chosen", -1)
         confidence = a.get("confidence", "safe")
         is_correct = chosen == q.get("answer")
@@ -470,7 +493,7 @@ def warmup():
     state = storage.load_state()
     if not state.get("plan"):
         return jsonify({"available": False})
-    today = int(_current_order(state))
+    today = _current_order(state)   # may be x.5 on a revision day — don't truncate
     if (state.get("reviews") or {}).get("done_upto", 0) >= today:
         return jsonify({"available": False, "done": True})
     items = review_engine.due_items(state, today, limit=3)
@@ -483,7 +506,7 @@ def warmup_start():
     state = storage.load_state()
     if not state.get("plan"):
         return jsonify({"questions": []})
-    today = int(_current_order(state))
+    today = _current_order(state)
     items = review_engine.due_items(state, today, limit=3)
     if not items:
         return jsonify({"questions": []})
@@ -518,7 +541,7 @@ def warmup_submit():
     body = request.get_json(force=True)
     results = body.get("results") or []   # [{ref, topic, correct}]
     state = storage.load_state()
-    today = int(_current_order(state))
+    today = _current_order(state)
 
     served = [r["ref"] for r in results]
     correct_refs = [r["ref"] for r in results if r.get("correct")]
@@ -712,7 +735,12 @@ def interview_start():
         prompts.MENTOR_PERSONA,
         prompts.interview_generate_prompt(plan.get("goal", ""), phases[chapter]["name"], topics),
     )
-    questions = result.get("questions", [])
+    # shape guard: only cache a set we can actually run and grade
+    questions = result.get("questions", []) if isinstance(result, dict) else []
+    questions = [q for q in questions
+                 if isinstance(q, dict) and q.get("id") is not None and q.get("q")]
+    if not questions:
+        return jsonify({"error": "Couldn't set up the interview. Try again."}), 502
     interviews[str(chapter)] = {"questions": questions, "results": None}
     storage.save_state(state)
     qs = [{"id": q["id"], "kind": q.get("kind", "theory"), "q": q["q"]} for q in questions]
@@ -911,7 +939,13 @@ def cron_push():
 
 @app.post("/api/reset")
 def reset():
-    """Start over — wipes the plan and progress."""
+    """Start over — wipes the plan and progress. Guarded against blind
+    cross-site POSTs: requires the app's own header (cross-origin pages can't
+    set custom headers without a CORS preflight, which this app never grants)
+    plus an explicit confirm in the body. Real protection is auth (multi-user)."""
+    body = request.get_json(silent=True) or {}
+    if request.headers.get("X-Requested-With") != "MentorOS" or body.get("confirm") is not True:
+        return jsonify({"error": "Reset must be confirmed from inside the app."}), 403
     storage.save_state(storage._empty_state())
     return jsonify({"ok": True})
 

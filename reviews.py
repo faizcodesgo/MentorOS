@@ -12,7 +12,7 @@ LADDER = [1, 3, 7]   # gaps, in quest-order units
 def enqueue_quiz(state, src_day, quiz, order):
     """After a checkpoint is graded, add its questions to the review ladder."""
     q = state.setdefault("reviews", {"queue": [], "done_upto": 0})["queue"]
-    base = int(order)
+    base = order   # keep a revision day's x.5 order — truncating shifts due dates
     misc = set(dna_engine.norm_topic(t) for t in (state.get("dna") or {}).get("misconceptions", []))
     for i, question in enumerate(quiz):
         topic = question.get("topic", "")

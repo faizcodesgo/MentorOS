@@ -110,7 +110,9 @@ function rewardPill(label, amount) {
 
 async function api(path, opts = {}) {
   const res = await fetch(path, {
-    headers: { "Content-Type": "application/json" },
+    // the custom header marks requests as coming from the app itself —
+    // guarded endpoints (like reset) require it
+    headers: { "Content-Type": "application/json", "X-Requested-With": "MentorOS" },
     ...opts,
   });
   const data = await res.json().catch(() => ({}));
@@ -518,7 +520,7 @@ $("wbResume").addEventListener("click", () => {
 
 async function resetAll(msg) {
   if (!confirm(msg)) return;
-  await api("/api/reset", { method: "POST" });
+  await api("/api/reset", { method: "POST", body: JSON.stringify({ confirm: true }) });
   state = await api("/api/state");
   show("onboarding");
 }
@@ -1548,7 +1550,7 @@ function revealAnswer(confidence) {
     msg = `Not quite — the right answer's highlighted.`;
   }
   quizRun.xp += gained;
-  quizRun.answers.push({ chosen: picked, confidence });
+  quizRun.answers.push({ i: idx, chosen: picked, confidence });
 
   const fb = $("quizFeedback");
   fb.className = cls;
