@@ -196,7 +196,7 @@ $("inMaterialFile").addEventListener("change", async (e) => {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Upload failed");
     materialUploaded = true;
-    $("materialStatus").textContent = `✓ ${data.name} — ${data.chars.toLocaleString()} characters ready`;
+    $("materialStatus").textContent = `${data.name} — ${data.chars.toLocaleString()} characters ready`;
     $("scopeOptions").classList.remove("hidden");
   } catch (err) {
     $("materialStatus").textContent = err.message;
@@ -225,7 +225,7 @@ function chosenScope() {
 $("goalForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   if (!chosenClass) {
-    toast("Choose your class first — it shapes how the mentor teaches you.");
+    toast("Pick a teaching style first.");
     return;
   }
   pendingInput = {
@@ -238,7 +238,7 @@ $("goalForm").addEventListener("submit", async (e) => {
   };
   const btn = $("btnNegotiate");
   btn.disabled = true;
-  loading(true, "The mentor is thinking about your goal…");
+  loading(true, "Assessing your goal…");
   try {
     await uploadPastedMaterial();              // upload pasted notes if any
     pendingInput.material_scope = chosenScope();
@@ -314,7 +314,7 @@ async function generatePhases() {
     show("dashboard");
     toast("Your plan is ready. Day 1 starts now.");
   } catch (err) {
-    toast("Curriculum generation hit a snag: " + err.message + " — retrying may help.", 8000);
+    toast("Couldn't finish building your plan. Try again.", 8000);
     // leave the user on the generating screen with a retry
     $("genProgress").innerHTML = `<button class="btn ghost small" onclick="generatePhases()">Retry</button>`;
   }
@@ -345,13 +345,13 @@ function renderDashboard() {
   const xp = state.xp || 0;
   const lv = levelFromXp(xp);
 
-  $("dashGoal").textContent = "MAIN QUEST · " + plan.goal.toUpperCase();
+  $("dashGoal").textContent = plan.goal;
   $("dashDayTitle").textContent = allDone
-    ? "Main quest complete. Well done."
-    : entry.kind === "revision" ? "Revision Quest"
-    : entry.kind === "project" ? "Milestone — Build it"
+    ? "Plan complete. Well done."
+    : entry.kind === "revision" ? "Revision day"
+    : entry.kind === "project" ? "Milestone project"
     : `Day ${entry.day} of ${plan.days}`;
-  $("dashCount").textContent = `${doneReal}/${plan.days} QUESTS DONE`;
+  $("dashCount").textContent = `${doneReal}/${plan.days} days done`;
   if (lastShownXp !== null && xp > lastShownXp) {
     animateXpChip($("levelChip"), lastShownXp, xp, lv);
   } else {
@@ -371,7 +371,7 @@ function renderDashboard() {
     : "";
   const estTxt = entry && entry.est_minutes ? ` · ${fmtTime(entry.est_minutes)} today` : "";
   $("todayReward").textContent = entry ? `+${questReward(entry)} XP${estTxt}` : "";
-  $("btnStartToday").textContent = entry && entry.kind === "revision" ? "Start revision" : "Start the quest";
+  $("btnStartToday").textContent = entry && entry.kind === "revision" ? "Start revision" : "Start today";
   $("btnStartToday").onclick = () => openLesson(entry.day);
 
   const currentId = entry.day;
@@ -384,8 +384,8 @@ function renderDashboard() {
       const revision = d.kind === "revision";
       const project = d.kind === "project";
       const cls = ["day-row", done ? "done" : "", isToday ? "today-row" : "", locked ? "locked" : "", d.is_checkpoint && !project ? "checkpoint" : "", revision ? "revision" : "", project ? "project" : ""].join(" ");
-      const stateTxt = done ? `✓ +${questReward(d)} XP` : isToday ? "TODAY" : locked ? "LOCKED" : "";
-      const label = revision ? "◆ REVISION" : project ? "◆ MILESTONE" : `${d.is_checkpoint ? "◈" : ""} DAY ${d.day}`;
+      const stateTxt = done ? `+${questReward(d)} XP` : isToday ? "Today" : locked ? "Locked" : "";
+      const label = revision ? "Revision" : project ? "Milestone" : `Day ${d.day}`;
       return `<button class="${cls}" data-day="${d.day}">
         <span class="num mono">${label}</span>
         <span class="t">${esc(d.title)}</span>
@@ -403,7 +403,7 @@ function renderDashboard() {
   $("dayList").querySelectorAll(".day-row").forEach((row) => {
     row.addEventListener("click", () => {
       if (row.classList.contains("locked")) {
-        toast("One quest at a time — finish this one first.");
+        toast("Finish the current day first.");
         return;
       }
       const day = parseInt(row.dataset.day, 10);
@@ -427,7 +427,7 @@ function renderGreeting() {
   let thread = "";
   if (new Date().getDay() === 1 && doneReal > 0)   // fresh-start effect: Monday = clean slate
     thread = "New week, clean slate — let's make it count.";
-  else if (doneReal === 0) thread = "Let's get your first quest done.";
+  else if (doneReal === 0) thread = "Let's get Day 1 done.";
   else if (dna && dna.weakest && dna.topics && dna.topics[dna.weakest] && dna.topics[dna.weakest].band !== "mastered")
     thread = `We'll keep chipping at ${dna.weakest} today.`;
   else if (s.count >= 3) thread = `${s.count} days running — nice rhythm.`;
@@ -449,7 +449,7 @@ function renderWeeklyReport() {
   const questsThisWeek = doneReal - (w.last_shown || 0);
 
   const rows = [
-    `<div class="wk-stat"><span class="wk-num">${questsThisWeek}</span><span class="wk-lbl">quests done</span></div>`,
+    `<div class="wk-stat"><span class="wk-num">${questsThisWeek}</span><span class="wk-lbl">days done</span></div>`,
     `<div class="wk-stat"><span class="wk-num">+${xpGain}</span><span class="wk-lbl">XP earned</span></div>`,
     `<div class="wk-stat"><span class="wk-num">${newlyMastered.length}</span><span class="wk-lbl">topics mastered</span></div>`,
   ].join("");
@@ -505,10 +505,10 @@ async function checkPace() {
   renderDashboard();
 
   $("wbBody").textContent =
-    `You stepped away for ${r.days_away} days — no problem. I've re-paced your roadmap so you pick up right where it makes sense. Nothing lost, goal still on track.`;
+    `You were away for ${r.days_away} days, so your plan has been re-paced to start from today.`;
   const rewards = [`+${r.bonus_xp} XP return bonus`];
-  rewards.push(r.shield_used ? "streak shield spent to keep your streak" : "+1 streak shield, on the house");
-  $("wbRewards").innerHTML = rewards.map((t) => `<span class="wb-reward">✦ ${esc(t)}</span>`).join("");
+  rewards.push(r.shield_used ? "Streak shield used — your streak held" : "+1 streak shield");
+  $("wbRewards").innerHTML = rewards.map((t) => `<span class="wb-reward">${esc(t)}</span>`).join("");
   $("welcomeBack").classList.remove("hidden");
 }
 
@@ -526,10 +526,10 @@ async function resetAll(msg) {
 }
 
 $("btnReset").addEventListener("click", () =>
-  resetAll("This wipes your whole plan and progress. Sure?"));
+  resetAll("This permanently deletes your plan and progress. Continue?"));
 
 $("btnAbandonGen").addEventListener("click", () =>
-  resetAll("Abandon this plan and start over from the goal screen?"));
+  resetAll("This permanently deletes your plan and progress. Continue?"));
 
 /* ---------- study reminders (push notifications) ---------- */
 
@@ -574,7 +574,7 @@ $("btnEnableReminders").addEventListener("click", async () => {
     await api("/api/push/subscribe", { method: "POST", body: JSON.stringify({ subscription: sub, ...prefs }) });
     await api("/api/push/settings", { method: "POST", body: JSON.stringify({ enabled: true, ...prefs }) });
     state = await api("/api/state");
-    $("remStatus").textContent = "✓ Reminders are on.";
+    $("remStatus").textContent = "Reminders are on.";
     $("btnDisableReminders").classList.remove("hidden");
     toast("Study reminders enabled.");
   } catch (err) {
@@ -608,7 +608,7 @@ function renderSkillMapCard() {
   const topics = dna ? Object.entries(dna.topics || {}) : [];
   $("skillMapSub").textContent = topics.length
     ? `${topics.length} topic${topics.length > 1 ? "s" : ""} tracked · ${Math.round((dna.overall_mastery || 0) * 100)}% overall`
-    : "Take a Boss Check and your skill map appears here.";
+    : "Finish a checkpoint and your skill map appears here.";
 
   const top = topics.slice().sort((a, b) => b[1].attempts - a[1].attempts).slice(0, 3);
   $("skillMapDots").innerHTML = top.map(([, r]) => `<span class="sdot ${r.band}"></span>`).join("");
@@ -641,7 +641,7 @@ const BAND_LABEL = { mastered: "Mastered", developing: "Developing", weak: "Not 
 function renderSkills(dna) {
   const notes = $("notesCard");
   if (dna && dna.notes) {
-    notes.innerHTML = `<p class="label mono">MENTOR'S NOTES</p><p class="notes-body">${fmt(dna.notes)}</p>`;
+    notes.innerHTML = `<p class="label mono">Mentor's notes</p><p class="notes-body">${fmt(dna.notes)}</p>`;
     notes.style.display = "";
   } else {
     notes.style.display = "none";
@@ -649,7 +649,7 @@ function renderSkills(dna) {
 
   const topics = dna ? Object.entries(dna.topics || {}) : [];
   if (!topics.length) {
-    $("skillsList").innerHTML = `<div class="card"><p class="sub">No skills tracked yet. Clear a Boss Check and your topics start appearing here.</p></div>`;
+    $("skillsList").innerHTML = `<div class="card"><p class="sub">No skills tracked yet. Finish a checkpoint and your topics appear here.</p></div>`;
     return;
   }
 
@@ -700,7 +700,7 @@ function isChapterEnd(day) {
 }
 
 async function openRecap(day, opts = {}) {
-  loading(true, "Putting today together…");
+  loading(true, "Loading your recap…");
   let lesson;
   try { lesson = await api("/api/lesson/" + day); } catch { loading(false); return; }
   loading(false);
@@ -769,7 +769,7 @@ let vivaChapter = 0;
 let vivaRun = null; // {questions, idx, answers}
 
 async function startViva(chapter) {
-  loadingCycle(["Setting up your interview…", "Thinking up good questions…"]);
+  loadingCycle(["Setting up your interview…", "Preparing questions…"]);
   try {
     const r = await api("/api/interview/start", { method: "POST", body: JSON.stringify({ chapter }) });
     loading(false);
@@ -801,7 +801,7 @@ $("btnVivaNext").addEventListener("click", async () => {
     renderVivaQ();
     return;
   }
-  loadingCycle(["Reviewing your interview…", "Weighing each answer…", "Writing your feedback…"]);
+  loadingCycle(["Reviewing your answers…", "Preparing your feedback…"]);
   try {
     const r = await api("/api/interview/submit", {
       method: "POST",
@@ -828,8 +828,8 @@ function renderVivaResults(r) {
   $("vivaResultList").innerHTML = (r.results || []).map((res) => `
     <div class="card viva-result ${esc(res.verdict || "okay")}">
       <p class="viva-rq">${fmt(qById[res.id] || "")}</p>
-      <p class="vr-good">✓ ${esc(res.whats_good || "")}</p>
-      ${res.tighten ? `<p class="vr-tighten">→ ${esc(res.tighten)}</p>` : ""}
+      <p class="vr-good">${esc(res.whats_good || "")}</p>
+      ${res.tighten ? `<p class="vr-tighten">${esc(res.tighten)}</p>` : ""}
       ${res.model_answer ? `<details class="vr-model"><summary>Model answer</summary><p>${fmt(res.model_answer)}</p></details>` : ""}
     </div>`).join("");
   rewardPill("Mock interview complete", `+${r.xp_gained} XP`);
@@ -851,7 +851,7 @@ $("btnExplain").addEventListener("click", async () => {
   if (!text) { toast("Write your explanation first."); return; }
   if (!explainConcept) return;
   $("btnExplain").disabled = true;
-  loadingCycle(["Reading your explanation…", "Checking it against the lesson…"]);
+  loadingCycle(["Checking your explanation…"]);
   try {
     const r = await api("/api/explain", {
       method: "POST",
@@ -862,8 +862,8 @@ $("btnExplain").addEventListener("click", async () => {
     const fb = $("explainFeedback");
     fb.className = "explain-feedback";
     fb.innerHTML =
-      `<p class="ef-good">✓ ${esc(r.whats_good)}</p>` +
-      (r.whats_missing ? `<p class="ef-add">+ ${esc(r.whats_missing)}</p>` : "");
+      `<p class="ef-good">${esc(r.whats_good)}</p>` +
+      (r.whats_missing ? `<p class="ef-add">${esc(r.whats_missing)}</p>` : "");
     await rewardPill("Nice — you said it back", `+${r.xp_gained} XP`);
   } catch (err) {
     loading(false);
@@ -882,29 +882,25 @@ async function loadWarmup() {
   let data;
   try { data = await api("/api/warmup"); } catch { return; }   // cheap check, no AI
   if (data.done) {
-    $("warmupDone").innerHTML = `<span class="check">✓</span> Warm-up done`;
+    $("warmupDone").textContent = "Warm-up done";
     $("warmupDone").classList.remove("hidden");
     return;
   }
   if (!data.available) return;  // nothing due yet
-  // tiny-habits framing: if today's quest isn't done yet, sell it as a "minimum day"
-  const questDone = isDone(currentEntry().day);
-  $("warmupSub").textContent = questDone
-    ? `${data.count} quick recall${data.count > 1 ? "s" : ""} on earlier topics · +15 XP`
-    : `Short on time? A 2-minute warm-up keeps your streak alive.`;
+  $("warmupSub").textContent =
+    `${data.count} quick recall${data.count > 1 ? "s" : ""} on earlier topics · +15 XP`;
   $("warmupCard").classList.remove("hidden");
   $("btnWarmup").onclick = startWarmup;
 }
 
 async function startWarmup() {
-  loadingCycle(["Setting up your warm-up…", "Fresh questions, not repeats…"]);
+  loadingCycle(["Preparing your questions…"]);
   let data;
   try { data = await api("/api/warmup/start", { method: "POST" }); }
   catch (err) { loading(false); toast(err.message); return; }
   loading(false);
   if (!data.questions || !data.questions.length) { toast("No warm-up due right now."); return; }
   warmupRun = { questions: data.questions, idx: 0, results: [], picked: null };
-  $("quizDay").textContent = "warm-up";
   document.querySelector("#view-quiz .kicker").textContent = "Warm-up · quick recall";
   show("quiz");
   renderWarmupQ();
@@ -963,7 +959,7 @@ let focus = null;
 
 $("btnFocus") && $("btnFocus").addEventListener("click", () => {
   const entry = currentEntry();
-  $("focusQuestName").textContent = entry ? entry.title : "Today's quest";
+  $("focusQuestName").textContent = entry ? entry.title : "Today's lesson";
   $("focusIntent").value = "";
   $("focusSheet").classList.remove("hidden");
 });
@@ -1196,8 +1192,8 @@ function renderLesson(l) {
 
   // header (rendered once, fixed across steps)
   const lessonEntry = state.plan.curriculum.find((d) => d.day === l.day) || {};
-  const headKicker = lessonEntry.kind === "revision" ? "REVISION"
-    : `DAY ${l.day}${l.is_checkpoint ? " · CHECKPOINT" : ""}`;
+  const headKicker = lessonEntry.kind === "revision" ? "Revision"
+    : `Day ${l.day}${l.is_checkpoint ? " · Checkpoint" : ""}`;
   $("lessonHead").innerHTML = `<p class="mono kicker">${headKicker}</p><h1>${esc(l.title)}</h1>`;
 
   // videos / watch links
@@ -1220,23 +1216,23 @@ function renderLesson(l) {
   lessonSteps = [];
   lessonSteps.push({ kind: "intro", html:
     `<p class="lesson-intro">${fmt(l.intro)}</p>` +
-    (resources ? `<div class="card"><p class="label mono">WATCH</p>${l.resources_note ? `<p class="resources-note">${fmt(l.resources_note)}</p>` : ""}${resources}</div>` : "")
+    (resources ? `<div class="card"><p class="label mono">Watch</p>${l.resources_note ? `<p class="resources-note">${fmt(l.resources_note)}</p>` : ""}${resources}</div>` : "")
   });
   (l.sections || []).forEach((s, i) => lessonSteps.push({ kind: "section", i, s, widget: widgetSlots[i], html: sectionHtml(l, s, i) }));
   lessonSteps.push({ kind: "practice", html:
     `<div class="card">
-      <p class="label mono">PRACTICE</p>
+      <p class="label mono">Practice</p>
       <ul class="plain-list">${(l.practice || []).map((p) => `<li>${fmt(p)}</li>`).join("")}</ul>
-      <p class="label mono" style="margin-top:14px">HOMEWORK</p>
+      <p class="label mono" style="margin-top:14px">Homework</p>
       <ul class="plain-list">${(l.homework || []).map((h) => `<li>${fmt(h)}</li>`).join("")}</ul>
-      <p class="label mono" style="margin-top:14px">COMMON MISTAKES</p>
+      <p class="label mono" style="margin-top:14px">Common mistakes</p>
       <ul class="plain-list">${(l.common_mistakes || []).map((m) => `<li>${fmt(m)}</li>`).join("")}</ul>
     </div>`
   });
-  lessonSteps.push({ kind: "summary", html: `<div class="card"><p class="label mono">SUMMARY</p><p>${fmt(l.summary)}</p></div>` });
+  lessonSteps.push({ kind: "summary", html: `<div class="card"><p class="label mono">Summary</p><p>${fmt(l.summary)}</p></div>` });
 
   const done = state.progress[String(l.day)] && state.progress[String(l.day)].completed;
-  $("completeReward").textContent = `REWARD: +${l.is_checkpoint ? 150 : 100} XP`;
+  $("completeReward").textContent = `+${l.is_checkpoint ? 150 : 100} XP`;
   $("askInput").value = "";
   $("explorations").innerHTML = (l.explorations || []).map(explorationHtml).join("");
 
@@ -1318,7 +1314,7 @@ let currentProject = null;
 
 async function openProject(entry) {
   currentProject = entry;
-  loadingCycle(["Setting up your milestone…", "Designing a project for where you're at…"]);
+  loadingCycle(["Preparing your project…"]);
   let proj;
   try { proj = await api("/api/project/" + entry.project_id); }
   catch (err) { loading(false); toast(err.message, 6000); return; }
@@ -1332,7 +1328,7 @@ function renderProject(entry, proj) {
   $("projBrief").innerHTML = fmt(proj.brief || "");
   $("projReqs").innerHTML = (proj.requirements || []).map((r) => `<li>${fmt(r)}</li>`).join("");
   $("projStarter").innerHTML = proj.starter
-    ? `<p class="label mono" style="margin-top:12px">START FROM</p><div class="worked-body">${fmt(proj.starter)}</div>` : "";
+    ? `<p class="label mono" style="margin-top:12px">Start from</p><div class="worked-body">${fmt(proj.starter)}</div>` : "";
 
   const reviewed = proj.status === "reviewed" && proj.review;
   $("projSubmitCard").style.display = reviewed ? "none" : "";
@@ -1343,7 +1339,7 @@ function renderProject(entry, proj) {
 
 function renderProjectReview(r) {
   $("projReviewCard").innerHTML = `
-    <p class="label mono">MENTOR REVIEW</p>
+    <p class="label mono">Mentor review</p>
     ${r.opener ? `<p class="review-opener">${fmt(r.opener)}</p>` : ""}
     <p class="review-h good">What's strong</p>
     <ul class="plain-list">${(r.whats_good || []).map((x) => `<li>${fmt(x)}</li>`).join("")}</ul>
@@ -1359,7 +1355,7 @@ $("btnProjSubmit").addEventListener("click", async () => {
   const content = $("projInput").value.trim();
   if (!content) { toast("Add your work first."); return; }
   $("btnProjSubmit").disabled = true;
-  loadingCycle(["Reviewing your work…", "Reading it like a mentor…"]);
+  loadingCycle(["Reviewing your work…"]);
   try {
     const r = await api("/api/project/" + currentProject.project_id + "/submit", {
       method: "POST", body: JSON.stringify({ content, type: "submit" }) });
@@ -1383,10 +1379,10 @@ function renderBossCard(l, done) {
   }
   card.classList.remove("hidden");
   if (result) {
-    $("bossSub").innerHTML = `<span class="cleared">CLEARED</span> · ${result.score}/${result.total} correct · +${result.xp_earned} XP earned`;
+    $("bossSub").innerHTML = `<span class="cleared">Done</span> · ${result.score}/${result.total} correct · +${result.xp_earned} XP`;
     $("btnBoss").style.display = "none";
   } else {
-    $("bossSub").textContent = `${l.quiz.length} questions on today's quest. Bonus XP only — you can't lose anything you've earned.`;
+    $("bossSub").textContent = `${l.quiz.length} questions on today's lesson — bonus XP only.`;
     $("btnBoss").style.display = "";
     $("btnBoss").onclick = () => startQuiz(l);
   }
@@ -1394,7 +1390,7 @@ function renderBossCard(l, done) {
 
 function explorationHtml(x) {
   return `<div class="exploration">
-    <p class="exp-q"><span class="mono">YOU ASKED</span> ${esc(x.q)}</p>
+    <p class="exp-q"><span class="mono">You asked</span> ${esc(x.q)}</p>
     <div class="exp-a">${fmt(x.a)}</div>
     ${visualHolder(x.visual)}
   </div>`;
@@ -1404,7 +1400,7 @@ $("btnAsk").addEventListener("click", async () => {
   const question = $("askInput").value.trim();
   if (!question) { toast("Type your question first."); return; }
   $("btnAsk").disabled = true;
-  loadingCycle(["Thinking about your question…", "Pulling the threads together…", "Almost there…"]);
+  loadingCycle(["Working on your answer…"]);
   try {
     const item = await api("/api/ask", {
       method: "POST",
@@ -1445,7 +1441,7 @@ $("btnComplete").addEventListener("click", async () => {
     if (r.xp_gained > 0) {
       const oldLv = levelFromXp(r.xp - r.xp_gained);
       const newLv = levelFromXp(r.xp);
-      await rewardPill("Quest complete", `+${r.xp_gained} XP`);
+      await rewardPill("Day complete", `+${r.xp_gained} XP`);
       if (newLv > oldLv) {
         await rewardPill(`Level ${newLv} · ${rankFromLevel(newLv)}`, "");
       }
@@ -1467,6 +1463,9 @@ let quizRun = null; // {lesson, idx, answers, combo, xp, picked}
 
 function startQuiz(lesson) {
   quizRun = { lesson, idx: 0, answers: [], combo: 0, xp: 0, picked: null };
+  // restore the kicker — a warm-up run replaces it (and removes #quizDay)
+  document.querySelector("#view-quiz .kicker").innerHTML =
+    'Checkpoint · Day <span id="quizDay"></span>';
   $("quizDay").textContent = lesson.day;
   show("quiz");
   renderQuestion();

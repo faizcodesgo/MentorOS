@@ -84,7 +84,7 @@ def compute(state):
 def build_notes(dna):
     """First-person mentor observations — every line anchored to real data."""
     if dna["total_answered"] < 3:
-        return "Take a Boss Check or two and I'll start learning how you learn."
+        return "Finish a checkpoint or two and I'll start learning how you learn."
 
     lines = []
     strong, weak = dna["strongest"], dna["weakest"]

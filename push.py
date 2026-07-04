@@ -54,7 +54,7 @@ def build_digest(state):
     ordered = sorted(plan["curriculum"], key=lambda d: d.get("order", d["day"]))
     for d in ordered:
         if not state["progress"].get(str(d["day"]), {}).get("completed"):
-            today_order = int(d.get("order", d["day"]))
+            today_order = d.get("order", d["day"])   # keep x.5 revision orders intact
             break
     due = review_engine.due_items(state, today_order, limit=3) if today_order else []
 
@@ -64,10 +64,10 @@ def build_digest(state):
         n = len(due)
         return ("MentorOS", f"{n} concept{'s' if n > 1 else ''} ready to recall{who} — "
                             f"a few minutes locks them in.")
-    # otherwise a gentle daily nudge toward the next quest
+    # otherwise a gentle daily nudge toward the next day's lesson
     nxt = next((d for d in ordered if not state["progress"].get(str(d["day"]), {}).get("completed")), None)
     if nxt:
-        title = nxt.get("title") or "today's quest"
+        title = nxt.get("title") or "today's lesson"
         return ("MentorOS", f"Your study window is open{who} — up next: {title}.")
     return None
 

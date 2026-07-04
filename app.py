@@ -353,16 +353,16 @@ def submit_project(pid):
 
 @app.post("/api/quiz/<int:day>/submit")
 def submit_quiz(day):
-    """Grade a Boss Check — pure Python, no AI call. XP is rewards-only:
+    """Grade a checkpoint quiz — pure Python, no AI call. XP is rewards-only:
     wrong answers still earn scouting XP and never subtract anything."""
     body = request.get_json(force=True)
     answers = body.get("answers") or []
     state = storage.load_state()
     lesson = state["lessons"].get(str(day))
     if not lesson or not lesson.get("quiz"):
-        return jsonify({"error": "No Boss Check exists for this day."}), 404
+        return jsonify({"error": "No checkpoint exists for this day."}), 404
     if str(day) in state.get("quizzes", {}):
-        return jsonify({"error": "Boss Check already cleared for this day."}), 400
+        return jsonify({"error": "This checkpoint is already done."}), 400
 
     quiz = lesson["quiz"]
     wager_mult = {"safe": 1.0, "confident": 1.5, "allin": 2.0}

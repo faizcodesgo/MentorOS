@@ -28,36 +28,36 @@
     <!-- ============ ONBOARDING ============ -->
     <section id="view-onboarding" class="view">
       <div class="hero">
-        <p class="mono kicker">YOUR PERSONAL AI MENTOR</p>
+        <p class="mono kicker">Learn anything, day by day</p>
         <h1>What do you want to learn?</h1>
-        <p class="sub">Tell me the goal and the time you have. I'll be honest about what's achievable — then build your day-by-day plan.</p>
+        <p class="sub">Set the goal and the time you have. You get a straight assessment and a day-by-day plan.</p>
       </div>
 
       <form id="goalForm" class="card form-card">
         <label>
-          <span class="label mono">YOUR FIRST NAME</span>
-          <input type="text" id="inName" placeholder="What should I call you?" maxlength="24" />
+          <span class="label mono">First name</span>
+          <input type="text" id="inName" placeholder="Your name" maxlength="24" />
         </label>
         <label>
-          <span class="label mono">GOAL</span>
+          <span class="label mono">Goal</span>
           <input type="text" id="inGoal" placeholder="e.g. Data Structures & Algorithms in C for placement prep" required />
         </label>
         <div class="row">
           <label>
-            <span class="label mono">DAYS</span>
+            <span class="label mono">Days</span>
             <input type="number" id="inDays" min="3" max="365" value="50" required />
           </label>
           <label>
-            <span class="label mono">HOURS / DAY</span>
+            <span class="label mono">Hours per day</span>
             <input type="number" id="inHours" min="0.5" max="14" step="0.5" value="4" required />
           </label>
         </div>
         <label>
-          <span class="label mono">YOUR CURRENT LEVEL <em>(optional, honest)</em></span>
+          <span class="label mono">Current level <em>(optional)</em></span>
           <textarea id="inLevel" rows="2" placeholder="e.g. I know basic C syntax, never studied data structures"></textarea>
         </label>
 
-        <span class="label mono">TEACH FROM MY OWN MATERIAL <em>(optional)</em></span>
+        <span class="label mono">Teach from my own material <em>(optional)</em></span>
         <div class="material-box" id="materialBox">
           <p class="material-hint">Upload your syllabus, notes, or a textbook and I'll teach from it.</p>
           <div class="material-actions">
@@ -70,7 +70,7 @@
           <textarea id="inMaterialText" rows="3" class="hidden" placeholder="Paste your syllabus or notes here…"></textarea>
           <p class="material-status" id="materialStatus"></p>
           <div class="scope-options hidden" id="scopeOptions">
-            <p class="label mono">HOW MUCH SHOULD I TEACH?</p>
+            <p class="label mono">How much should I teach?</p>
             <label class="scope-opt">
               <input type="radio" name="scope" value="only" />
               <span class="scope-check" aria-hidden="true"></span>
@@ -89,7 +89,7 @@
           </div>
         </div>
 
-        <span class="label mono">HOW SHOULD I TEACH YOU?</span>
+        <span class="label mono">How should I teach you?</span>
         <div class="class-grid" id="classGrid">
           <button type="button" class="class-card" data-class="scholar">
             <svg class="cicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
@@ -133,16 +133,16 @@
 
         <div class="scope-grid">
           <div>
-            <p class="label mono">IN THIS PLAN</p>
+            <p class="label mono">In this plan</p>
             <ul id="scopeIn" class="scope-list in"></ul>
           </div>
           <div id="scopeOutWrap">
-            <p class="label mono">NEEDS MORE TIME</p>
+            <p class="label mono">Needs more time</p>
             <ul id="scopeOut" class="scope-list out"></ul>
           </div>
         </div>
 
-        <p class="label mono">PHASES</p>
+        <p class="label mono">Phases</p>
         <ol id="phaseList" class="phase-list"></ol>
 
         <div class="actions">
@@ -158,7 +158,7 @@
         <div class="spinner"></div>
         <h2>Building your curriculum</h2>
         <p class="mono" id="genProgress">Phase 1…</p>
-        <p class="sub">The mentor is sequencing every day of your plan. This takes a minute — don't close the page.</p>
+        <p class="sub">Sequencing every day of your plan. This takes a minute — keep this page open.</p>
         <button class="btn ghost small" id="btnAbandonGen" style="margin-top:18px">Abandon &amp; start over</button>
       </div>
     </section>
@@ -187,7 +187,7 @@
 
       <div class="card weekly-card hidden" id="weeklyCard">
         <div class="weekly-head">
-          <p class="label mono">YOUR WEEK</p>
+          <p class="label mono">Your week</p>
           <button class="weekly-x" id="weeklyDismiss" aria-label="Dismiss">✕</button>
         </div>
         <div id="weeklyBody"></div>
@@ -196,26 +196,26 @@
       <div class="card warmup-card hidden" id="warmupCard">
         <div class="warmup-main">
           <p class="label">Warm-up</p>
-          <p class="warmup-sub" id="warmupSub">3 quick recalls from earlier days.</p>
+          <p class="warmup-sub" id="warmupSub">Quick recall from earlier days.</p>
         </div>
         <button class="btn primary small" id="btnWarmup">Start</button>
       </div>
       <div class="done-row hidden" id="warmupDone"></div>
 
       <div class="card today-card" id="todayCard">
-        <p class="label mono">TODAY'S QUEST</p>
+        <p class="label mono">Today</p>
         <h2 id="todayTitle"></h2>
         <ul id="todayObjectives"></ul>
         <p class="reward mono" id="todayReward"></p>
         <div class="today-actions">
-          <button class="btn primary" id="btnStartToday">Start the quest</button>
+          <button class="btn primary" id="btnStartToday">Start today</button>
           <button class="btn ghost small" id="btnFocus">Focus timer</button>
         </div>
       </div>
 
       <button class="card skillmap-card" id="skillMapCard">
         <div class="skillmap-left">
-          <p class="label mono">SKILL MAP <span class="note-dot" id="noteDot"></span></p>
+          <p class="label mono">Skill map <span class="note-dot" id="noteDot"></span></p>
           <p class="skillmap-sub" id="skillMapSub">Your mentor is still getting to know you.</p>
         </div>
         <div class="skillmap-dots" id="skillMapDots"></div>
@@ -223,16 +223,16 @@
       </button>
 
       <div class="card saved-card hidden" id="savedCard">
-        <p class="label mono">SAVED SECTIONS</p>
+        <p class="label mono">Saved sections</p>
         <div id="savedList"></div>
       </div>
 
-      <p class="label mono list-label">QUEST LOG</p>
+      <p class="label mono list-label">Your plan</p>
       <div id="dayList" class="day-list"></div>
 
       <div class="dash-footer">
         <button class="btn ghost small" id="btnReminders">Study reminders</button>
-        <button class="btn danger ghost small" id="btnReset">Start over (wipes plan)</button>
+        <button class="btn danger ghost small" id="btnReset">Start over</button>
       </div>
     </section>
 
@@ -296,7 +296,7 @@
     <section id="view-skills" class="view hidden">
       <button class="btn ghost small" id="btnSkillsBack">&larr; Back to dashboard</button>
       <div class="skills-head">
-        <p class="mono kicker">SKILL MAP</p>
+        <p class="mono kicker">Skill map</p>
         <h1>What your mentor knows about you</h1>
       </div>
       <div class="card notes-card" id="notesCard"></div>
@@ -319,15 +319,15 @@
       </div>
 
       <div class="card complete-card" id="completeCard">
-        <h3>Quest complete?</h3>
-        <p class="sub">Claim it once you've finished the practice work.</p>
+        <h3>Done for today?</h3>
+        <p class="sub">Mark it done once you've finished the practice work.</p>
         <p class="reward mono" id="completeReward"></p>
-        <button class="btn primary" id="btnComplete">Complete quest</button>
+        <button class="btn primary" id="btnComplete">Mark today done</button>
       </div>
 
       <div class="card boss-card hidden" id="bossCard">
         <h3>Checkpoint</h3>
-        <p class="sub" id="bossSub">A few questions on today's quest. Bonus XP only — you can't lose anything you've earned.</p>
+        <p class="sub" id="bossSub">A few questions on today's lesson — bonus XP only.</p>
         <button class="btn primary" id="btnBoss">Start checkpoint</button>
       </div>
     </section>
@@ -335,15 +335,15 @@
     <!-- ============ PROJECT (milestone) ============ -->
     <section id="view-project" class="view hidden">
       <button class="btn ghost small" id="btnProjectBack">&larr; Back to plan</button>
-      <div class="lesson-head"><p class="mono kicker">MILESTONE · BUILD IT</p><h1 id="projTitle"></h1></div>
+      <div class="lesson-head"><p class="mono kicker">Milestone project</p><h1 id="projTitle"></h1></div>
       <div class="card"><p id="projBrief" class="lesson-intro"></p></div>
       <div class="card" id="projReqCard">
-        <p class="label mono">WHAT IT NEEDS</p>
+        <p class="label mono">What it needs</p>
         <ul class="plain-list" id="projReqs"></ul>
         <div id="projStarter"></div>
       </div>
       <div class="card" id="projSubmitCard">
-        <p class="label mono">SUBMIT YOUR WORK</p>
+        <p class="label mono">Submit your work</p>
         <p class="sub">Paste your code or text, drop a link (GitHub / sandbox), or describe what you built.</p>
         <textarea id="projInput" rows="6" placeholder="Your code, a link, or a description…"></textarea>
         <button class="btn primary" id="btnProjSubmit">Submit for review</button>
@@ -383,7 +383,7 @@
   <div id="focusSheet" class="modal-scrim hidden">
     <div class="modal focus-modal">
       <p class="mono kicker">Focus session</p>
-      <h2 id="focusQuestName">Today's quest</h2>
+      <h2 id="focusQuestName">Today's lesson</h2>
       <label class="focus-intent">
         <span class="label">What will you finish?</span>
         <input type="text" id="focusIntent" placeholder="e.g. the practice problems + watch the video" />
@@ -394,7 +394,7 @@
         <button class="dur-chip selected" data-min="25">25 min</button>
         <button class="dur-chip" data-min="45">45 min</button>
       </div>
-      <p class="focus-note">A voluntary timer — it keeps your screen on and cheers you on, but it can't block other apps. Staying is on you.</p>
+      <p class="focus-note">Keeps your screen awake for the session. It won't block other apps.</p>
       <div class="focus-actions">
         <button class="btn primary" id="btnFocusStart">Start focus</button>
         <button class="btn ghost" id="btnFocusCancel">Cancel</button>
@@ -415,11 +415,11 @@
 
   <div id="welcomeBack" class="modal-scrim hidden">
     <div class="modal welcome-modal">
-      <p class="mono kicker">WELCOME BACK</p>
-      <h2 id="wbTitle">Your seat was saved.</h2>
+      <p class="mono kicker">Welcome back</p>
+      <h2 id="wbTitle">Picking up where you left off.</h2>
       <p id="wbBody" class="sub"></p>
       <div class="wb-rewards mono" id="wbRewards"></div>
-      <button class="btn primary" id="wbResume">Resume quest</button>
+      <button class="btn primary" id="wbResume">Resume</button>
     </div>
   </div>
 
@@ -436,7 +436,7 @@
         <button class="sheet-x" id="askClose" aria-label="Close">✕</button>
       </div>
       <div id="explorations"></div>
-      <textarea id="askInput" rows="2" placeholder="e.g. Wait — how did this work before computers existed?"></textarea>
+      <textarea id="askInput" rows="2" placeholder="Type your question…"></textarea>
       <button class="btn primary small" id="btnAsk">Ask</button>
     </div>
   </div>
@@ -447,7 +447,7 @@
         <p class="label">Study reminders</p>
         <button class="sheet-x" id="remindersClose" aria-label="Close">✕</button>
       </div>
-      <p class="sub">One gentle nudge a day — when a concept's ready to review, or your study window opens. Never spam, never guilt.</p>
+      <p class="sub">Get a daily reminder when something's due for review, or when your study window opens.</p>
       <label class="rem-row"><span>Daily reminder time</span><input type="time" id="remTime" value="19:00" /></label>
       <label class="rem-row"><span>Quiet from</span><input type="time" id="remQuietStart" value="22:00" /></label>
       <label class="rem-row"><span>Quiet until</span><input type="time" id="remQuietEnd" value="08:00" /></label>

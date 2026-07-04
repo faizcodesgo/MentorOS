@@ -357,7 +357,7 @@ code {
   color: var(--muted); font-size: 0.85rem; padding: 10px 4px; margin: var(--s2) 0;
   border-bottom: 1px solid var(--line);
 }
-.done-row .check { color: var(--good); font-weight: 700; }
+.done-row::before { content: "✓"; color: var(--good); font-weight: 700; }
 
 .today-actions { display: flex; gap: var(--s3); align-items: center; flex-wrap: wrap; }
 
