@@ -28,6 +28,12 @@ function rankFromLevel(lv) {
   return "BRONZE";
 }
 
+/* "GOLD" -> "Gold" for display (quiet progress, not shouting) */
+function rankLabel(lv) {
+  const r = rankFromLevel(lv);
+  return r.charAt(0) + r.slice(1).toLowerCase();
+}
+
 function questReward(entry) {
   if (entry && entry.kind === "project") return 300;   // milestones are worth ~4-6 lessons
   return entry && entry.is_checkpoint ? 150 : 100;
@@ -358,7 +364,7 @@ function renderDashboard() {
     $("levelChip").textContent = `LV ${lv} · ${xp} XP`;
   }
   lastShownXp = xp;
-  $("rankChip").textContent = rankFromLevel(lv) + " RANK";
+  $("rankChip").textContent = rankLabel(lv) + " rank";
   const career = state.lifetime_xp || 0;
   $("careerChip").innerHTML = career > 0 ? `CAREER <b>${career + xp} XP</b>` : "";
   $("progressFill").style.width = `${(doneReal / plan.days) * 100}%`;
@@ -1443,7 +1449,7 @@ $("btnComplete").addEventListener("click", async () => {
       const newLv = levelFromXp(r.xp);
       await rewardPill("Day complete", `+${r.xp_gained} XP`);
       if (newLv > oldLv) {
-        await rewardPill(`Level ${newLv} · ${rankFromLevel(newLv)}`, "");
+        await rewardPill(`Level ${newLv} · ${rankLabel(newLv)}`, "");
       }
     }
     if (quizWaiting) {
@@ -1586,7 +1592,7 @@ $("btnNextQ").addEventListener("click", async () => {
     const newLv = levelFromXp(r.xp);
     await rewardPill(r.perfect ? `Perfect run · ${r.score}/${r.total}` : `Checkpoint · ${r.score}/${r.total}`, `+${r.xp_gained} XP`);
     if (newLv > oldLv) {
-      await rewardPill(`Level ${newLv} · ${rankFromLevel(newLv)}`, "");
+      await rewardPill(`Level ${newLv} · ${rankLabel(newLv)}`, "");
     }
     for (const topic of r.mastered || []) {
       await rewardPill("Topic mastered", topic);
