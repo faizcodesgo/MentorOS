@@ -1282,7 +1282,7 @@ $("btnProjSubmit").addEventListener("click", async () => {
   }
 });
 
-/* Boss Check offer/result card at the bottom of a lesson */
+/* Checkpoint offer/result card at the bottom of a lesson */
 function renderBossCard(l, done) {
   const card = $("bossCard");
   const result = (state.quizzes || {})[String(l.day)];
@@ -1346,7 +1346,7 @@ $("btnComplete").addEventListener("click", async () => {
 
     const finishedDay = openDay;
     if (quizWaiting) {
-      // stay on the lesson — reveal the Boss Check right where the user is
+      // stay on the lesson — reveal the checkpoint right where the user is
       $("completeCard").style.display = "none";
       renderBossCard(lesson, true);
     }
@@ -1370,7 +1370,7 @@ $("btnComplete").addEventListener("click", async () => {
   }
 });
 
-/* ---------- Boss Check engine ---------- */
+/* ---------- checkpoint quiz engine ---------- */
 
 let quizRun = null; // {lesson, idx, answers, combo, xp, picked}
 
