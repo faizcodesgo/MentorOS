@@ -612,6 +612,26 @@ code {
 #btnNextQ { margin-top: 16px; }
 .quiz-combo { text-align: right; margin-top: 10px; color: var(--accent-2); letter-spacing: 0.1em; font-size: 0.8rem; min-height: 1.2em; }
 
+/* ---------- study material upload ---------- */
+.material-box {
+  border: 1px dashed var(--line); border-radius: 10px; padding: var(--s4);
+  margin-bottom: var(--s4); background: var(--panel-2);
+}
+.material-hint { font-size: 0.88rem; color: var(--muted); margin-bottom: var(--s3); }
+.material-actions { display: flex; gap: var(--s3); align-items: center; flex-wrap: wrap; }
+.material-file-btn {
+  display: inline-block; border: 1px solid var(--brand); color: var(--brand);
+  border-radius: 8px; padding: 8px 14px; font-size: 0.88rem; font-weight: 600; cursor: pointer;
+}
+.material-file-btn:hover { background: rgba(79, 140, 255, 0.08); }
+.material-paste-btn { background: none; border: none; color: var(--muted); font: inherit; font-size: 0.85rem; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+#inMaterialText { margin-top: var(--s3); }
+.material-status { font-size: 0.85rem; color: var(--good); margin-top: var(--s2); min-height: 1em; }
+.scope-options { margin-top: var(--s4); }
+.scope-opt { display: flex; align-items: flex-start; gap: 8px; padding: 7px 0; font-size: 0.9rem; cursor: pointer; }
+.scope-opt input { margin-top: 3px; accent-color: var(--brand); }
+.scope-opt b { font-weight: 600; }
+
 /* ---------- floating ask button + sheet ---------- */
 .ask-fab {
   position: fixed; right: 18px; bottom: 20px; z-index: 45;

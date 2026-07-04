@@ -168,6 +168,55 @@ document.querySelectorAll(".class-card").forEach((card) => {
   });
 });
 
+/* ---- study material upload ---- */
+let materialUploaded = false;
+
+$("btnPasteToggle").addEventListener("click", () => {
+  $("inMaterialText").classList.toggle("hidden");
+  $("inMaterialText").focus();
+});
+
+$("inMaterialText").addEventListener("input", () => {
+  $("scopeOptions").classList.toggle("hidden", !$("inMaterialText").value.trim());
+});
+
+$("inMaterialFile").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  $("materialStatus").textContent = "Reading your file…";
+  const fd = new FormData();
+  fd.append("file", file);
+  try {
+    const res = await fetch("/api/material", { method: "POST", body: fd });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Upload failed");
+    materialUploaded = true;
+    $("materialStatus").textContent = `✓ ${data.name} — ${data.chars.toLocaleString()} characters ready`;
+    $("scopeOptions").classList.remove("hidden");
+  } catch (err) {
+    $("materialStatus").textContent = err.message;
+  }
+});
+
+/* upload pasted text (called on submit if present) */
+async function uploadPastedMaterial() {
+  const text = $("inMaterialText").value.trim();
+  if (!text || materialUploaded) return;
+  const res = await fetch("/api/material", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text, name: "pasted notes" }),
+  });
+  const data = await res.json();
+  if (res.ok) { materialUploaded = true; $("scopeOptions").classList.remove("hidden"); }
+}
+
+function chosenScope() {
+  const hasMaterial = materialUploaded || $("inMaterialText").value.trim();
+  if (!hasMaterial) return "";
+  const r = document.querySelector('input[name="scope"]:checked');
+  return r ? r.value : "essentials";
+}
+
 $("goalForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   if (!chosenClass) {
@@ -186,6 +235,8 @@ $("goalForm").addEventListener("submit", async (e) => {
   btn.disabled = true;
   loading(true, "The mentor is thinking about your goal…");
   try {
+    await uploadPastedMaterial();              // upload pasted notes if any
+    pendingInput.material_scope = chosenScope();
     negotiation = await api("/api/negotiate", {
       method: "POST",
       body: JSON.stringify(pendingInput),

@@ -55,14 +55,36 @@ def mentor_memory(profile, dna, days_in=None, streak=None):
     return "WHAT YOU REMEMBER ABOUT THEM: " + ("; ".join(bits) if bits else "this is early — you don't know them well yet") + "."
 
 
-def negotiate_prompt(goal, days, hours_per_day, level_notes):
+def material_context(material):
+    """A prompt block telling the mentor how to use the learner's uploaded
+    study material, honoring their chosen scope."""
+    if not material or not material.get("text"):
+        return ""
+    scope = material.get("scope", "essentials")
+    if scope == "only":
+        rule = ("SCOPE = ONLY THIS MATERIAL: teach STRICTLY from the uploaded material below. "
+                "Cover exactly what it contains; do not add topics that aren't in it.")
+    elif scope == "master":
+        rule = ("SCOPE = FULL MASTERY: use the uploaded material as the backbone, but go deep — "
+                "add the prerequisites, connected ideas, and advanced depth needed to truly master this subject, "
+                "beyond what the material alone covers.")
+    else:  # essentials (default)
+        rule = ("SCOPE = MATERIAL + ESSENTIALS: teach the uploaded material PLUS the background and "
+                "prerequisites needed to actually understand it. Stay close to the material's scope; "
+                "don't wander far beyond it.")
+    return (f"\nTHE STUDENT UPLOADED THEIR OWN STUDY MATERIAL (syllabus/notes/textbook). "
+            f"Base the plan and lessons on it. {rule}\n"
+            f"--- MATERIAL START ---\n{material['text']}\n--- MATERIAL END ---\n")
+
+
+def negotiate_prompt(goal, days, hours_per_day, level_notes, material=None):
     return f"""A student wants to learn something and you must assess whether their timeline is realistic, like an honest mentor would.
 
 STUDENT REQUEST:
 - Goal: {goal}
 - Time available: {days} days, about {hours_per_day} hours/day
 - Their self-described current level: {level_notes or 'not specified — assume beginner'}
-
+{material_context(material)}
 Think about what mastery of this goal actually requires, what fraction is achievable in the given time, and what a well-sequenced plan looks like.
 
 Respond with JSON:
@@ -79,7 +101,7 @@ Respond with JSON:
 Rules: phases days must sum to exactly {days}. 3-6 phases. Make the LAST phase include applying the skill (a project or real practice), not just theory."""
 
 
-def curriculum_phase_prompt(goal, days, hours_per_day, level_notes, phases, phase_index, prior_days_summary):
+def curriculum_phase_prompt(goal, days, hours_per_day, level_notes, phases, phase_index, prior_days_summary, material=None):
     phase = phases[phase_index]
     start_day = sum(p["days"] for p in phases[:phase_index]) + 1
     end_day = start_day + phase["days"] - 1
@@ -88,6 +110,7 @@ def curriculum_phase_prompt(goal, days, hours_per_day, level_notes, phases, phas
 GOAL: {goal}
 TOTAL: {days} days, ~{hours_per_day} hours/day. Level: {level_notes or 'beginner'}
 FULL PHASE PLAN: {[p['name'] + ' (' + str(p['days']) + 'd)' for p in phases]}
+{material_context(material)}
 
 You are now generating ONLY phase {phase_index + 1}: "{phase['name']}" — {phase['focus']}
 This phase covers day {start_day} to day {end_day}.
@@ -216,11 +239,12 @@ Respond with JSON:
 }}"""
 
 
-def lesson_prompt(goal, hours_per_day, day_entry, learner_profile, progression="", avoid_questions=None):
+def lesson_prompt(goal, hours_per_day, day_entry, learner_profile, progression="", avoid_questions=None, material=None):
     avoid = ""
     if avoid_questions:
         joined = " | ".join(avoid_questions[-40:])
         avoid = f"\nQUESTIONS ALREADY ASKED (never repeat these or close paraphrases — write genuinely NEW ones): {joined}"
+    avoid += material_context(material)
     return f"""Generate today's full lesson for this student.
 
 GOAL: {goal} (~{hours_per_day} hours today)

@@ -57,6 +57,26 @@
           <textarea id="inLevel" rows="2" placeholder="e.g. I know basic C syntax, never studied data structures"></textarea>
         </label>
 
+        <span class="label mono">TEACH FROM MY OWN MATERIAL <em>(optional)</em></span>
+        <div class="material-box" id="materialBox">
+          <p class="material-hint">Upload your syllabus, notes, or a textbook and I'll teach from it.</p>
+          <div class="material-actions">
+            <label class="material-file-btn">
+              <input type="file" id="inMaterialFile" accept=".pdf,.txt,.md" hidden />
+              <span>Choose file</span>
+            </label>
+            <button type="button" class="material-paste-btn" id="btnPasteToggle">or paste text</button>
+          </div>
+          <textarea id="inMaterialText" rows="3" class="hidden" placeholder="Paste your syllabus or notes here…"></textarea>
+          <p class="material-status" id="materialStatus"></p>
+          <div class="scope-options hidden" id="scopeOptions">
+            <p class="label mono">HOW MUCH SHOULD I TEACH?</p>
+            <label class="scope-opt"><input type="radio" name="scope" value="only" /> <span><b>Just my material</b> — only what's in it</span></label>
+            <label class="scope-opt"><input type="radio" name="scope" value="essentials" checked /> <span><b>My material + essentials</b> — plus what you need to understand it</span></label>
+            <label class="scope-opt"><input type="radio" name="scope" value="master" /> <span><b>Full mastery</b> — my material as the spine, going deep</span></label>
+          </div>
+        </div>
+
         <span class="label mono">HOW SHOULD I TEACH YOU?</span>
         <div class="class-grid" id="classGrid">
           <button type="button" class="class-card" data-class="scholar">

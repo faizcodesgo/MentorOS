@@ -50,6 +50,43 @@ def get_state():
     return jsonify(slim)
 
 
+MATERIAL_CAP = 15000  # chars — keep prompts within token limits
+
+
+@app.post("/api/material")
+def upload_material():
+    """Accept a pasted text OR an uploaded .txt/.md/.pdf; extract, cap, store."""
+    state = storage.load_state()
+    text, name = "", ""
+
+    if request.files.get("file"):
+        f = request.files["file"]
+        name = f.filename or "material"
+        if name.lower().endswith(".pdf"):
+            try:
+                from pypdf import PdfReader
+                reader = PdfReader(f.stream)
+                text = "\n".join((p.extract_text() or "") for p in reader.pages)
+            except Exception as e:
+                return jsonify({"error": f"Couldn't read that PDF ({e}). Try pasting the text instead."}), 400
+        else:
+            text = f.stream.read().decode("utf-8", errors="ignore")
+    else:
+        body = request.get_json(silent=True) or {}
+        text = body.get("text", "")
+        name = body.get("name", "pasted notes")
+
+    text = " ".join(text.split())          # normalise whitespace
+    if len(text) > MATERIAL_CAP:
+        text = text[:MATERIAL_CAP]
+    if not text.strip():
+        return jsonify({"error": "No readable text found."}), 400
+
+    state["material"] = {"text": text, "scope": "", "name": name[:80]}
+    storage.save_state(state)
+    return jsonify({"ok": True, "chars": len(text), "name": name[:80]})
+
+
 @app.post("/api/negotiate")
 def negotiate():
     body = request.get_json(force=True)
@@ -60,9 +97,13 @@ def negotiate():
     if not goal or days < 1 or hours <= 0:
         return jsonify({"error": "Please fill in the goal, days, and hours per day."}), 400
 
+    state = storage.load_state()
+    material = state.get("material") or {}
+    if material.get("text") and body.get("material_scope"):
+        material = {**material, "scope": body["material_scope"]}
     result = gemini.ask_json(
         prompts.MENTOR_PERSONA,
-        prompts.negotiate_prompt(goal, days, hours, level),
+        prompts.negotiate_prompt(goal, days, hours, level, material=material),
     )
     return jsonify(result)
 
@@ -95,6 +136,8 @@ def plan_init():
     state["profile"]["level_notes"] = body.get("level_notes", "")
     state["profile"]["class"] = body.get("learner_class", "")
     state["profile"]["name"] = (body.get("name") or "").strip()[:24]
+    if state.get("material", {}).get("text") and body.get("material_scope"):
+        state["material"]["scope"] = body["material_scope"]
     storage.save_state(state)
     return jsonify({"ok": True, "total_phases": len(body["phases"])})
 
@@ -122,7 +165,7 @@ def generate_phase():
         prompts.curriculum_phase_prompt(
             plan["goal"], plan["days"], plan["hours_per_day"],
             state["profile"].get("level_notes", ""),
-            plan["phases"], idx, prior,
+            plan["phases"], idx, prior, material=state.get("material"),
         ),
     )
     for entry in result["days"]:
@@ -172,7 +215,8 @@ def get_lesson(day):
     lesson = gemini.ask_json(
         prompts.MENTOR_PERSONA,
         prompts.lesson_prompt(plan["goal"], plan["hours_per_day"], entry, profile_text,
-                              progression=progression, avoid_questions=state.get("asked_questions", [])),
+                              progression=progression, avoid_questions=state.get("asked_questions", []),
+                              material=state.get("material")),
     )
     lesson["day"] = day
     lesson["title"] = entry["title"]

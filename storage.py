@@ -27,7 +27,7 @@ def _collection():
     return _mongo
 
 
-SCHEMA = 9
+SCHEMA = 10
 
 
 def load_state():
@@ -82,6 +82,9 @@ def _migrate(state):
     # v9: weekly progress report snapshot
     state.setdefault("weekly", {"last_shown": 0, "snap_xp": 0, "snap_mastered": []})
 
+    # v10: learner-uploaded study material the mentor teaches from
+    state.setdefault("material", {"text": "", "scope": "", "name": ""})
+
     state["schema"] = SCHEMA
     return state
 
@@ -112,6 +115,7 @@ def _empty_state():
         "today_goal": {"date": None, "text": ""},  # today's implementation intention
         "asked_questions": [],  # every question text asked, so none repeats
         "weekly": {"last_shown": 0, "snap_xp": 0, "snap_mastered": []},  # weekly report snapshot
+        "material": {"text": "", "scope": "", "name": ""},  # uploaded syllabus/textbook
         "profile": {           # Learning DNA — grows over time
             "level_notes": "",
             "name": "",        # the learner's first name (used sparingly, for familiarity)
