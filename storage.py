@@ -116,7 +116,7 @@ def _empty_state():
         "lessons": {},         # day-id -> generated lesson content (cache)
         "xp": 0,               # current Main Quest XP — resets when a new goal starts
         "lifetime_xp": 0,      # career total — quest XP rolls in here, never resets
-        "quizzes": {},         # day-id -> Boss Check result (score, answers, xp_earned)
+        "quizzes": {},         # day-id -> checkpoint result (score, answers, xp_earned)
         "dna": None,           # Learning DNA — computed from quiz data on each submit
         "notes_seen": True,    # False when DNA updated since the user last viewed Skills
         "streak": {"count": 0, "shields": 0, "last_day": None},  # rewards-only streak

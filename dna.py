@@ -1,6 +1,6 @@
 """Learning DNA — a picture of what the learner knows, built ONLY from quiz data.
 
-No AI calls: pure Python over stored Boss Check answers. Recomputed on every
+No AI calls: pure Python over stored checkpoint answers. Recomputed on every
 quiz submit. The Mentor's Notes text is template-assembled from the numbers.
 """
 import re
