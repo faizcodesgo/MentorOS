@@ -71,9 +71,21 @@
           <p class="material-status" id="materialStatus"></p>
           <div class="scope-options hidden" id="scopeOptions">
             <p class="label mono">HOW MUCH SHOULD I TEACH?</p>
-            <label class="scope-opt"><input type="radio" name="scope" value="only" /> <span><b>Only my material</b> — strictly what's in it, nothing else</span></label>
-            <label class="scope-opt"><input type="radio" name="scope" value="essentials" checked /> <span><b>My material + helpful extras</b> — plus related topics you pick that help me understand it</span></label>
-            <label class="scope-opt"><input type="radio" name="scope" value="master" /> <span><b>Full depth</b> — everything about the subject, top to bottom</span></label>
+            <label class="scope-opt">
+              <input type="radio" name="scope" value="only" />
+              <span class="scope-check" aria-hidden="true"></span>
+              <span class="scope-text"><span class="scope-title">Only my material</span><span class="scope-desc">Strictly what's in it — nothing else.</span></span>
+            </label>
+            <label class="scope-opt">
+              <input type="radio" name="scope" value="essentials" checked />
+              <span class="scope-check" aria-hidden="true"></span>
+              <span class="scope-text"><span class="scope-title">My material + helpful extras</span><span class="scope-desc">Plus related topics I pick that help you understand it.</span></span>
+            </label>
+            <label class="scope-opt">
+              <input type="radio" name="scope" value="master" />
+              <span class="scope-check" aria-hidden="true"></span>
+              <span class="scope-text"><span class="scope-title">Full depth</span><span class="scope-desc">The whole subject, top to bottom — your material and everything around it.</span></span>
+            </label>
           </div>
         </div>
 

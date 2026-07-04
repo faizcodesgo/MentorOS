@@ -627,10 +627,29 @@ code {
 .material-paste-btn { background: none; border: none; color: var(--muted); font: inherit; font-size: 0.85rem; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 #inMaterialText { margin-top: var(--s3); }
 .material-status { font-size: 0.85rem; color: var(--good); margin-top: var(--s2); min-height: 1em; }
-.scope-options { margin-top: var(--s4); }
-.scope-opt { display: flex; align-items: flex-start; gap: 8px; padding: 7px 0; font-size: 0.9rem; cursor: pointer; }
-.scope-opt input { margin-top: 3px; accent-color: var(--brand); }
-.scope-opt b { font-weight: 600; }
+.scope-options { margin-top: var(--s4); display: flex; flex-direction: column; gap: 8px; }
+.scope-opt {
+  display: flex; align-items: flex-start; gap: 11px; cursor: pointer;
+  border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px;
+  background: var(--panel); transition: border-color 0.15s ease, background 0.15s ease;
+}
+.scope-opt:hover { border-color: var(--muted); }
+.scope-opt input { position: absolute; opacity: 0; pointer-events: none; }
+.scope-check {
+  flex-shrink: 0; width: 18px; height: 18px; border-radius: 50%; margin-top: 1px;
+  border: 2px solid var(--line); transition: border-color 0.15s ease;
+  display: grid; place-items: center;
+}
+.scope-check::after {
+  content: ""; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--brand); transform: scale(0); transition: transform 0.15s ease;
+}
+.scope-text { display: flex; flex-direction: column; gap: 2px; }
+.scope-title { font-weight: 600; font-size: 0.95rem; }
+.scope-desc { font-size: 0.82rem; color: var(--muted); line-height: 1.4; }
+.scope-opt:has(input:checked) { border-color: var(--brand); background: rgba(79, 140, 255, 0.06); }
+.scope-opt:has(input:checked) .scope-check { border-color: var(--brand); }
+.scope-opt:has(input:checked) .scope-check::after { transform: scale(1); }
 
 /* ---------- floating ask button + sheet ---------- */
 .ask-fab {
