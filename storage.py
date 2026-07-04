@@ -67,17 +67,15 @@ def _migrate(state):
     # v5: learner-chosen bookmarks
     state.setdefault("bookmarks", [])
 
-    # v6: the mentor gets to know you — name + today's intention
+    # v6: the mentor gets to know you — the learner's name
     if "profile" in state:
         state["profile"].setdefault("name", "")
-    state.setdefault("today_goal", {"date": None, "text": ""})
 
     # v7: remember every question asked so none is ever repeated
     state.setdefault("asked_questions", [])
 
-    # v8: a persistent habit-stacking cue (set once, reused daily)
-    if "profile" in state:
-        state["profile"].setdefault("study_anchor", "")
+    # (v8's study_anchor and v6's today_goal were removed in the audit —
+    # old docs may still carry the fields; they're simply ignored)
 
     # v9: weekly progress report snapshot
     state.setdefault("weekly", {"last_shown": 0, "snap_xp": 0, "snap_mastered": []})
@@ -125,7 +123,6 @@ def _empty_state():
         "repaced_at": None,    # date the plan was last re-paced (avoid repeat nudges)
         "reviews": {"queue": [], "done_upto": 0},  # spaced-review ladder for warm-ups
         "bookmarks": [],       # learner-flagged lesson sections [{day, sectionIndex, heading}]
-        "today_goal": {"date": None, "text": ""},  # today's implementation intention
         "asked_questions": [],  # every question text asked, so none repeats
         "weekly": {"last_shown": 0, "snap_xp": 0, "snap_mastered": []},  # weekly report snapshot
         "material": {"text": "", "scope": "", "name": ""},  # uploaded syllabus/textbook
@@ -135,8 +132,7 @@ def _empty_state():
         "profile": {           # Learning DNA — grows over time
             "level_notes": "",
             "name": "",        # the learner's first name (used sparingly, for familiarity)
-            "study_anchor": "",  # persistent habit-stacking cue, e.g. "after my morning coffee"
-            "class": "",       # scholar | builder | consistent | challenger | allrounder
+            "class": "",       # scholar | builder | consistent | challenger
             "weak_topics": [],
             "strong_topics": [],
             "preferences": {},

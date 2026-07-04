@@ -348,30 +348,19 @@ code {
 }
 .reward-pill .amt { color: var(--gold); }
 
-/* career chip */
-.career-chip { font-size: var(--text-xs); color: var(--muted); }
-.career-chip b { color: var(--ink); font-weight: 600; }
-
 /* ---------- streak chip ---------- */
 .streak-chip { color: var(--muted); font-weight: 600; }
 .streak-chip b { color: var(--ink); }
 
-/* ---------- weekly report ---------- */
-.weekly-card { border-left: 3px solid var(--gold); }
-.weekly-head { display: flex; justify-content: space-between; align-items: center; }
+/* ---------- thin dashboard rows (weekly summary, warm-up) ---------- */
+.thin-row {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--s3);
+  padding: var(--s3) var(--s1); margin: var(--s2) 0;
+  border-bottom: 1px solid var(--line);
+}
+.thin-text { color: var(--muted); font-size: var(--text-sm); }
 .weekly-x { background: none; border: none; color: var(--faint); cursor: pointer; font-size: var(--text-md); padding: 2px 6px; }
 .weekly-x:hover { color: var(--muted); }
-.wk-stats { display: flex; gap: var(--s4); margin: var(--s3) 0; }
-.wk-stat { display: flex; flex-direction: column; }
-.wk-num { font-family: "Space Grotesk", sans-serif; font-size: var(--text-xl); font-weight: 600; color: var(--gold); font-variant-numeric: tabular-nums; }
-.wk-lbl { font-size: var(--text-xs); color: var(--muted); }
-.wk-note { color: var(--muted); font-size: var(--text-md); margin-top: var(--s2); line-height: 1.5; }
-.wk-note b { color: var(--ink); }
-
-/* ---------- warm-up ---------- */
-.warmup-card { display: flex; align-items: center; gap: var(--s4); }
-.warmup-main { flex: 1; }
-.warmup-sub { color: var(--muted); font-size: var(--text-sm); margin-top: 2px; }
 .done-row {
   display: flex; align-items: center; gap: var(--s2);
   color: var(--muted); font-size: var(--text-sm); padding: var(--s3) var(--s1); margin: var(--s2) 0;
@@ -505,24 +494,17 @@ code {
 .bookmark-btn svg { width: 19px; height: 19px; display: block; }
 .bookmark-btn:hover { color: var(--muted); }
 .bookmark-btn.on { color: var(--gold); }
-.saved-card .saved-row {
+.saved-block { margin: var(--s4) 0; }
+.saved-block .saved-row {
   display: flex; align-items: center; justify-content: space-between; gap: var(--s3);
   width: 100%; text-align: left; font: inherit; color: var(--ink);
   background: none; border: none; border-bottom: 1px solid var(--line);
   padding: var(--s3) 2px; cursor: pointer;
 }
-.saved-card .saved-row:last-child { border-bottom: none; }
-.saved-card .saved-row:hover .saved-h { color: var(--brand); }
+.saved-block .saved-row:last-child { border-bottom: none; }
+.saved-block .saved-row:hover .saved-h { color: var(--brand); }
 .saved-h { font-weight: 500; font-size: var(--text-md); }
 .saved-day { color: var(--muted); font-size: var(--text-xs); }
-
-/* ---------- explain-it-back ---------- */
-.explain-card { border-left: 3px solid var(--brand); }
-.explain-prompt { font-weight: 500; margin: var(--s1) 0 var(--s3); }
-#explainInput { margin-bottom: var(--s3); }
-.explain-feedback { margin-bottom: var(--s3); line-height: 1.6; }
-.explain-feedback .ef-good { color: var(--good); margin-bottom: var(--s2); }
-.explain-feedback .ef-add { color: var(--ink); }
 
 /* ---------- interactive lesson widgets ---------- */
 .interaction {
@@ -652,7 +634,16 @@ code {
 .material-paste-btn { background: none; border: none; color: var(--muted); font: inherit; font-size: var(--text-sm); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 #inMaterialText { margin-top: var(--s3); }
 .material-status { font-size: var(--text-sm); color: var(--good); margin-top: var(--s2); min-height: 1em; }
-.scope-options { margin-top: var(--s4); display: flex; flex-direction: column; gap: var(--s2); }
+.scope-options { margin-top: var(--s4); }
+.scope-default { font-size: var(--text-md); color: var(--muted); }
+.scope-advanced summary {
+  color: var(--faint); font-size: var(--text-sm); cursor: pointer;
+  margin: var(--s2) 0 var(--s3); text-decoration: underline; text-underline-offset: 3px;
+  list-style: none; width: fit-content;
+}
+.scope-advanced summary::-webkit-details-marker { display: none; }
+.scope-advanced summary:hover { color: var(--muted); }
+.scope-advanced .scope-opt { margin-bottom: var(--s2); }
 .scope-opt {
   display: flex; align-items: flex-start; gap: var(--s3); cursor: pointer;
   border: 1px solid var(--line); border-radius: var(--r2); padding: var(--s3) var(--s4);

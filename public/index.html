@@ -70,7 +70,9 @@
           <textarea id="inMaterialText" rows="3" class="hidden" placeholder="Paste your syllabus or notes here…"></textarea>
           <p class="material-status" id="materialStatus"></p>
           <div class="scope-options hidden" id="scopeOptions">
-            <p class="label mono">How much should I teach?</p>
+            <p class="scope-default">I'll teach your material plus helpful extras.</p>
+            <details class="scope-advanced">
+              <summary>Change how much I cover</summary>
             <label class="scope-opt">
               <input type="radio" name="scope" value="only" />
               <span class="scope-check" aria-hidden="true"></span>
@@ -86,6 +88,7 @@
               <span class="scope-check" aria-hidden="true"></span>
               <span class="scope-text"><span class="scope-title">Full depth</span><span class="scope-desc">The whole subject, top to bottom — your material and everything around it.</span></span>
             </label>
+            </details>
           </div>
         </div>
 
@@ -110,11 +113,6 @@
             <svg class="cicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>
             <span class="cname">Challenger</span>
             <span class="cdesc">Harder problems, interview-style</span>
-          </button>
-          <button type="button" class="class-card" data-class="allrounder">
-            <svg class="cicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 9 5-9 5-9-5 9-5z"/><path d="m3 12 9 5 9-5"/><path d="m3 17 9 5 9-5"/></svg>
-            <span class="cname">All-Rounder</span>
-            <span class="cdesc">A balanced mix of everything</span>
           </button>
         </div>
 
@@ -178,27 +176,20 @@
       <div class="level-bar">
         <span class="level-chip mono" id="levelChip"></span>
         <span class="rank-chip mono" id="rankChip"></span>
-        <span class="career-chip mono" id="careerChip"></span>
       </div>
 
       <p class="dash-note" id="dashNote"></p>
 
       <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
 
-      <div class="card weekly-card hidden" id="weeklyCard">
-        <div class="weekly-head">
-          <p class="label mono">Your week</p>
-          <button class="weekly-x" id="weeklyDismiss" aria-label="Dismiss">✕</button>
-        </div>
-        <div id="weeklyBody"></div>
+      <div class="thin-row hidden" id="weeklyCard">
+        <p class="thin-text" id="weeklyBody"></p>
+        <button class="weekly-x" id="weeklyDismiss" aria-label="Dismiss">✕</button>
       </div>
 
-      <div class="card warmup-card hidden" id="warmupCard">
-        <div class="warmup-main">
-          <p class="label">Warm-up</p>
-          <p class="warmup-sub" id="warmupSub">Quick recall from earlier days.</p>
-        </div>
-        <button class="btn primary small" id="btnWarmup">Start</button>
+      <div class="thin-row hidden" id="warmupCard">
+        <p class="thin-text" id="warmupSub">Quick recall from earlier days.</p>
+        <button class="btn ghost small" id="btnWarmup">Start</button>
       </div>
       <div class="done-row hidden" id="warmupDone"></div>
 
@@ -222,7 +213,7 @@
         <span class="skillmap-arrow">›</span>
       </button>
 
-      <div class="card saved-card hidden" id="savedCard">
+      <div class="saved-block hidden" id="savedCard">
         <p class="label mono">Saved sections</p>
         <div id="savedList"></div>
       </div>
@@ -259,13 +250,6 @@
         <p id="recapCarry" class="recap-carry"></p>
       </div>
 
-      <div class="card explain-card" id="explainCard">
-        <p class="label">Say it back</p>
-        <p class="explain-prompt" id="explainPrompt"></p>
-        <textarea id="explainInput" rows="3" placeholder="In a line or two, in your own words…"></textarea>
-        <div id="explainFeedback" class="explain-feedback hidden"></div>
-        <button class="btn ghost small" id="btnExplain">Check my understanding</button>
-      </div>
     </section>
 
     <!-- ============ MOCK INTERVIEW (VIVA) ============ -->

@@ -1,7 +1,7 @@
 # MentorOS — Professional Audit (flag-only, 4 October 2026)
 
 > **DECISION (Faiz): VOICE = (A) confident mentor. EXECUTE THE ENTIRE AUDIT — all batches A/B/C/D + the voice rename.**
-> **Progress so far (commit pending):** Batch A #1 showBanner crash FIXED (→ rewardPill), #4 debug=True → FLASK_DEBUG env-gated, #5 error handler no longer leaks str(e) (logs server-side, returns generic). REMAINING = everything else below.
+> **STATUS: EXECUTED IN FULL — 4 July 2026.** Batch A (commits `2150bfc`, `9801ce8`), Batch B voice+copy (`df80cb0`), Batch C visual system (`0b6ac67`), Batch D de-clutter + dead code (final commit). Notes: weekly report was THINNED to a one-line dismissible row (not cut); study-reminders button now shows only in the installed PWA or when reminders are already on; combo/crit XP math still runs server-side but the UI no longer advertises it. The multi-user architecture item remains open (deliberately — single-user for now).
 > **Execution plan for a fresh session (context was full when approved):**
 > - **A (bugs):** guard /api/reset (require JSON confirm + same-origin header; note real fix = auth), validate AI JSON shape in generate_phase/get_lesson/interview_start, bind quiz answers by id, fix int(_current_order) truncation, MAX_CONTENT_LENGTH, remove duplicate manifest.webmanifest.
 > - **B (copy) + VOICE A:** rename Quest/Boss Check/Main Quest/Quest Log → Today / Checkpoint / your plan / (plain); delete all reassurance ("never spam never guilt" etc.), neutralize loading/error narration, unify label casing to sentence-case, drop "AI" from tagline. One term per concept.

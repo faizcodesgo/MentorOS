@@ -16,7 +16,7 @@ How you feel human (do these, sparingly and specifically):
 - Celebrate a SPECIFIC win once ("first pointer program running clean — that's the hard part"), then move on.
 - Admit when something is genuinely hard ("this one takes most people two passes — that's normal").
 - Adapt to their class: scholar = deeper theory; builder = more hands-on; consistent = smaller chunks;
-  challenger = harder/interview-style; allrounder = a balanced mix.
+  challenger = harder/interview-style.
 
 Never do (these break the spell / feel creepy or fake):
 - No manufactured feelings or clinginess ("I missed you", "I was thinking about your progress").
@@ -38,9 +38,6 @@ def mentor_memory(profile, dna, days_in=None, streak=None):
     cls = (profile or {}).get("class", "")
     if cls:
         bits.append(f"Class: {cls}")
-    anchor = (profile or {}).get("study_anchor", "").strip()
-    if anchor:
-        bits.append(f"studies {anchor}")
     if days_in:
         bits.append(f"Day {days_in} of their journey")
     if streak and streak.get("count"):
@@ -180,16 +177,16 @@ Respond with JSON:
 Rules: exactly {phase['days']} day entries. Every 5th overall day (day 5, 10, 15...) that falls in this phase must be a checkpoint day (revision + self-assessment, lighter new content). Fit each day's load to about {hours_per_day} hours ({int(hours_per_day * 60)} minutes) — est_minutes should reflect that target, lighter on checkpoint days. Sequence topics so each day builds on the previous. 1-2 resource_queries per day."""
 
 
-INTERACTION_RULES = """"interaction": OPTIONAL — omit for MOST sections. Across the WHOLE lesson, AT MOST 2 sections may have one, and ONLY where guessing wrong is plausible and genuinely instructive (test the single thing that section taught). NEVER on a definition/intro/analogy section. Object:
+INTERACTION_RULES = """"interaction": OPTIONAL — omit for MOST sections. Across the WHOLE lesson, AT MOST 1 section may have one, and ONLY where guessing wrong is plausible and genuinely instructive (test the single thing that section taught). NEVER on a definition/intro/analogy section. Object:
 {"type": "mcq" | "predict", "prompt": "the question, or for predict a description like 'What does this print?'", "code": "predict ONLY: one SHORT single-line snippet, NO double-quotes/backslashes/newlines inside — if it would need those, omit the interaction", "options": ["3-4 short answer strings"], "answer": <0-based index of the correct option>, "explanation": "one sentence saying WHY it is right (the real reason, not just the letter)"}.
 - "mcq": a concept check with 3-4 plausible options; omit "code".
 - "predict": show a tiny snippet ("code") and ask which output is correct; "options" are candidate outputs.
-Both grade by option index. Keep the explanation genuinely teaching. Max 2 per lesson."""
+Both grade by option index. Keep the explanation genuinely teaching. Max 1 per lesson."""
 
 
-VISUAL_RULES = """"visual": OPTIONAL — omit for most sections/answers. Include ONLY when a picture genuinely teaches better than text (timelines, memory layouts, call stacks, tree/graph structures, comparisons, step processes). Object: {"type": "svg" | "mermaid", "code": "..."}.
-Prefer "svg" — a clean, premium infographic. SVG rules: start with <svg viewBox="0 0 600 380" xmlns="http://www.w3.org/2000/svg"> (height 240-450 as needed), TRANSPARENT background (no full-size background rect), colors ONLY from this palette: #4f8cff (blue, primary), #8b5cf6 (purple, secondary), #facc15 (gold, highlights), #22c55e (green, success), #e6edf3 (text), #8b949e (muted text/arrows), #1c2330 (box fills) with #283042 (box strokes). Use font-family="Inter, sans-serif", text size 13-16, rounded rects (rx="8"), generous spacing, label EVERYTHING clearly, max ~50 elements. No scripts, no images, no links.
-ALWAYS use "svg" — you control the layout so it always looks clean and premium. DO NOT use "mermaid" (its auto-layout produces messy, overlapping, off-brand diagrams). For a top-down hierarchy (like a classification tree), draw evenly-spaced rounded rects stacked vertically, each centered on the same x, connected by short straight arrows (a <line> + a small triangle <polygon> arrowhead) — every box the SAME size and style, no dashed/faded boxes, nothing off to the side. Keep it symmetric and generously spaced."""
+VISUAL_RULES = """"visual": OPTIONAL — omit for most sections/answers. Include ONLY when a picture genuinely teaches better than text (timelines, memory layouts, call stacks, tree/graph structures, comparisons, step processes). Object: {"type": "svg", "code": "..."} — "svg" is the ONLY supported type; anything else is discarded.
+SVG rules: start with <svg viewBox="0 0 600 380" xmlns="http://www.w3.org/2000/svg"> (height 240-450 as needed), TRANSPARENT background (no full-size background rect), colors ONLY from this palette: #4f8cff (blue, primary), #8b5cf6 (purple, secondary), #facc15 (gold, highlights), #22c55e (green, success), #e6edf3 (text), #8b949e (muted text/arrows), #1c2330 (box fills) with #283042 (box strokes). Use font-family="Inter, sans-serif", text size 13-16, rounded rects (rx="8"), generous spacing, label EVERYTHING clearly, max ~50 elements. No scripts, no images, no links.
+For a top-down hierarchy (like a classification tree), draw evenly-spaced rounded rects stacked vertically, each centered on the same x, connected by short straight arrows (a <line> + a small triangle <polygon> arrowhead) — every box the SAME size and style, no dashed/faded boxes, nothing off to the side. Keep it symmetric and generously spaced."""
 
 
 def warmup_generate_prompt(goal, topics, avoid_questions):
@@ -243,22 +240,6 @@ Respond with JSON:
   "overall": "2 sentences of encouraging, honest overall feedback — how they'd do in a real interview and what to focus on next."
 }}
 Rules: one result per answer, same ids. Encouraging tone, real substance."""
-
-
-def grade_prompt(question, reference, learner_text):
-    return f"""The student explained a concept in their own words. Assess it like a supportive mentor — ADDITIVE feedback, never a grade or score. Point out what they got right, then the ONE most important thing to add or correct. Be specific and brief.
-
-{question}
-{reference}
-
-STUDENT'S EXPLANATION:
-{learner_text}
-
-Respond with JSON:
-{{
-  "whats_good": "one specific thing they got right (1 sentence)",
-  "whats_missing": "the single most useful thing to add or fix, phrased encouragingly (1-2 sentences). If their explanation is already excellent, say so and add one deeper nuance."
-}}"""
 
 
 def ask_prompt(goal, day_entry, learner_profile, question):

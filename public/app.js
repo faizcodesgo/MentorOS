@@ -365,8 +365,6 @@ function renderDashboard() {
   }
   lastShownXp = xp;
   $("rankChip").textContent = rankLabel(lv) + " rank";
-  const career = state.lifetime_xp || 0;
-  $("careerChip").innerHTML = career > 0 ? `CAREER <b>${career + xp} XP</b>` : "";
   $("progressFill").style.width = `${(doneReal / plan.days) * 100}%`;
   $("topbarStatus").innerHTML =
     `<span class="xp-chip">LV ${lv} · ${xp} XP</span>${renderStreakChip()}`;
@@ -405,6 +403,12 @@ function renderDashboard() {
   renderSkillMapCard();
   renderSavedCard();
   loadWarmup();
+
+  // reminders entry only where it can actually work (installed PWA) or is
+  // already on — a desktop-browser dashboard doesn't need the button
+  const pushRelevant = window.matchMedia("(display-mode: standalone)").matches
+    || (state.notifications || {}).enabled;
+  $("btnReminders").style.display = pushRelevant ? "" : "none";
 
   $("dayList").querySelectorAll(".day-row").forEach((row) => {
     row.addEventListener("click", () => {
@@ -454,18 +458,10 @@ function renderWeeklyReport() {
   const newlyMastered = masteredNow.filter((t) => !(w.snap_mastered || []).includes(t));
   const questsThisWeek = doneReal - (w.last_shown || 0);
 
-  const rows = [
-    `<div class="wk-stat"><span class="wk-num">${questsThisWeek}</span><span class="wk-lbl">days done</span></div>`,
-    `<div class="wk-stat"><span class="wk-num">+${xpGain}</span><span class="wk-lbl">XP earned</span></div>`,
-    `<div class="wk-stat"><span class="wk-num">${newlyMastered.length}</span><span class="wk-lbl">topics mastered</span></div>`,
-  ].join("");
-  let notes = "";
-  if (newlyMastered.length) notes += `<p class="wk-note">You locked in: <b>${newlyMastered.slice(0, 4).map(esc).join(", ")}</b>.</p>`;
-  if (dna.weakest && dna.topics[dna.weakest] && dna.topics[dna.weakest].band !== "mastered")
-    notes += `<p class="wk-note">Next week's focus: <b>${esc(dna.weakest)}</b>.</p>`;
-  else notes += `<p class="wk-note">Strong week — keep the rhythm going.</p>`;
-
-  $("weeklyBody").innerHTML = `<div class="wk-stats">${rows}</div>${notes}`;
+  // one thin line — the recap and skill map carry the detail
+  const bits = [`This week: ${questsThisWeek} days`, `+${xpGain} XP`];
+  if (newlyMastered.length) bits.push(`${newlyMastered.length} topic${newlyMastered.length > 1 ? "s" : ""} mastered`);
+  $("weeklyBody").textContent = bits.join(" · ");
   card.classList.remove("hidden");
 }
 
@@ -474,10 +470,6 @@ $("weeklyDismiss").addEventListener("click", async () => {
   try { await api("/api/weekly/seen", { method: "POST" }); state = await api("/api/state"); }
   catch {}
 });
-
-/* NOTE: the habit-stacking "study cue" was removed — a static reminder can't
-   fire at the anchor moment. It returns as a notification in the notifications
-   phase (needs PWA/native). The study_anchor field + /api/anchor stay dormant. */
 
 function renderSavedCard() {
   const marks = state.bookmarks || [];
@@ -736,15 +728,6 @@ async function openRecap(day, opts = {}) {
     $("recapCarry").textContent = "";
   }
 
-  // "say it back" — pick a concept from today to self-explain
-  const concept = (entry.topics || [])[0] || entry.title || "today's idea";
-  explainConcept = { day, concept };
-  $("explainPrompt").textContent = `In your own words, what is “${concept}” and why does it matter?`;
-  $("explainInput").value = "";
-  $("explainFeedback").className = "explain-feedback hidden";
-  $("btnExplain").disabled = false;
-  $("explainCard").style.display = entry.kind === "revision" ? "none" : "";
-
   // chapter block only when a chapter just wrapped
   const chap = opts.chapterEnd ? phaseOfDay(day) : null;
   if (chap) {
@@ -850,33 +833,6 @@ $("askFab").addEventListener("click", () => {
 });
 $("askClose").addEventListener("click", () => $("askSheet").classList.add("hidden"));
 $("askSheet").addEventListener("click", (e) => { if (e.target === $("askSheet")) $("askSheet").classList.add("hidden"); });
-
-let explainConcept = null;
-$("btnExplain").addEventListener("click", async () => {
-  const text = $("explainInput").value.trim();
-  if (!text) { toast("Write your explanation first."); return; }
-  if (!explainConcept) return;
-  $("btnExplain").disabled = true;
-  loadingCycle(["Checking your explanation…"]);
-  try {
-    const r = await api("/api/explain", {
-      method: "POST",
-      body: JSON.stringify({ day: explainConcept.day, concept: explainConcept.concept, text }),
-    });
-    state = await api("/api/state");
-    loading(false);
-    const fb = $("explainFeedback");
-    fb.className = "explain-feedback";
-    fb.innerHTML =
-      `<p class="ef-good">${esc(r.whats_good)}</p>` +
-      (r.whats_missing ? `<p class="ef-add">${esc(r.whats_missing)}</p>` : "");
-    await rewardPill("Nice — you said it back", `+${r.xp_gained} XP`);
-  } catch (err) {
-    loading(false);
-    $("btnExplain").disabled = false;
-    toast(err.message, 6000);
-  }
-});
 
 /* ---------- morning warm-up (spaced review) ---------- */
 
@@ -1060,37 +1016,6 @@ async function openLesson(day) {
   }
 }
 
-/* lazy-load mermaid only when a lesson actually has a mermaid diagram */
-let mermaidReady = null;
-function ensureMermaid() {
-  if (!mermaidReady) {
-    mermaidReady = new Promise((resolve, reject) => {
-      const s = document.createElement("script");
-      s.src = "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js";
-      s.onload = () => {
-        mermaid.initialize({
-          startOnLoad: false, securityLevel: "strict", suppressErrorRendering: true,
-          theme: "base",
-          flowchart: { nodeSpacing: 45, rankSpacing: 50, padding: 14, useMaxWidth: true, htmlLabels: false },
-          themeVariables: {
-            darkMode: true, background: "#161b22",
-            primaryColor: "#1c2330", primaryTextColor: "#e6edf3", primaryBorderColor: "#4f8cff",
-            secondaryColor: "#231c33", secondaryBorderColor: "#8b5cf6",
-            tertiaryColor: "#1a2030", tertiaryBorderColor: "#283042",
-            lineColor: "#8b949e", textColor: "#e6edf3",
-            fontFamily: "Inter, sans-serif", fontSize: "14px",
-            edgeLabelBackground: "#161b22", clusterBkg: "#12161f",
-          },
-        });
-        resolve();
-      };
-      s.onerror = reject;
-      document.head.appendChild(s);
-    });
-  }
-  return mermaidReady;
-}
-
 /* allow only safe, self-contained SVG from the model */
 function sanitizeSvg(code) {
   const doc = new DOMParser().parseFromString(code, "image/svg+xml");
@@ -1112,36 +1037,18 @@ function sanitizeSvg(code) {
   return new XMLSerializer().serializeToString(svg);
 }
 
-async function renderDiagrams(root) {
-  const holders = (root || document).querySelectorAll(".diagram[data-code]");
-  if (!holders.length) return;
-
-  for (const h of holders) {
-    if (h.dataset.type === "svg") {
-      const clean = sanitizeSvg(h.dataset.code);
-      if (clean) h.innerHTML = clean; else h.remove();
-      h.removeAttribute("data-code");
-    }
-  }
-
-  const mmd = [...(root || document).querySelectorAll('.diagram[data-code]')]
-    .filter((h) => h.dataset.type !== "svg");
-  if (!mmd.length) return;
-  try { await ensureMermaid(); } catch { mmd.forEach((h) => h.remove()); return; }
-  for (const h of mmd) {
-    try {
-      const { svg } = await mermaid.render("mmd" + Math.random().toString(36).slice(2, 8), h.dataset.code);
-      h.innerHTML = svg;
-    } catch {
-      h.remove(); // invalid diagram from the model — hide, never show garbage
-    }
+function renderDiagrams(root) {
+  // SVG-only — the prompts forbid mermaid, so nothing else ever renders
+  for (const h of (root || document).querySelectorAll(".diagram[data-code]")) {
+    const clean = sanitizeSvg(h.dataset.code);
+    if (clean) h.innerHTML = clean; else h.remove();
     h.removeAttribute("data-code");
   }
 }
 
 function visualHolder(visual) {
-  if (!visual || !visual.code || !visual.type) return "";
-  return `<div class="diagram" data-type="${escAttr(visual.type)}" data-code="${escAttr(visual.code)}"></div>`;
+  if (!visual || !visual.code || visual.type !== "svg") return "";
+  return `<div class="diagram" data-type="svg" data-code="${escAttr(visual.code)}"></div>`;
 }
 
 /* ---------- interactive lesson widgets ---------- */
@@ -1211,11 +1118,12 @@ function renderLesson(l) {
         href="https://www.youtube.com/results?search_query=${encodeURIComponent(q)}">▶ ${esc(q)}</a>`)
     .join("");
 
-  // at most 2 sections carry an interactive widget
+  // at most 1 section carries an interactive widget — the quiz and warm-up
+  // already test; a third mechanic per lesson is clutter
   const widgetSlots = {};
   let widgetCount = 0;
   (l.sections || []).forEach((s, i) => {
-    if (widgetCount < 2 && validInteraction(s.interaction)) { widgetSlots[i] = s.interaction; widgetCount++; }
+    if (widgetCount < 1 && validInteraction(s.interaction)) { widgetSlots[i] = s.interaction; widgetCount++; }
   });
 
   // build the step list: intro(+watch) → each section → practice bundle → summary
@@ -1257,8 +1165,7 @@ function sectionHtml(l, s, i) {
       </div>
       ${s.probe ? `<div class="probe">${fmt(s.probe)}</div>` : ""}
       <div class="analogy">${fmt(s.analogy)}</div>
-      ${s.visual ? visualHolder(s.visual)
-        : (s.diagram ? `<div class="diagram" data-type="mermaid" data-code="${escAttr(s.diagram)}"></div>` : "")}
+      ${visualHolder(s.visual)}
       <div class="explanation">${fmt(s.explanation)}</div>
       ${s.worked_example ? `<div class="worked"><p class="label">Worked example</p><div class="worked-body">${fmt(s.worked_example)}</div></div>` : ""}
       <ul class="keypoints">${(s.key_points || []).map((k) => `<li>${fmt(k)}</li>`).join("")}</ul>
@@ -1541,13 +1448,12 @@ function revealAnswer(confidence) {
   const wager = { safe: 1, confident: 1.5, allin: 2 }[confidence];
   let gained, cls, msg;
   if (correct) {
+    // multipliers still apply server-side; the UI keeps the math quiet
     quizRun.combo++;
     const comboMult = quizRun.combo === 1 ? 1 : quizRun.combo === 2 ? 1.5 : 2;
     gained = Math.round(10 * wager * comboMult);
-    const sure = confidence === "allin";        // "Certain" and right
-    cls = sure ? "quiz-feedback gold" : "quiz-feedback win";
-    const combo = quizRun.combo >= 2 ? ` · ${quizRun.combo} in a row` : "";
-    msg = `${sure ? "Sure and correct" : "Correct"} · +${gained} XP${combo}`;
+    cls = confidence === "allin" ? "quiz-feedback gold" : "quiz-feedback win";
+    msg = `Correct · +${gained} XP`;
   } else {
     quizRun.combo = 0;
     gained = 2;

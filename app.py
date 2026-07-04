@@ -801,16 +801,6 @@ def weekly_seen():
     return jsonify({"ok": True})
 
 
-@app.post("/api/anchor")
-def set_anchor():
-    """Persistent habit-stacking cue (set once, reused). Pure state."""
-    body = request.get_json(force=True)
-    state = storage.load_state()
-    state["profile"]["study_anchor"] = (body.get("text") or "").strip()[:120]
-    storage.save_state(state)
-    return jsonify({"ok": True})
-
-
 @app.post("/api/bookmark/toggle")
 def bookmark_toggle():
     """Star/unstar a lesson section. Pure state, no AI."""
@@ -831,45 +821,6 @@ def bookmark_toggle():
         saved = True
     storage.save_state(state)
     return jsonify({"saved": saved, "count": len(marks)})
-
-
-@app.post("/api/explain")
-def explain():
-    """Explain-it-back: grade a short self-explanation. Additive feedback,
-    never a score. One AI call; degrades gracefully."""
-    body = request.get_json(force=True)
-    concept = (body.get("concept") or "").strip()
-    text = (body.get("text") or "").strip()[:800]
-    day = body.get("day")
-    if not text:
-        return jsonify({"error": "Write your explanation first."}), 400
-    state = storage.load_state()
-    lesson = state["lessons"].get(str(day)) if day is not None else None
-    reference = (lesson or {}).get("summary", "")
-
-    result = _grade_free_text(
-        f"Concept the student is explaining back: {concept}",
-        f"Reference (today's lesson summary): {reference}",
-        text,
-    )
-    # soft signal into DNA: a weak self-explanation nudges the topic as shaky
-    gained = 20
-    state["xp"] = state.get("xp", 0) + gained
-    storage.save_state(state)
-    return jsonify({"whats_good": result.get("whats_good", ""),
-                    "whats_missing": result.get("whats_missing", ""),
-                    "xp_gained": gained, "xp": state["xp"]})
-
-
-def _grade_free_text(question, reference, learner_text):
-    """Shared grader for explain-it-back and the interviewer. Returns
-    {whats_good, whats_missing}; degrades to a safe message if the model fails."""
-    try:
-        return gemini.ask_json(prompts.MENTOR_PERSONA,
-                               prompts.grade_prompt(question, reference, learner_text))
-    except Exception:
-        return {"whats_good": "Thanks for putting it in your own words.",
-                "whats_missing": "I couldn't fully check it this time — compare yours to the lesson summary and see what you'd add."}
 
 
 @app.post("/api/focus/done")
