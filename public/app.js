@@ -920,7 +920,11 @@ let currentLesson = null;
 
 async function openLesson(day) {
   openDay = day;
-  loading(true, "Preparing Day " + day + "…");
+  const entry = (state.plan.curriculum || []).find((d) => d.day === day) || {};
+  const label = entry.kind === "revision" ? "Preparing your revision…"
+    : entry.is_checkpoint ? "Preparing your checkpoint…"
+    : "Preparing Day " + day + "…";
+  loading(true, label);
   try {
     const lesson = await api("/api/lesson/" + day);
     renderLesson(lesson);
