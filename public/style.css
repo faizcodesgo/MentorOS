@@ -662,6 +662,14 @@ code {
 .scope-opt:has(input:checked) .scope-check { border-color: var(--brand); }
 .scope-opt:has(input:checked) .scope-check::after { transform: scale(1); }
 
+/* ---------- reminders sheet ---------- */
+.dash-footer { display: flex; justify-content: space-between; gap: var(--s3); margin-top: var(--s6); flex-wrap: wrap; }
+.rem-row { display: flex; justify-content: space-between; align-items: center; gap: var(--s3); margin: var(--s3) 0; font-size: 0.92rem; }
+.rem-row input[type="time"] { width: auto; background: var(--panel-2); border: 1px solid var(--line); color: var(--ink); border-radius: 8px; padding: 7px 10px; }
+.rem-status { font-size: 0.85rem; color: var(--good); min-height: 1em; margin: var(--s3) 0; }
+#remindersSheet .btn.primary { width: 100%; }
+#btnDisableReminders { width: 100%; margin-top: var(--s3); }
+
 /* ---------- floating ask button + sheet ---------- */
 .ask-fab {
   position: fixed; right: 18px; bottom: 20px; z-index: 45;

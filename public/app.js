@@ -529,6 +529,68 @@ $("btnReset").addEventListener("click", () =>
 $("btnAbandonGen").addEventListener("click", () =>
   resetAll("Abandon this plan and start over from the goal screen?"));
 
+/* ---------- study reminders (push notifications) ---------- */
+
+function urlB64ToUint8(base64) {
+  const pad = "=".repeat((4 - (base64.length % 4)) % 4);
+  const b64 = (base64 + pad).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = atob(b64);
+  return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
+}
+
+$("btnReminders").addEventListener("click", () => {
+  const n = state.notifications || {};
+  $("remTime").value = n.daily_time || "19:00";
+  $("remQuietStart").value = (n.quiet_hours || {}).start || "22:00";
+  $("remQuietEnd").value = (n.quiet_hours || {}).end || "08:00";
+  const on = n.enabled && (n.subscriptions_count || (n.subscriptions || []).length);
+  $("remStatus").textContent = n.enabled ? "Reminders are on." : "";
+  $("btnEnableReminders").textContent = n.enabled ? "Update reminders" : "Enable reminders";
+  $("btnDisableReminders").classList.toggle("hidden", !n.enabled);
+  $("remindersSheet").classList.remove("hidden");
+});
+$("remindersClose").addEventListener("click", () => $("remindersSheet").classList.add("hidden"));
+
+$("btnEnableReminders").addEventListener("click", async () => {
+  const btn = $("btnEnableReminders");
+  btn.disabled = true;
+  const prefs = {
+    daily_time: $("remTime").value || "19:00",
+    quiet_hours: { start: $("remQuietStart").value || "22:00", end: $("remQuietEnd").value || "08:00" },
+  };
+  try {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window))
+      throw new Error("This browser can't do reminders. On Android Chrome, install the app first.");
+    const perm = await Notification.requestPermission();
+    if (perm !== "granted") throw new Error("Reminders need notification permission.");
+    const reg = await navigator.serviceWorker.register("/sw.js");
+    await navigator.serviceWorker.ready;
+    const { key } = await api("/api/vapid-public-key");
+    if (!key) throw new Error("Reminders aren't configured on the server yet.");
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64ToUint8(key) });
+    await api("/api/push/subscribe", { method: "POST", body: JSON.stringify({ subscription: sub, ...prefs }) });
+    await api("/api/push/settings", { method: "POST", body: JSON.stringify({ enabled: true, ...prefs }) });
+    state = await api("/api/state");
+    $("remStatus").textContent = "✓ Reminders are on.";
+    $("btnDisableReminders").classList.remove("hidden");
+    toast("Study reminders enabled.");
+  } catch (err) {
+    $("remStatus").textContent = err.message;
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+$("btnDisableReminders").addEventListener("click", async () => {
+  try {
+    await api("/api/push/settings", { method: "POST", body: JSON.stringify({ enabled: false }) });
+    state = await api("/api/state");
+    $("remStatus").textContent = "Reminders are off.";
+    $("btnDisableReminders").classList.add("hidden");
+  } catch (err) { toast(err.message); }
+});
+
 /* ---------- skill map ---------- */
 
 function renderSkillMapCard() {

@@ -15,6 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="manifest" href="/manifest.json" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -230,7 +231,10 @@
       <p class="label mono list-label">QUEST LOG</p>
       <div id="dayList" class="day-list"></div>
 
-      <button class="btn danger ghost small" id="btnReset">Start over (wipes plan)</button>
+      <div class="dash-footer">
+        <button class="btn ghost small" id="btnReminders">Study reminders</button>
+        <button class="btn danger ghost small" id="btnReset">Start over (wipes plan)</button>
+      </div>
     </section>
 
     <!-- ============ DAY / CHAPTER RECAP ============ -->
@@ -435,6 +439,22 @@
       <div id="explorations"></div>
       <textarea id="askInput" rows="2" placeholder="e.g. Wait — how did this work before computers existed?"></textarea>
       <button class="btn primary small" id="btnAsk">Ask</button>
+    </div>
+  </div>
+
+  <div id="remindersSheet" class="sheet-scrim hidden">
+    <div class="sheet">
+      <div class="sheet-head">
+        <p class="label">Study reminders</p>
+        <button class="sheet-x" id="remindersClose" aria-label="Close">✕</button>
+      </div>
+      <p class="sub">One gentle nudge a day — when a concept's ready to review, or your study window opens. Never spam, never guilt.</p>
+      <label class="rem-row"><span>Daily reminder time</span><input type="time" id="remTime" value="19:00" /></label>
+      <label class="rem-row"><span>Quiet from</span><input type="time" id="remQuietStart" value="22:00" /></label>
+      <label class="rem-row"><span>Quiet until</span><input type="time" id="remQuietEnd" value="08:00" /></label>
+      <p class="rem-status" id="remStatus"></p>
+      <button class="btn primary" id="btnEnableReminders">Enable reminders</button>
+      <button class="btn ghost small hidden" id="btnDisableReminders">Turn off</button>
     </div>
   </div>
 

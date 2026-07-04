@@ -11,6 +11,7 @@ from flask import Flask, jsonify, request, send_from_directory
 import dna as dna_engine
 import gemini
 import prompts
+import push as push_engine
 import reviews as review_engine
 import storage
 import youtube
@@ -47,6 +48,12 @@ def get_state():
     state = storage.load_state()
     # lessons can get big — the dashboard doesn't need them
     slim = {k: v for k, v in state.items() if k != "lessons"}
+    # don't ship raw push subscriptions or material text to the client
+    if slim.get("notifications"):
+        n = dict(slim["notifications"])
+        n["subscriptions_count"] = len(n.get("subscriptions", []))
+        n.pop("subscriptions", None)
+        slim["notifications"] = n
     return jsonify(slim)
 
 
@@ -845,6 +852,59 @@ def focus_done():
     state["xp"] = state.get("xp", 0) + gained
     storage.save_state(state)
     return jsonify({"xp_gained": gained, "xp": state["xp"]})
+
+
+@app.get("/api/vapid-public-key")
+def vapid_public_key():
+    return jsonify({"key": os.environ.get("VAPID_PUBLIC_KEY", "")})
+
+
+@app.post("/api/push/subscribe")
+def push_subscribe():
+    """Store a browser push subscription + the user's reminder prefs."""
+    body = request.get_json(force=True)
+    sub = body.get("subscription")
+    if not sub:
+        return jsonify({"error": "No subscription."}), 400
+    state = storage.load_state()
+    notif = state["notifications"]
+    # de-dupe by endpoint
+    notif["subscriptions"] = [s for s in notif["subscriptions"] if s.get("endpoint") != sub.get("endpoint")]
+    notif["subscriptions"].append(sub)
+    notif["enabled"] = True
+    if body.get("daily_time"):
+        notif["daily_time"] = body["daily_time"]
+    storage.save_state(state)
+    return jsonify({"ok": True})
+
+
+@app.post("/api/push/settings")
+def push_settings():
+    """Update reminder prefs (on/off, daily time, quiet hours)."""
+    body = request.get_json(force=True)
+    state = storage.load_state()
+    notif = state["notifications"]
+    if "enabled" in body:
+        notif["enabled"] = bool(body["enabled"])
+    if body.get("daily_time"):
+        notif["daily_time"] = body["daily_time"]
+    if body.get("quiet_hours"):
+        notif["quiet_hours"] = body["quiet_hours"]
+    storage.save_state(state)
+    return jsonify({"ok": True, "notifications": {k: v for k, v in notif.items() if k != "subscriptions"}})
+
+
+@app.post("/api/cron/push")
+def cron_push():
+    """Hit by the external uptime pinger on a schedule. Sends at most one
+    gentle digest per day. Gated by CRON_SECRET."""
+    secret = os.environ.get("CRON_SECRET", "")
+    if secret and request.args.get("key") != secret:
+        return jsonify({"error": "unauthorized"}), 401
+    state = storage.load_state()
+    result = push_engine.run_cron(state)
+    storage.save_state(state)   # persist last_notified + pruned dead subs
+    return jsonify(result)
 
 
 @app.post("/api/reset")

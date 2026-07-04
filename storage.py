@@ -27,7 +27,7 @@ def _collection():
     return _mongo
 
 
-SCHEMA = 11
+SCHEMA = 12
 
 
 def load_state():
@@ -89,6 +89,15 @@ def _migrate(state):
     if state.get("plan"):
         state["plan"].setdefault("projects", {})
 
+    # v12: push notifications (opt-in, one gentle daily digest)
+    state.setdefault("notifications", {
+        "enabled": False,
+        "daily_time": "19:00",
+        "quiet_hours": {"start": "22:00", "end": "08:00"},
+        "subscriptions": [],
+        "last_notified": {},
+    })
+
     state["schema"] = SCHEMA
     return state
 
@@ -120,6 +129,9 @@ def _empty_state():
         "asked_questions": [],  # every question text asked, so none repeats
         "weekly": {"last_shown": 0, "snap_xp": 0, "snap_mastered": []},  # weekly report snapshot
         "material": {"text": "", "scope": "", "name": ""},  # uploaded syllabus/textbook
+        "notifications": {"enabled": False, "daily_time": "19:00",
+                          "quiet_hours": {"start": "22:00", "end": "08:00"},
+                          "subscriptions": [], "last_notified": {}},
         "profile": {           # Learning DNA — grows over time
             "level_notes": "",
             "name": "",        # the learner's first name (used sparingly, for familiarity)
