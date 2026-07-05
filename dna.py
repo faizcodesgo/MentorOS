@@ -69,13 +69,21 @@ def compute(state):
     rated = {k: r for k, r in topics.items() if r["attempts"] >= 3}
     ranked = sorted(rated, key=lambda k: rated[k]["mastery"])
 
+    # a misconception clears once the topic reaches the mastered band — otherwise
+    # a confident-miss on day 2 would nag the student (and jump the review queue)
+    # forever, even after they've re-learned it.
+    live_misconceptions = sorted({
+        k for k in set(misconceptions)
+        if topics.get(k, {}).get("band") != "mastered"
+    })
+
     dna = {
         "topics": topics,
         "total_answered": total,
         "overall_mastery": round(correct / total, 3) if total else 0,
         "weakest": ranked[0] if ranked else None,
         "strongest": ranked[-1] if ranked else None,
-        "misconceptions": sorted(set(misconceptions)),
+        "misconceptions": live_misconceptions,
     }
     dna["notes"] = build_notes(dna)
     return dna

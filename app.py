@@ -150,6 +150,10 @@ def negotiate():
         prompts.MENTOR_PERSONA,
         prompts.negotiate_prompt(goal, days, hours, level, material=material),
     )
+    # shape guard: the negotiate screen breaks on a list/empty response — reject
+    # so the user gets a retry instead of a half-rendered dead end
+    if not isinstance(result, dict) or not isinstance(result.get("phases"), list) or not result["phases"]:
+        return jsonify({"error": "Couldn't assess that goal — try adjusting it."}), 502
     return jsonify(result)
 
 
@@ -161,11 +165,16 @@ def plan_init():
     # Season model: XP earned on the previous Main Quest rolls into the career total
     state["lifetime_xp"] = state.get("lifetime_xp", 0) + state.get("xp", 0)
     state["xp"] = 0
+    phases = body["phases"]
+    # Trust the phase breakdown for the day count, not the raw ask — the model
+    # doesn't always make phase days sum to the requested total, and a mismatch
+    # would strand the progress bar below 100% forever.
+    total_days = sum(int(p.get("days", 0)) for p in phases) or int(body.get("days", 0))
     state["plan"] = {
         "goal": body["goal"],
-        "days": int(body["days"]),
+        "days": total_days,
         "hours_per_day": float(body["hours_per_day"]),
-        "phases": body["phases"],           # accepted outline from /api/negotiate
+        "phases": phases,                   # accepted outline from /api/negotiate
         "mentor_message": body.get("mentor_message", ""),
         "curriculum": [],                    # filled phase by phase
         "phases_generated": 0,
@@ -282,11 +291,18 @@ def get_lesson(day):
         f"early days build foundations, later days get harder and more interview-like. "
         f"Their overall quiz mastery so far is {avg}% — if high (>80%), push harder; if low (<50%), reinforce fundamentals first."
     )
+    # Fetch today's video(s) FIRST (with length + chapters) so the mentor can tell
+    # the student exactly what to watch today — not the whole 10-hour course.
+    videos = []
+    for query in entry.get("resource_queries", [])[:2]:
+        videos.extend(youtube.search_videos(query, max_results=2))
+    videos = videos[:4]
+
     lesson = gemini.ask_json(
         prompts.MENTOR_PERSONA,
         prompts.lesson_prompt(plan["goal"], plan["hours_per_day"], entry, profile_text,
                               progression=progression, avoid_questions=state.get("asked_questions", []),
-                              material=state.get("material")),
+                              material=state.get("material"), videos=videos),
     )
     # shape guard: a malformed lesson is rejected (nothing cached), not 500ed
     if isinstance(lesson, dict):
@@ -304,6 +320,7 @@ def get_lesson(day):
     lesson["title"] = entry["title"]
     lesson["resource_queries"] = entry.get("resource_queries", [])
     lesson["is_checkpoint"] = entry.get("is_checkpoint", False)
+    lesson["videos"] = videos
 
     # remember every quiz question so it's never asked again (cap the list)
     asked = state.setdefault("asked_questions", [])
@@ -312,12 +329,6 @@ def get_lesson(day):
             asked.append(q["q"])
     state["asked_questions"] = asked[-200:]
 
-    # Direct video links via YouTube API (cached with the lesson); falls back
-    # to search links in the UI when empty.
-    videos = []
-    for query in lesson["resource_queries"][:2]:
-        videos.extend(youtube.search_videos(query, max_results=2))
-    lesson["videos"] = videos[:4]
     state["lessons"][str(day)] = lesson
     storage.save_state(state)
     return jsonify(lesson)
@@ -342,6 +353,9 @@ def get_project(pid):
             prompts.MENTOR_PERSONA,
             prompts.project_brief_prompt(state["plan"]["goal"], proj, profile_text,
                                          material=state.get("material")))
+        # shape guard: don't cache a blank brief (it would stick forever) or 500
+        if not isinstance(gen, dict) or not gen.get("brief"):
+            return jsonify({"error": "Couldn't build this project. Try again."}), 502
         proj["brief"] = gen.get("brief", "")
         proj["requirements"] = gen.get("requirements", [])
         proj["rubric"] = gen.get("rubric", [])
@@ -372,6 +386,8 @@ def submit_project(pid):
     try:
         review = gemini.ask_json(prompts.MENTOR_PERSONA,
                                  prompts.project_review_prompt(proj, content))
+        if not isinstance(review, dict):
+            raise ValueError("review was not an object")
     except Exception:
         storage.save_state(state)   # keep the submission so they can retry
         return jsonify({"error": "The review couldn't be generated — please submit again."}), 503
@@ -645,7 +661,10 @@ def ask():
         prompts.MENTOR_PERSONA,
         prompts.ask_prompt(plan["goal"] if plan else "", entry, profile_text, question),
     )
-    item = {"q": question, "a": result.get("answer", ""), "visual": result.get("visual")}
+    answer = result.get("answer", "") if isinstance(result, dict) else ""
+    if not answer:
+        return jsonify({"error": "Couldn't answer that one — try rephrasing it."}), 502
+    item = {"q": question, "a": answer, "visual": result.get("visual") if isinstance(result, dict) else None}
 
     # persist inside the lesson so the Q&A stays with that day forever
     if day is not None and str(day) in state["lessons"]:
@@ -802,12 +821,24 @@ def interview_submit():
     if not iv or not iv.get("questions"):
         return jsonify({"error": "Start the interview first."}), 400
 
+    # already graded once — return the cached result, never re-award the XP
+    # (this endpoint has no other once-guard, so re-submitting would farm XP)
+    if iv.get("results"):
+        cached = iv["results"]
+        models = {q["id"]: q.get("model_answer", "") for q in iv["questions"]}
+        for res in cached.get("results", []):
+            res["model_answer"] = models.get(res.get("id"), "")
+        return jsonify({"results": cached.get("results", []), "overall": cached.get("overall", ""),
+                        "xp_gained": 0, "xp": state.get("xp", 0)})
+
     by_id = {a["id"]: (a.get("text") or "").strip()[:800] for a in answers}
     graded_items = [{"id": q["id"], "q": q["q"], "rubric": q.get("rubric", ""),
                      "text": by_id.get(q["id"], "")} for q in iv["questions"]]
     try:
         graded = gemini.ask_json(prompts.MENTOR_PERSONA,
                                  prompts.interview_grade_prompt(state["plan"].get("goal", ""), graded_items))
+        if not isinstance(graded, dict):
+            raise ValueError("grade was not an object")
     except Exception:
         graded = {"results": [{"id": it["id"], "verdict": "okay",
                                "whats_good": "You showed up and gave it a real go.",

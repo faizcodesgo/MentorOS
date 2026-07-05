@@ -1187,7 +1187,7 @@ function renderLesson(l) {
 
   // videos / watch links
   const direct = (l.videos || [])
-    .map((v) => `<a class="resource-link" target="_blank" rel="noopener" href="${esc(v.url)}">▶ ${esc(v.title)} <span class="channel">· ${esc(v.channel)}</span></a>`)
+    .map((v) => `<a class="resource-link" target="_blank" rel="noopener" href="${esc(v.url)}">▶ ${esc(v.title)} <span class="channel">· ${esc(v.channel)}${v.duration ? " · " + esc(v.duration) : ""}</span></a>`)
     .join("");
   const resources = direct || (l.resource_queries || [])
     .map((q) => `<a class="resource-link" target="_blank" rel="noopener"

@@ -100,7 +100,7 @@ h3 { font-size: var(--text-lg); line-height: 1.3; }
   box-shadow: var(--shadow-1);
 }
 /* tactile press on interactive surfaces (cheap CSS transforms) */
-.card[role], button.card, .day-row, .class-card, .skillmap-card, .opt, .btn {
+button.card, .day-row, .class-card, .skillmap-card, .opt, .btn {
   transition: transform 0.12s ease, border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
 }
 button.card:active, .day-row:active, .class-card:active, .skillmap-card:active, .opt:active:not(:disabled), .btn:active {
@@ -747,7 +747,6 @@ body.study-mode #app { padding-top: 60px; }
   font-size: var(--text-sm); z-index: 50; max-width: 90vw;
   box-shadow: var(--shadow-2);
 }
-.toast.xp { border-color: rgba(245, 197, 66, 0.5); color: var(--gold); font-weight: 600; }
 .loading {
   position: fixed; inset: 0; background: rgba(13, 17, 23, 0.88);
   display: flex; flex-direction: column; align-items: center; justify-content: center;

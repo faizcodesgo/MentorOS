@@ -47,6 +47,15 @@ def _migrate(state):
     if state.get("schema", 1) >= SCHEMA:
         return state
 
+    # self-heal the core containers for very old docs so later code that reads
+    # state["profile"] / progress / lessons directly can't KeyError on upgrade
+    state.setdefault("progress", {})
+    state.setdefault("lessons", {})
+    state.setdefault("quizzes", {})
+    state.setdefault("xp", 0)
+    state.setdefault("profile", {"level_notes": "", "name": "", "class": "",
+                                 "weak_topics": [], "strong_topics": [], "preferences": {}})
+
     # v3: give each curriculum entry a stable display `order` and add the
     # id counter + streak fields. `day` was already a stable unique key, so
     # lessons/progress/quizzes dicts keyed by it need no rewrite.

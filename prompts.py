@@ -169,7 +169,7 @@ Respond with JSON:
       "objectives": ["by the end of this day the student can ...", "..."],
       "topics": ["specific topic", "..."],
       "practice": "one line describing the hands-on work for this day",
-      "resource_queries": ["The single best YouTube search phrase for THIS day, worded to surface a strong animated/visual explainer (e.g. 'human brain parts and functions animation', 'how pointers work in C visualized'). INCLUDE one on EVERY day that introduces or explains a concept — especially visual, spatial, structural, or process topics. OMIT only on pure-practice, pure-revision, or checkpoint days with nothing new to see."],
+      "resource_queries": ["The single best YouTube search phrase to find the BEST explainer video for THIS day — whatever teaches it best, animated OR a clear lecturer/walkthrough, you decide by topic (e.g. 'four lobes of the brain explained', 'python lists for beginners'). INCLUDE one on EVERY day that introduces or explains a concept. OMIT only on pure-practice, pure-revision, or checkpoint days with nothing new to see."],
       "est_minutes": <realistic total minutes this day's work takes: watching + reading + coding + practice, close to {hours_per_day} hours ({int(hours_per_day * 60)} min) but varying by how heavy the day is>,
       "is_checkpoint": <true if this day is a revision/assessment checkpoint, else false>
     }}
@@ -282,12 +282,29 @@ Respond with JSON:
 }}"""
 
 
-def lesson_prompt(goal, hours_per_day, day_entry, learner_profile, progression="", avoid_questions=None, material=None):
+def videos_context(videos):
+    """Tell the mentor which real video(s) were already picked for today (with
+    length + chapters) so resources_note can say exactly what to watch."""
+    if not videos:
+        return ""
+    lines = []
+    for v in videos:
+        chap = ""
+        if v.get("chapters"):
+            chap = " Chapters: " + "; ".join(f"{c['t']} {c['label']}" for c in v["chapters"][:15])
+        dur = f" [{v['duration']}]" if v.get("duration") else ""
+        lines.append(f'- "{v.get("title","")}" by {v.get("channel","")}{dur}.{chap}')
+    return ("\nTODAY'S VIDEO(S) already chosen for the student (write resources_note about THESE exact videos):\n"
+            + "\n".join(lines) + "\n")
+
+
+def lesson_prompt(goal, hours_per_day, day_entry, learner_profile, progression="", avoid_questions=None, material=None, videos=None):
     avoid = ""
     if avoid_questions:
         joined = " | ".join(avoid_questions[-40:])
         avoid = f"\nQUESTIONS ALREADY ASKED (never repeat these or close paraphrases — write genuinely NEW ones): {joined}"
     avoid += material_context(material)
+    avoid += videos_context(videos)
     return f"""Generate today's full lesson for this student.
 
 GOAL: {goal} (~{hours_per_day} hours today)
@@ -316,7 +333,7 @@ Respond with JSON:
       {VISUAL_RULES}
     }}
   ],
-  "resources_note": "ONE short line telling the student HOW to use today's recommended video(s): what to focus on and whether to watch the whole thing or just a part (e.g. 'You only need the first ~15 minutes, on how arrays are stored' or 'Short and worth watching fully'). Omit this field entirely if today has no video worth recommending.",
+  "resources_note": "Tell the student EXACTLY what to watch today and NO MORE, based on the actual video(s) listed above. If a video is long, name the specific part to watch for TODAY'S topics using its real chapter timestamps (e.g. 'In this 3-hour video, watch 12:34–28:00 — the \\'Lists\\' and \\'Loops\\' sections; that's all you need today, we'll continue from 28:00 another day'). If it's short, say 'Short — worth watching fully.' If it has no chapters, point to the rough part by topic ('the first ~15 minutes, on how arrays are stored'). One or two clear sentences. Omit this field entirely only if no video was provided.",
   "practice": ["hands-on task 1 for today", "..."],
   "homework": ["homework item to complete before tomorrow", "..."],
   "common_mistakes": ["mistake beginners make with today's topics", "..."],
