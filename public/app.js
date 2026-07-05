@@ -6,7 +6,7 @@ const views = ["onboarding", "negotiate", "generating", "dashboard", "lesson", "
 let state = null;          // slim server state (plan + progress + profile + xp)
 let negotiation = null;    // last /api/negotiate result
 let pendingInput = null;   // goal/days/hours the user submitted
-let chosenClass = "";      // scholar | builder | consistent | challenger
+let chosenClass = "allrounder";   // default "Balanced"; scholar|builder|consistent|challenger override
 
 /* ---------- XP / levels ---------- */
 
@@ -365,6 +365,10 @@ function renderDashboard() {
   }
   lastShownXp = xp;
   $("rankChip").textContent = rankLabel(lv) + " rank";
+  // career chip only appears once a prior season's XP exists (2nd+ plan) — on a
+  // first plan lifetime_xp is 0, so it stays hidden (no duplicate of current XP)
+  const career = state.lifetime_xp || 0;
+  $("careerChip").innerHTML = career > 0 ? `Career <b>${career + xp} XP</b>` : "";
   $("progressFill").style.width = `${(doneReal / plan.days) * 100}%`;
   $("topbarStatus").innerHTML =
     `<span class="xp-chip">LV ${lv} · ${xp} XP</span>${renderStreakChip()}`;
@@ -728,6 +732,16 @@ async function openRecap(day, opts = {}) {
     $("recapCarry").textContent = "";
   }
 
+  // "say it back" — pick a concept from today to self-explain (daily retrieval;
+  // hidden on revision days, which are already recall)
+  const concept = (entry.topics || [])[0] || entry.title || "today's idea";
+  explainConcept = { day, concept };
+  $("explainPrompt").textContent = `In your own words: what is “${concept}”, and why does it matter?`;
+  $("explainInput").value = "";
+  $("explainFeedback").className = "explain-feedback hidden";
+  $("btnExplain").disabled = false;
+  $("explainCard").style.display = entry.kind === "revision" ? "none" : "";
+
   // chapter block only when a chapter just wrapped
   const chap = opts.chapterEnd ? phaseOfDay(day) : null;
   if (chap) {
@@ -751,6 +765,34 @@ async function openRecap(day, opts = {}) {
 }
 
 $("btnRecapBack").addEventListener("click", () => { renderDashboard(); show("dashboard"); });
+
+/* explain-it-back — one light daily self-explanation in the recap */
+let explainConcept = null;
+$("btnExplain").addEventListener("click", async () => {
+  const text = $("explainInput").value.trim();
+  if (!text) { toast("Write your explanation first."); return; }
+  if (!explainConcept) return;
+  $("btnExplain").disabled = true;
+  loadingCycle(["Checking your explanation…"]);
+  try {
+    const r = await api("/api/explain", {
+      method: "POST",
+      body: JSON.stringify({ day: explainConcept.day, concept: explainConcept.concept, text }),
+    });
+    state = await api("/api/state");
+    loading(false);
+    const fb = $("explainFeedback");
+    fb.className = "explain-feedback";
+    fb.innerHTML =
+      `<p class="ef-good">${esc(r.whats_good)}</p>` +
+      (r.whats_missing ? `<p class="ef-add">${esc(r.whats_missing)}</p>` : "");
+    await rewardPill("Nice — you said it back", `+${r.xp_gained} XP`);
+  } catch (err) {
+    loading(false);
+    $("btnExplain").disabled = false;
+    toast(err.message, 6000);
+  }
+});
 
 /* ---------- mock interview (viva) ---------- */
 
@@ -1448,12 +1490,13 @@ function revealAnswer(confidence) {
   const wager = { safe: 1, confident: 1.5, allin: 2 }[confidence];
   let gained, cls, msg;
   if (correct) {
-    // multipliers still apply server-side; the UI keeps the math quiet
     quizRun.combo++;
     const comboMult = quizRun.combo === 1 ? 1 : quizRun.combo === 2 ? 1.5 : 2;
     gained = Math.round(10 * wager * comboMult);
-    cls = confidence === "allin" ? "quiz-feedback gold" : "quiz-feedback win";
-    msg = `Correct · +${gained} XP`;
+    const sure = confidence === "allin";        // "Certain" and right
+    cls = sure ? "quiz-feedback gold" : "quiz-feedback win";
+    const combo = quizRun.combo >= 2 ? ` · ${quizRun.combo} in a row` : "";
+    msg = `${sure ? "Sure and correct" : "Correct"} · +${gained} XP${combo}`;
   } else {
     quizRun.combo = 0;
     gained = 2;

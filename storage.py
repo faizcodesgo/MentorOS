@@ -132,7 +132,7 @@ def _empty_state():
         "profile": {           # Learning DNA — grows over time
             "level_notes": "",
             "name": "",        # the learner's first name (used sparingly, for familiarity)
-            "class": "",       # scholar | builder | consistent | challenger
+            "class": "",       # scholar | builder | consistent | challenger | allrounder
             "weak_topics": [],
             "strong_topics": [],
             "preferences": {},

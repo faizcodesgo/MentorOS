@@ -348,6 +348,10 @@ code {
 }
 .reward-pill .amt { color: var(--gold); }
 
+/* career chip — lifetime XP across seasons, shown only on a 2nd+ plan */
+.career-chip { font-size: var(--text-xs); color: var(--muted); }
+.career-chip b { color: var(--ink); font-weight: 600; }
+
 /* ---------- streak chip ---------- */
 .streak-chip { color: var(--muted); font-weight: 600; }
 .streak-chip b { color: var(--ink); }
@@ -505,6 +509,14 @@ code {
 .saved-block .saved-row:hover .saved-h { color: var(--brand); }
 .saved-h { font-weight: 500; font-size: var(--text-md); }
 .saved-day { color: var(--muted); font-size: var(--text-xs); }
+
+/* ---------- explain-it-back ---------- */
+.explain-card { border-left: 3px solid var(--brand); }
+.explain-prompt { font-weight: 500; margin: var(--s1) 0 var(--s3); }
+#explainInput { margin-bottom: var(--s3); }
+.explain-feedback { margin-bottom: var(--s3); line-height: 1.6; }
+.explain-feedback .ef-good { color: var(--good); margin-bottom: var(--s2); }
+.explain-feedback .ef-add { color: var(--ink); }
 
 /* ---------- interactive lesson widgets ---------- */
 .interaction {

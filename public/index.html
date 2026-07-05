@@ -114,6 +114,11 @@
             <span class="cname">Challenger</span>
             <span class="cdesc">Harder problems, interview-style</span>
           </button>
+          <button type="button" class="class-card selected" data-class="allrounder">
+            <svg class="cicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 9 5-9 5-9-5 9-5z"/><path d="m3 12 9 5 9-5"/><path d="m3 17 9 5 9-5"/></svg>
+            <span class="cname">Balanced</span>
+            <span class="cdesc">A bit of everything — I'll adjust as I learn you</span>
+          </button>
         </div>
 
         <button type="submit" class="btn primary" id="btnNegotiate">Continue</button>
@@ -176,6 +181,7 @@
       <div class="level-bar">
         <span class="level-chip mono" id="levelChip"></span>
         <span class="rank-chip mono" id="rankChip"></span>
+        <span class="career-chip mono" id="careerChip"></span>
       </div>
 
       <p class="dash-note" id="dashNote"></p>
@@ -250,6 +256,13 @@
         <p id="recapCarry" class="recap-carry"></p>
       </div>
 
+      <div class="card explain-card" id="explainCard">
+        <p class="label">Say it back</p>
+        <p class="explain-prompt" id="explainPrompt"></p>
+        <textarea id="explainInput" rows="2" placeholder="One or two sentences, in your own words…"></textarea>
+        <div id="explainFeedback" class="explain-feedback hidden"></div>
+        <button class="btn ghost small" id="btnExplain">Check it</button>
+      </div>
     </section>
 
     <!-- ============ MOCK INTERVIEW (VIVA) ============ -->

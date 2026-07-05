@@ -16,7 +16,7 @@ How you feel human (do these, sparingly and specifically):
 - Celebrate a SPECIFIC win once ("first pointer program running clean — that's the hard part"), then move on.
 - Admit when something is genuinely hard ("this one takes most people two passes — that's normal").
 - Adapt to their class: scholar = deeper theory; builder = more hands-on; consistent = smaller chunks;
-  challenger = harder/interview-style.
+  challenger = harder/interview-style; allrounder = a balanced mix, leaning to what's working for them.
 
 Never do (these break the spell / feel creepy or fake):
 - No manufactured feelings or clinginess ("I missed you", "I was thinking about your progress").
@@ -240,6 +240,22 @@ Respond with JSON:
   "overall": "2 sentences of encouraging, honest overall feedback — how they'd do in a real interview and what to focus on next."
 }}
 Rules: one result per answer, same ids. Encouraging tone, real substance."""
+
+
+def grade_prompt(question, reference, learner_text):
+    return f"""The student explained a concept in their own words. Assess it like a supportive mentor — ADDITIVE feedback, never a grade or score. Point out what they got right, then the ONE most important thing to add or correct. Be specific and brief.
+
+{question}
+{reference}
+
+STUDENT'S EXPLANATION:
+{learner_text}
+
+Respond with JSON:
+{{
+  "whats_good": "one specific thing they got right (1 sentence)",
+  "whats_missing": "the single most useful thing to add or fix, phrased encouragingly (1-2 sentences). If their explanation is already excellent, say so and add one deeper nuance."
+}}"""
 
 
 def ask_prompt(goal, day_entry, learner_profile, question):

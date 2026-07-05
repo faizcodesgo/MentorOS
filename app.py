@@ -860,6 +860,38 @@ def bookmark_toggle():
     return jsonify({"saved": saved, "count": len(marks)})
 
 
+@app.post("/api/explain")
+def explain():
+    """Explain-it-back: grade a short daily self-explanation. Additive feedback,
+    never a score. One AI call; degrades gracefully. Cheap daily retrieval
+    practice — the per-chapter mock interview doesn't replace it."""
+    body = request.get_json(force=True)
+    concept = (body.get("concept") or "").strip()
+    text = (body.get("text") or "").strip()[:800]
+    day = body.get("day")
+    if not text:
+        return jsonify({"error": "Write your explanation first."}), 400
+    state = storage.load_state()
+    lesson = state["lessons"].get(str(day)) if day is not None else None
+    reference = (lesson or {}).get("summary", "")
+
+    try:
+        result = gemini.ask_json(prompts.MENTOR_PERSONA,
+                                 prompts.grade_prompt(
+                                     f"Concept the student is explaining back: {concept}",
+                                     f"Reference (today's lesson summary): {reference}",
+                                     text))
+    except Exception:
+        result = {"whats_good": "Thanks for putting it in your own words.",
+                  "whats_missing": "I couldn't fully check it this time — compare yours to the lesson summary and see what you'd add."}
+    gained = 20
+    state["xp"] = state.get("xp", 0) + gained
+    storage.save_state(state)
+    return jsonify({"whats_good": result.get("whats_good", ""),
+                    "whats_missing": result.get("whats_missing", ""),
+                    "xp_gained": gained, "xp": state["xp"]})
+
+
 @app.post("/api/focus/done")
 def focus_done():
     """A voluntary focus session finished — rewards-only XP (a bit more if
