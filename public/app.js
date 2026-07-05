@@ -409,10 +409,12 @@ function renderDashboard() {
   renderSavedCard();
   loadWarmup();
 
-  // reminders entry only where it can actually work (installed PWA) or is
-  // already on — a desktop-browser dashboard doesn't need the button
-  const pushRelevant = window.matchMedia("(display-mode: standalone)").matches
-    || (state.notifications || {}).enabled;
+  // reminders entry only where it can actually work (installed app) or is
+  // already on — a desktop-browser tab doesn't need the button. Match any
+  // installed display mode so the TWA on Android reliably shows it.
+  const installed = ["standalone", "fullscreen", "minimal-ui"]
+    .some((m) => window.matchMedia(`(display-mode: ${m})`).matches) || navigator.standalone === true;
+  const pushRelevant = installed || (state.notifications || {}).enabled;
   $("btnReminders").style.display = pushRelevant ? "" : "none";
 
   $("dayList").querySelectorAll(".day-row").forEach((row) => {
