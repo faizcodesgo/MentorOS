@@ -140,7 +140,7 @@ Respond with JSON:
     {{"name": "short phase name", "days": <integer>, "focus": "one line on what this phase achieves"}}
   ]
 }}
-Rules: phases days must sum to exactly {days}. 3-6 phases. Make the LAST phase include applying the skill (a project or real practice), not just theory."""
+Rules: phases days must sum to exactly {days}. 3-6 phases (fewer for very short plans). Avoid 1-day phases — the FIRST phase must cover foundations (aim for 3+ days) before any project, because the student knows nothing on day 1. Make the LAST phase include applying the skill (a project or real practice), not just theory."""
 
 
 def curriculum_phase_prompt(goal, days, hours_per_day, level_notes, phases, phase_index, prior_days_summary, material=None):
@@ -168,13 +168,13 @@ Respond with JSON:
       "objectives": ["by the end of this day the student can ...", "..."],
       "topics": ["specific topic", "..."],
       "practice": "one line describing the hands-on work for this day",
-      "resource_queries": ["ONLY when a video genuinely helps THIS day (a new visual/complex concept) — omit entirely for pure-practice, revision, or simple days. At most 1 query: the single best topic to search."],
+      "resource_queries": ["The single best YouTube search phrase for THIS day, worded to surface a strong animated/visual explainer (e.g. 'human brain parts and functions animation', 'how pointers work in C visualized'). INCLUDE one on EVERY day that introduces or explains a concept — especially visual, spatial, structural, or process topics. OMIT only on pure-practice, pure-revision, or checkpoint days with nothing new to see."],
       "est_minutes": <realistic total minutes this day's work takes: watching + reading + coding + practice, close to {hours_per_day} hours ({int(hours_per_day * 60)} min) but varying by how heavy the day is>,
       "is_checkpoint": <true if this day is a revision/assessment checkpoint, else false>
     }}
   ]
 }}
-Rules: exactly {phase['days']} day entries. Every 5th overall day (day 5, 10, 15...) that falls in this phase must be a checkpoint day (revision + self-assessment, lighter new content). Fit each day's load to about {hours_per_day} hours ({int(hours_per_day * 60)} minutes) — est_minutes should reflect that target, lighter on checkpoint days. Sequence topics so each day builds on the previous. 1-2 resource_queries per day."""
+Rules: exactly {phase['days']} day entries. Every 5th overall day (day 5, 10, 15...) that falls in this phase must be a checkpoint day (revision + self-assessment, lighter new content). Fit each day's load to about {hours_per_day} hours ({int(hours_per_day * 60)} minutes) — est_minutes should reflect that target, lighter on checkpoint days. Sequence topics so each day builds on the previous. Put exactly ONE resource_query on any day that introduces or explains something new (visual/spatial/structural/process topics ALWAYS qualify); none on pure-practice, revision, or checkpoint days."""
 
 
 INTERACTION_RULES = """"interaction": OPTIONAL — omit for MOST sections. Across the WHOLE lesson, AT MOST 1 section may have one, and ONLY where guessing wrong is plausible and genuinely instructive (test the single thing that section taught). NEVER on a definition/intro/analogy section. Object:
@@ -184,7 +184,7 @@ INTERACTION_RULES = """"interaction": OPTIONAL — omit for MOST sections. Acros
 Both grade by option index. Keep the explanation genuinely teaching. Max 1 per lesson."""
 
 
-VISUAL_RULES = """"visual": OPTIONAL — omit for most sections/answers. Include ONLY when a picture genuinely teaches better than text (timelines, memory layouts, call stacks, tree/graph structures, comparisons, step processes). Object: {"type": "svg", "code": "..."} — "svg" is the ONLY supported type; anything else is discarded.
+VISUAL_RULES = """"visual": Include a labeled diagram whenever the section is SPATIAL, STRUCTURAL, ANATOMICAL, or a PROCESS/SEQUENCE — for these a picture is REQUIRED, not optional (anatomy: label the parts; process: show the steps/flow; structure: show the layout; comparison: show it side-by-side; timelines, memory layouts, call stacks, trees/graphs). For purely verbal/abstract sections (definitions, history, motivation, opinion) OMIT it — a diagram there is clutter. Rule of thumb: if a good textbook would print a figure on this section, include one. Aim for 1-2 strong diagrams in a typical lesson (not one on every section). Object: {"type": "svg", "code": "..."} — "svg" is the ONLY supported type; anything else is discarded.
 SVG rules: start with <svg viewBox="0 0 600 380" xmlns="http://www.w3.org/2000/svg"> (height 240-450 as needed), TRANSPARENT background (no full-size background rect), colors ONLY from this palette: #4f8cff (blue, primary), #8b5cf6 (purple, secondary), #facc15 (gold, highlights), #22c55e (green, success), #e6edf3 (text), #8b949e (muted text/arrows), #1c2330 (box fills) with #283042 (box strokes). Use font-family="Inter, sans-serif", text size 13-16, rounded rects (rx="8"), generous spacing, label EVERYTHING clearly, max ~50 elements. No scripts, no images, no links.
 For a top-down hierarchy (like a classification tree), draw evenly-spaced rounded rects stacked vertically, each centered on the same x, connected by short straight arrows (a <line> + a small triangle <polygon> arrowhead) — every box the SAME size and style, no dashed/faded boxes, nothing off to the side. Keep it symmetric and generously spaced."""
 

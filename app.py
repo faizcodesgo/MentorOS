@@ -224,15 +224,18 @@ def generate_phase():
         entry["order"] = entry["day"]        # display position (day is the stable id)
         entry["kind"] = "checkpoint" if entry.get("is_checkpoint") else "quest"
         plan["next_day"] = max(plan.get("next_day", 1), entry["day"] + 1)
-    # the LAST day of each phase becomes a build-it PROJECT milestone
-    if days:
-        last = days[-1]
+    # the LAST day of a phase becomes a build-it PROJECT milestone — but NEVER in
+    # the first phase, NEVER on a short (<3-day) phase, and NEVER within the first
+    # 3 days: a beginner can't build something before they've learned anything.
+    phase = plan["phases"][idx]
+    last = days[-1]
+    if idx >= 1 and phase.get("days", 0) >= 3 and last["day"] > 3:
         pid = f"p{last['day']}"
         last["kind"] = "project"
         last["project_id"] = pid
         plan.setdefault("projects", {})[pid] = {
             "title": last["title"], "topics": last.get("topics", []),
-            "phase_index": idx, "difficulty": idx + 1,   # ramps by phase
+            "phase_index": idx, "difficulty": idx,   # first project (phase 1) = GUIDED
             "status": "assigned",
             "brief": "", "requirements": [], "rubric": [],
             "submission": None, "review": None,
