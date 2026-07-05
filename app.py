@@ -224,12 +224,14 @@ def generate_phase():
         entry["order"] = entry["day"]        # display position (day is the stable id)
         entry["kind"] = "checkpoint" if entry.get("is_checkpoint") else "quest"
         plan["next_day"] = max(plan.get("next_day", 1), entry["day"] + 1)
-    # the LAST day of a phase becomes a build-it PROJECT milestone — but NEVER in
-    # the first phase, NEVER on a short (<3-day) phase, and NEVER within the first
-    # 3 days: a beginner can't build something before they've learned anything.
+    # the LAST day of a phase becomes a build-it PROJECT milestone — the capstone
+    # of a substantial phase, and ALWAYS the plan's final phase ("apply what you
+    # learned"). But NEVER the first phase and NEVER within the first 3 days: a
+    # beginner can't build something before they've learned anything.
     phase = plan["phases"][idx]
+    is_last_phase = idx == len(plan["phases"]) - 1
     last = days[-1]
-    if idx >= 1 and phase.get("days", 0) >= 3 and last["day"] > 3:
+    if idx >= 1 and last["day"] > 3 and (phase.get("days", 0) >= 3 or is_last_phase):
         pid = f"p{last['day']}"
         last["kind"] = "project"
         last["project_id"] = pid
@@ -332,8 +334,10 @@ def get_project(pid):
 
     if not proj.get("brief"):
         profile = state["profile"]
-        profile_text = (f"Level: {profile.get('level_notes') or 'beginner'}. "
-                        f"{dna_engine.summary_for_prompt(state.get('dna'))}")
+        name = (profile.get("name") or "").strip()
+        profile_text = ((f"Student's name: {name}. " if name else "")
+                        + f"Level: {profile.get('level_notes') or 'beginner'}. "
+                        + dna_engine.summary_for_prompt(state.get("dna")))
         gen = gemini.ask_json(
             prompts.MENTOR_PERSONA,
             prompts.project_brief_prompt(state["plan"]["goal"], proj, profile_text,
@@ -630,10 +634,12 @@ def ask():
         entry = next((d for d in plan["curriculum"] if d["day"] == day), None)
 
     profile = state["profile"]
+    name = (profile.get("name") or "").strip()
     profile_text = (
-        f"Level: {profile.get('level_notes') or 'beginner'}. "
-        f"Class: {profile.get('class') or 'not chosen'}. "
-        f"{dna_engine.summary_for_prompt(state.get('dna'))}"
+        (f"Student's name: {name}. " if name else "")
+        + f"Level: {profile.get('level_notes') or 'beginner'}. "
+        + f"Class: {profile.get('class') or 'not chosen'}. "
+        + dna_engine.summary_for_prompt(state.get("dna"))
     )
     result = gemini.ask_json(
         prompts.MENTOR_PERSONA,
