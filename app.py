@@ -57,18 +57,15 @@ def healthz():
 
 @app.get("/.well-known/assetlinks.json")
 def assetlinks():
-    """Digital Asset Links — proves the TWA Android app may open this site
-    full-screen (no browser URL bar). Set ANDROID_CERT_SHA256 in the Render
-    environment to the SHA-256 fingerprint(s) PWABuilder / Play Console give you
-    (comma-separate the two you'll have once Play App Signing is on: your upload
-    key + Google's re-signing key). ANDROID_PACKAGE_NAME defaults below — set it
-    to whatever package id you chose in PWABuilder. Returns an empty list until
-    a fingerprint is set (valid JSON, just grants no app yet)."""
-    sha = os.environ.get("ANDROID_CERT_SHA256", "").strip()
-    package = os.environ.get("ANDROID_PACKAGE_NAME", "com.mentoros.twa").strip()
-    if not sha:
-        return jsonify([])
-    fingerprints = [s.strip() for s in sha.split(",") if s.strip()]
+    """Digital Asset Links — lets the installed TWA open MentorOS full-screen
+    (no browser URL bar). The upload-key fingerprint from PWABuilder is baked in
+    so no Render config is needed. When Play App Signing is turned on later, add
+    Google's re-signing SHA-256 to the ANDROID_CERT_SHA256 env (comma-separated)
+    and it gets appended here too."""
+    package = os.environ.get("ANDROID_PACKAGE_NAME", "com.onrender.mentoros_c4ht.twa").strip()
+    fingerprints = ["E9:EF:79:F5:A8:29:58:D9:5B:FE:33:C6:5B:21:28:14:FE:ED:4A:DD:13:EC:53:CE:BF:BD:E7:4E:BF:D8:BC:DC"]
+    extra = os.environ.get("ANDROID_CERT_SHA256", "").strip()
+    fingerprints += [s.strip() for s in extra.split(",") if s.strip()]
     return jsonify([{
         "relation": ["delegate_permission/common.handle_all_urls"],
         "target": {"namespace": "android_app", "package_name": package,

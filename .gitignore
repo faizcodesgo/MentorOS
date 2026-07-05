@@ -3,3 +3,10 @@ mentoros_data.json
 __pycache__/
 *.pyc
 .claude/
+
+# Android / TWA build output — NEVER commit (contains the signing keystore + passwords)
+MentorOS - Google Play package/
+*.keystore
+*.aab
+*.apk
+signing-key-info.txt
