@@ -206,7 +206,7 @@
         <p class="reward mono" id="todayReward"></p>
         <div class="today-actions">
           <button class="btn primary" id="btnStartToday">Start today</button>
-          <button class="btn ghost small" id="btnFocus">Focus timer</button>
+          <button class="btn ghost small" id="btnFocus">Study mode</button>
         </div>
       </div>
 
@@ -376,10 +376,10 @@
 
   </main>
 
-  <!-- Focus session setup sheet -->
+  <!-- Study session setup sheet -->
   <div id="focusSheet" class="modal-scrim hidden">
     <div class="modal focus-modal">
-      <p class="mono kicker">Focus session</p>
+      <p class="mono kicker">Study session</p>
       <h2 id="focusQuestName">Today's lesson</h2>
       <label class="focus-intent">
         <span class="label">What will you finish?</span>
@@ -391,22 +391,33 @@
         <button class="dur-chip selected" data-min="25">25 min</button>
         <button class="dur-chip" data-min="45">45 min</button>
       </div>
-      <p class="focus-note">Keeps your screen awake for the session. It won't block other apps.</p>
+      <p class="focus-note">Just you and the lesson for the session. Your screen stays on.</p>
+      <details class="focus-block">
+        <summary>Block distracting apps</summary>
+        <p>Turn on your phone's own Focus mode and pick the apps to pause while you study.</p>
+        <button type="button" class="btn ghost small" id="btnOpenFocusMode">Open Focus mode</button>
+        <p class="focus-block-steps">Or by hand: Settings → Digital Wellbeing → Focus mode → pick apps → Turn on now.</p>
+      </details>
       <div class="focus-actions">
-        <button class="btn primary" id="btnFocusStart">Start focus</button>
+        <button class="btn primary" id="btnFocusStart">Start studying</button>
         <button class="btn ghost" id="btnFocusCancel">Cancel</button>
       </div>
     </div>
   </div>
 
-  <!-- Focus session running (fullscreen) -->
-  <div id="focusRun" class="focus-run hidden">
-    <div class="focus-bar"><div class="focus-bar-fill" id="focusBarFill"></div></div>
-    <div class="focus-run-inner">
-      <p class="mono focus-time" id="focusTime">25:00</p>
-      <p class="focus-intent-show" id="focusIntentShow"></p>
-      <p class="focus-status mono" id="focusStatus"></p>
-      <button class="btn ghost small" id="btnFocusEnd">End session</button>
+  <!-- Study mode: a slim timer bar pinned over the live lesson (no takeover) -->
+  <div id="studyBar" class="study-bar hidden">
+    <div class="study-bar-row">
+      <span class="study-time mono" id="studyTime">25:00</span>
+      <span class="study-goal" id="studyGoal"></span>
+      <button class="study-toggle" id="btnStudyToggle">Hide timer</button>
+      <button class="btn ghost small" id="btnStudyEnd">End</button>
+    </div>
+    <div class="study-bar-fill" id="studyBarFill"></div>
+    <div class="study-done hidden" id="studyDone">
+      <span id="studyDoneText">Time's up.</span>
+      <button class="btn ghost small" id="btnStudyMore">Keep going</button>
+      <button class="btn primary small" id="btnStudyWrap">Wrap up</button>
     </div>
   </div>
 

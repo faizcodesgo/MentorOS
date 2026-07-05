@@ -74,6 +74,7 @@ function show(view) {
   views.forEach((v) => $("view-" + v).classList.toggle("hidden", v !== view));
   $("askFab").classList.toggle("hidden", view !== "lesson");   // floating Ask only in a lesson
   $("askSheet").classList.add("hidden");
+  if (study && view !== "lesson") endStudy(false);   // leaving the lesson ends the session
   window.scrollTo(0, 0);
 }
 
@@ -957,9 +958,11 @@ async function finishWarmup() {
   }
 }
 
-/* ---------- focus session ---------- */
+/* ---------- study mode (a focus timer that rides ON TOP of the live lesson,
+   never a blank takeover) ---------- */
 
-let focus = null;
+let study = null;      // { total, left, elapsed, timer, goal }
+let wakeLock = null;
 
 $("btnFocus") && $("btnFocus").addEventListener("click", () => {
   const entry = currentEntry();
@@ -973,64 +976,95 @@ document.querySelectorAll(".dur-chip").forEach((c) => c.addEventListener("click"
   c.classList.add("selected");
 }));
 
-$("btnFocusStart").addEventListener("click", async () => {
-  const mins = parseInt(document.querySelector(".dur-chip.selected").dataset.min, 10);
-  const intent = $("focusIntent").value.trim();
-  $("focusSheet").classList.add("hidden");
-  focus = { total: mins * 60, left: mins * 60, left_room: false, timer: null };
-  $("focusIntentShow").textContent = intent ? `Goal: ${intent}` : "";
-  $("focusStatus").textContent = "";
-  $("focusRun").classList.remove("hidden");
-  tickFocus();
-  try { await document.getElementById("focusRun").requestFullscreen(); } catch {}
-  requestWakeLock();
-  focus.timer = setInterval(() => {
-    focus.left--;
-    tickFocus();
-    if (focus.left <= 0) endFocus(true);
-  }, 1000);
+/* best-effort: open the phone's Digital Wellbeing (where Focus mode lives).
+   No stable cross-OEM intent exists, so the manual steps stay visible as the
+   reliable path. Only meaningful inside the installed Android app. */
+$("btnOpenFocusMode") && $("btnOpenFocusMode").addEventListener("click", () => {
+  try {
+    window.location.href =
+      "intent://#Intent;action=android.intent.action.MAIN;package=com.google.android.apps.wellbeing;end";
+  } catch {}
 });
 
-function tickFocus() {
-  const m = Math.floor(focus.left / 60), s = focus.left % 60;
-  $("focusTime").textContent = `${m}:${String(s).padStart(2, "0")}`;
-  $("focusBarFill").style.width = `${100 * (1 - focus.left / focus.total)}%`;
+function startStudyTick() {
+  study.timer = setInterval(() => {
+    study.left--; study.elapsed++;
+    tickStudy();
+    if (study.left <= 0) reachedZero();
+  }, 1000);
 }
 
-let wakeLock = null;
+$("btnFocusStart").addEventListener("click", async () => {
+  const mins = parseInt(document.querySelector(".dur-chip.selected").dataset.min, 10);
+  const goal = $("focusIntent").value.trim();
+  $("focusSheet").classList.add("hidden");
+
+  // study mode studies the CURRENT lesson — make sure it's on screen first
+  const entry = currentEntry();
+  if (entry && openDay !== entry.day) await openLesson(entry.day);
+  if ($("view-lesson").classList.contains("hidden")) return;  // no lesson to study — bail quietly
+
+  study = { total: mins * 60, left: mins * 60, elapsed: 0, timer: null, goal };
+  $("studyGoal").textContent = goal || "";
+  $("studyDone").classList.add("hidden");
+  $("studyBar").classList.remove("hidden");
+  document.body.classList.add("study-mode");
+  tickStudy();
+  requestWakeLock();
+  startStudyTick();
+});
+
+function tickStudy() {
+  const left = Math.max(0, study.left);
+  const m = Math.floor(left / 60), s = left % 60;
+  $("studyTime").textContent = `${m}:${String(s).padStart(2, "0")}`;
+  $("studyBarFill").style.width = `${100 * (1 - study.left / study.total)}%`;
+}
+
+function reachedZero() {
+  clearInterval(study.timer); study.timer = null;
+  $("studyDoneText").textContent = `${Math.round(study.total / 60)} minutes done — nice.`;
+  $("studyDone").classList.remove("hidden");
+}
+
+$("btnStudyMore") && $("btnStudyMore").addEventListener("click", () => {
+  if (!study) return;
+  study.total = 10 * 60; study.left = 10 * 60;
+  $("studyDone").classList.add("hidden");
+  tickStudy();
+  startStudyTick();
+});
+$("btnStudyWrap") && $("btnStudyWrap").addEventListener("click", () => endStudy(true));
+$("btnStudyEnd") && $("btnStudyEnd").addEventListener("click", () => endStudy(false));
+$("btnStudyToggle") && $("btnStudyToggle").addEventListener("click", () => {
+  const hidden = document.body.classList.toggle("timer-hidden");
+  $("btnStudyToggle").textContent = hidden ? "Show timer" : "Hide timer";
+});
+
 async function requestWakeLock() {
   try { wakeLock = await navigator.wakeLock.request("screen"); } catch {}
 }
 document.addEventListener("visibilitychange", () => {
-  if (!focus) return;
-  if (document.hidden) {
-    focus.left_room = true;
-    $("focusStatus").textContent = "";
-  } else {
-    requestWakeLock();  // wake lock drops when hidden — re-acquire
-    if (focus.left_room) $("focusStatus").textContent = "Welcome back — you left the room.";
-  }
+  if (study && !document.hidden) requestWakeLock();   // re-acquire; no guilt for leaving
 });
 
-$("btnFocusEnd").addEventListener("click", () => endFocus(false));
-
-async function endFocus(completed) {
-  if (!focus) return;
-  clearInterval(focus.timer);
-  const unbroken = completed && !focus.left_room;
-  focus = null;
+async function endStudy(completed) {
+  if (!study) return;
+  const elapsed = study.elapsed;
+  if (study.timer) clearInterval(study.timer);
+  study = null;
+  document.body.classList.remove("study-mode", "timer-hidden");
+  $("studyBar").classList.add("hidden");
+  $("studyDone").classList.add("hidden");
+  $("btnStudyToggle").textContent = "Hide timer";
   try { if (wakeLock) { wakeLock.release(); wakeLock = null; } } catch {}
-  try { if (document.fullscreenElement) await document.exitFullscreen(); } catch {}
-  $("focusRun").classList.add("hidden");
-  if (completed) {
+  // rewards-only: a wrapped/finished session pays a bit more; a quick bail is silent
+  if (completed || elapsed >= 60) {
     try {
-      const r = await api("/api/focus/done", { method: "POST", body: JSON.stringify({ unbroken }) });
+      const r = await api("/api/focus/done", { method: "POST", body: JSON.stringify({ completed: !!completed }) });
       state = await api("/api/state");
-      renderDashboard();
-      await rewardPill("Focus complete", `+${r.xp_gained} XP`);
-    } catch (err) { toast(err.message); }
-  } else {
-    toast("Paused — pick up anytime.");
+      await rewardPill("Studied", `+${r.xp_gained} XP`);
+    } catch {}
   }
 }
 

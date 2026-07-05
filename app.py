@@ -894,11 +894,11 @@ def explain():
 
 @app.post("/api/focus/done")
 def focus_done():
-    """A voluntary focus session finished — rewards-only XP (a bit more if
-    the session ran unbroken)."""
+    """A study session finished — rewards-only XP (a bit more for a full,
+    wrapped-up session than a short bail). No penalties, ever."""
     body = request.get_json(force=True)
     state = storage.load_state()
-    gained = 40 if body.get("unbroken") else 25
+    gained = 30 if body.get("completed") else 15
     state["xp"] = state.get("xp", 0) + gained
     storage.save_state(state)
     return jsonify({"xp_gained": gained, "xp": state["xp"]})

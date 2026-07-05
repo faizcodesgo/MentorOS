@@ -383,23 +383,45 @@ code {
   padding: var(--s2) var(--s4); cursor: pointer; transition: border-color 0.15s ease, color 0.15s ease;
 }
 .dur-chip.selected { border-color: var(--brand); color: var(--ink); background: var(--brand-soft); }
-.focus-note { font-size: var(--text-sm); color: var(--faint); margin-bottom: var(--s4); line-height: 1.5; }
+.focus-note { font-size: var(--text-sm); color: var(--faint); margin-bottom: var(--s3); line-height: 1.5; }
 .focus-actions { display: flex; flex-direction: column; gap: var(--s2); }
 .focus-modal { text-align: center; }
 
-.focus-run {
-  position: fixed; inset: 0; z-index: 70; background: var(--bg);
-  display: flex; flex-direction: column;
+/* "block distracting apps" helper in the setup sheet — honest, points to the OS */
+.focus-block { margin: 0 0 var(--s4); text-align: left; }
+.focus-block summary { color: var(--muted); font-size: var(--text-sm); cursor: pointer; list-style: none; width: fit-content; }
+.focus-block summary::-webkit-details-marker { display: none; }
+.focus-block summary:hover { color: var(--ink); }
+.focus-block p { font-size: var(--text-sm); color: var(--muted); margin: var(--s2) 0; line-height: 1.5; }
+.focus-block-steps { color: var(--faint); font-size: var(--text-xs); }
+#btnOpenFocusMode { margin: var(--s1) 0; }
+
+/* study mode — a slim timer bar over the live lesson (replaces the blank takeover) */
+.study-bar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 60;
+  background: #0f141b; border-bottom: 1px solid var(--line); box-shadow: var(--shadow-2);
 }
-.focus-bar { height: 3px; background: var(--line); }
-.focus-bar-fill { height: 100%; width: 0; background: var(--brand); transition: width 1s linear; }
-.focus-run-inner {
-  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: var(--s4); padding: var(--s5); text-align: center;
+.study-bar-row {
+  display: flex; align-items: center; gap: var(--s3);
+  max-width: 720px; margin: 0 auto; padding: var(--s2) var(--s4);
 }
-.focus-time { font-size: 3.4rem; font-weight: 600; letter-spacing: 0.02em; }
-.focus-intent-show { color: var(--muted); max-width: 40ch; }
-.focus-status { font-size: var(--text-sm); color: var(--warn); min-height: 1.2em; }
+.study-time { font-size: var(--text-lg); font-weight: 600; font-variant-numeric: tabular-nums; min-width: 60px; }
+.study-goal { flex: 1; color: var(--muted); font-size: var(--text-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.study-toggle {
+  background: none; border: none; color: var(--faint); font: inherit; font-size: var(--text-xs);
+  cursor: pointer; text-decoration: underline; text-underline-offset: 3px;
+}
+.study-toggle:hover { color: var(--muted); }
+.study-bar-fill { height: 2px; width: 0; background: var(--brand); transition: width 1s linear; }
+.study-done {
+  display: flex; align-items: center; gap: var(--s3); flex-wrap: wrap;
+  max-width: 720px; margin: 0 auto; padding: var(--s2) var(--s4) var(--s3);
+  border-top: 1px solid var(--line); font-size: var(--text-sm); color: var(--ink);
+}
+.study-done span { flex: 1; }
+body.timer-hidden .study-time { visibility: hidden; }
+body.study-mode .topbar { display: none; }
+body.study-mode #app { padding-top: 60px; }
 
 /* ---------- project milestone ---------- */
 .day-row.project { border-color: var(--brand); border-left: 3px solid var(--brand); }
