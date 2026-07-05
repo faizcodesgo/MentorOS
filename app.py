@@ -958,6 +958,8 @@ def push_subscribe():
     notif["enabled"] = True
     if body.get("daily_time"):
         notif["daily_time"] = body["daily_time"]
+    if body.get("tz_offset") is not None:
+        notif["tz_offset"] = int(body["tz_offset"])   # so the daily time is in the user's zone
     storage.save_state(state)
     return jsonify({"ok": True})
 
@@ -974,14 +976,17 @@ def push_settings():
         notif["daily_time"] = body["daily_time"]
     if body.get("quiet_hours"):
         notif["quiet_hours"] = body["quiet_hours"]
+    if body.get("tz_offset") is not None:
+        notif["tz_offset"] = int(body["tz_offset"])
     storage.save_state(state)
     return jsonify({"ok": True, "notifications": {k: v for k, v in notif.items() if k != "subscriptions"}})
 
 
-@app.post("/api/cron/push")
+@app.route("/api/cron/push", methods=["GET", "POST"])
 def cron_push():
-    """Hit by the external uptime pinger on a schedule. Sends at most one
-    gentle digest per day. Gated by CRON_SECRET."""
+    """Hit by the external uptime pinger on a schedule (GET or POST — a simple
+    UptimeRobot monitor uses GET). Sends at most one gentle digest per day.
+    Gated by CRON_SECRET."""
     secret = os.environ.get("CRON_SECRET", "")
     if secret and request.args.get("key") != secret:
         return jsonify({"error": "unauthorized"}), 401

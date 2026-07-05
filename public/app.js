@@ -562,6 +562,7 @@ $("btnEnableReminders").addEventListener("click", async () => {
   const prefs = {
     daily_time: $("remTime").value || "19:00",
     quiet_hours: { start: $("remQuietStart").value || "22:00", end: $("remQuietEnd").value || "08:00" },
+    tz_offset: new Date().getTimezoneOffset(),   // so the chosen time is in the user's own timezone
   };
   try {
     if (!("serviceWorker" in navigator) || !("PushManager" in window))

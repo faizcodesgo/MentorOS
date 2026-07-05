@@ -135,7 +135,7 @@ def _empty_state():
         "asked_questions": [],  # every question text asked, so none repeats
         "weekly": {"last_shown": 0, "snap_xp": 0, "snap_mastered": []},  # weekly report snapshot
         "material": {"text": "", "scope": "", "name": ""},  # uploaded syllabus/textbook
-        "notifications": {"enabled": False, "daily_time": "19:00",
+        "notifications": {"enabled": False, "daily_time": "19:00", "tz_offset": 0,
                           "quiet_hours": {"start": "22:00", "end": "08:00"},
                           "subscriptions": [], "last_notified": {}},
         "profile": {           # Learning DNA — grows over time

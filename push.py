@@ -75,10 +75,16 @@ def build_digest(state):
 def run_cron(state, now=None):
     """Called by the cron endpoint. Sends at most one digest/day, respecting
     quiet hours and the user's daily time. Returns a short status dict."""
-    now = now or datetime.datetime.now()
     notif = state.get("notifications") or {}
     if not notif.get("enabled") or not notif.get("subscriptions"):
         return {"sent": 0, "reason": "disabled or no subscription"}
+    # Compute the USER's local time. Render runs in UTC, so a raw clock would
+    # fire "16:00" at 16:00 UTC (9:30pm in India). The browser sends its offset
+    # (JS getTimezoneOffset: minutes BEHIND UTC, e.g. -330 for IST) when the user
+    # saves reminders, so their chosen time means their local time.
+    if now is None:
+        offset = notif.get("tz_offset", 0)
+        now = datetime.datetime.utcnow() - datetime.timedelta(minutes=offset)
     if _in_quiet_hours(now, notif.get("quiet_hours", {})):
         return {"sent": 0, "reason": "quiet hours"}
     if now.strftime("%H:%M") < notif.get("daily_time", "19:00"):
