@@ -258,6 +258,70 @@ def generate_phase():
     })
 
 
+@app.post("/api/plan/generate-all")
+def generate_all():
+    """Generate the WHOLE curriculum in ONE request, all phases IN PARALLEL —
+    much faster than the sequential per-phase loop on the free tier (total time
+    ~= the slowest single phase instead of the sum). One save at the end avoids
+    the concurrent-write clobber a parallel client loop would cause."""
+    from concurrent.futures import ThreadPoolExecutor
+    state = storage.load_state()
+    plan = state.get("plan")
+    if not plan:
+        return jsonify({"error": "No plan started."}), 400
+    phases = plan["phases"]
+    goal, days_total, hpd = plan["goal"], plan["days"], plan["hours_per_day"]
+    level = state["profile"].get("level_notes", "")
+    material = state.get("material")
+
+    def gen(idx):
+        # each phase is told what EARLIER phases cover (from the accepted outline)
+        # so they coordinate without the not-yet-generated prior days
+        prior = "; ".join(f'Phase {i + 1} "{p["name"]}": {p.get("focus", "")}'
+                          for i, p in enumerate(phases[:idx]))
+        result = gemini.ask_json(
+            prompts.MENTOR_PERSONA,
+            prompts.curriculum_phase_prompt(goal, days_total, hpd, level,
+                                            phases, idx, prior, material=material))
+        d = result.get("days") if isinstance(result, dict) else None
+        if (not isinstance(d, list) or not d
+                or not all(isinstance(x, dict) and isinstance(x.get("day"), int) and x.get("title") for x in d)):
+            return None
+        return d
+
+    # cap concurrency so a big plan doesn't trip the free-tier per-minute limit
+    with ThreadPoolExecutor(max_workers=min(len(phases), 4)) as ex:
+        per_phase = list(ex.map(gen, range(len(phases))))
+    if any(p is None for p in per_phase):
+        return jsonify({"error": "Couldn't build the plan. Try again."}), 502
+
+    curriculum, projects, next_day = [], {}, 1
+    for idx, dlist in enumerate(per_phase):
+        for entry in dlist:
+            entry["order"] = entry["day"]
+            entry["kind"] = "checkpoint" if entry.get("is_checkpoint") else "quest"
+            next_day = max(next_day, entry["day"] + 1)
+        phase = phases[idx]
+        last = dlist[-1]
+        is_last = idx == len(phases) - 1
+        if idx >= 1 and last["day"] > 3 and (phase.get("days", 0) >= 3 or is_last):
+            pid = f"p{last['day']}"
+            last["kind"] = "project"
+            last["project_id"] = pid
+            projects[pid] = {"title": last["title"], "topics": last.get("topics", []),
+                             "phase_index": idx, "difficulty": idx, "status": "assigned",
+                             "brief": "", "requirements": [], "rubric": [],
+                             "submission": None, "review": None}
+        curriculum.extend(dlist)
+
+    plan["curriculum"] = curriculum
+    plan["projects"] = projects
+    plan["phases_generated"] = len(phases)
+    plan["next_day"] = next_day
+    storage.save_state(state)
+    return jsonify({"done": True, "phases_generated": len(phases), "total_phases": len(phases)})
+
+
 @app.get("/api/lesson/<int:day>")
 def get_lesson(day):
     state = storage.load_state()

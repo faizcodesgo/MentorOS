@@ -158,11 +158,14 @@
     <!-- ============ GENERATING ============ -->
     <section id="view-generating" class="view hidden">
       <div class="card center-card">
-        <div class="spinner"></div>
-        <h2>Building your curriculum</h2>
-        <p class="mono" id="genProgress">Phase 1…</p>
-        <p class="sub">Sequencing every day of your plan. This takes a minute — keep this page open.</p>
-        <button class="btn ghost small" id="btnAbandonGen" style="margin-top:18px">Abandon &amp; start over</button>
+        <div class="spinner" id="genSpinner"></div>
+        <h2 id="genTitle">Building your curriculum</h2>
+        <p class="mono" id="genProgress">Planning every day of your plan…</p>
+        <p class="sub" id="genSub">All phases at once — about half a minute. Keep this page open.</p>
+        <div class="gen-actions">
+          <button class="btn primary small hidden" id="btnGenRetry">Try again</button>
+          <button class="btn ghost small" id="btnAbandonGen">Start over</button>
+        </div>
       </div>
     </section>
 

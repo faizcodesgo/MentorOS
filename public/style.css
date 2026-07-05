@@ -186,6 +186,7 @@ input:focus, textarea:focus { outline: none; border-color: var(--brand); box-sha
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 #genProgress { color: var(--brand); margin: var(--s2) 0 var(--s4); font-size: var(--text-sm); }
+.gen-actions { display: flex; gap: var(--s3); justify-content: center; margin-top: var(--s4); flex-wrap: wrap; }
 
 /* ---------- dashboard ---------- */
 .dash-head { display: flex; justify-content: space-between; align-items: flex-end; gap: var(--s4); margin: var(--s5) 0 var(--s2); }

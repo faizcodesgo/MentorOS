@@ -307,25 +307,34 @@ $("btnAccept").addEventListener("click", async () => {
   }
 });
 
+let genAborted = false;
+
+function setGenState(mode) {
+  const err = mode === "error";
+  $("genSpinner").classList.toggle("hidden", err);          // stop the spinner on error
+  $("genTitle").textContent = err ? "Couldn't finish building your plan" : "Building your curriculum";
+  $("genProgress").textContent = err ? "It didn't finish — try again, or start over." : "Planning every day of your plan…";
+  $("genSub").style.display = err ? "none" : "";
+  $("btnGenRetry").classList.toggle("hidden", !err);
+}
+
 async function generatePhases() {
+  genAborted = false;
+  setGenState("loading");
   try {
-    let done = false;
-    while (!done) {
-      const r = await api("/api/plan/generate-phase", { method: "POST" });
-      done = r.done;
-      $("genProgress").textContent =
-        `Phase ${Math.min(r.phases_generated + 1, r.total_phases || r.phases_generated)} of ${r.total_phases || "?"}…`;
-    }
+    // one request builds ALL phases in parallel — no slow per-phase loop
+    await api("/api/plan/generate-all", { method: "POST" });
+    if (genAborted) return;                                 // user hit Start over mid-build
     state = await api("/api/state");
     renderDashboard();
     show("dashboard");
     toast("Your plan is ready. Day 1 starts now.");
   } catch (err) {
-    toast("Couldn't finish building your plan. Try again.", 8000);
-    // leave the user on the generating screen with a retry
-    $("genProgress").innerHTML = `<button class="btn ghost small" onclick="generatePhases()">Retry</button>`;
+    if (genAborted) return;
+    setGenState("error");
   }
 }
+$("btnGenRetry").addEventListener("click", generatePhases);
 
 /* ---------- dashboard ---------- */
 
@@ -533,8 +542,15 @@ async function resetAll(msg) {
 $("btnReset").addEventListener("click", () =>
   resetAll("This permanently deletes your plan and progress. Continue?"));
 
-$("btnAbandonGen").addEventListener("click", () =>
-  resetAll("This permanently deletes your plan and progress. Continue?"));
+$("btnAbandonGen").addEventListener("click", async () => {
+  if (!confirm("This permanently deletes your plan and progress. Continue?")) return;
+  genAborted = true;   // ignore any in-flight generation result
+  try {
+    await api("/api/reset", { method: "POST", body: JSON.stringify({ confirm: true }) });
+    state = await api("/api/state");
+  } catch {}
+  show("onboarding");
+});
 
 /* ---------- study reminders (push notifications) ---------- */
 
