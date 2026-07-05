@@ -47,6 +47,40 @@ def index():
     return send_from_directory("public", "index.html")
 
 
+@app.get("/healthz")
+def healthz():
+    """Tiny no-op for an uptime pinger. Keeps the free Render instance warm so
+    the installed Android app doesn't open to a 30-60s cold-start spinner.
+    Loads no state — cheap to hit every ~10 minutes."""
+    return jsonify({"ok": True})
+
+
+@app.get("/.well-known/assetlinks.json")
+def assetlinks():
+    """Digital Asset Links — proves the TWA Android app may open this site
+    full-screen (no browser URL bar). Set ANDROID_CERT_SHA256 in the Render
+    environment to the SHA-256 fingerprint(s) PWABuilder / Play Console give you
+    (comma-separate the two you'll have once Play App Signing is on: your upload
+    key + Google's re-signing key). ANDROID_PACKAGE_NAME defaults below — set it
+    to whatever package id you chose in PWABuilder. Returns an empty list until
+    a fingerprint is set (valid JSON, just grants no app yet)."""
+    sha = os.environ.get("ANDROID_CERT_SHA256", "").strip()
+    package = os.environ.get("ANDROID_PACKAGE_NAME", "com.mentoros.twa").strip()
+    if not sha:
+        return jsonify([])
+    fingerprints = [s.strip() for s in sha.split(",") if s.strip()]
+    return jsonify([{
+        "relation": ["delegate_permission/common.handle_all_urls"],
+        "target": {"namespace": "android_app", "package_name": package,
+                   "sha256_cert_fingerprints": fingerprints},
+    }])
+
+
+@app.get("/privacy")
+def privacy():
+    return send_from_directory("public", "privacy.html")
+
+
 @app.get("/api/state")
 def get_state():
     state = storage.load_state()

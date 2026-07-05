@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0b0e14" />
+  <title>MentorOS — Offline</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      background:#0b0e14; color:#eaeef5;
+      font-family:"Inter",system-ui,sans-serif; line-height:1.55;
+      min-height:100vh; display:flex; align-items:center; justify-content:center;
+      text-align:center; padding:24px;
+    }
+    .wrap { max-width:340px; }
+    .mark { font-weight:700; font-size:1.3rem; margin-bottom:20px; }
+    .mark span { color:#4f8cff; }
+    h1 { font-family:"Space Grotesk","Inter",sans-serif; font-size:1.4rem; margin-bottom:10px; letter-spacing:-0.02em; }
+    p { color:#9aa4b2; margin-bottom:22px; }
+    button {
+      font:inherit; font-weight:600; cursor:pointer;
+      background:#4f8cff; color:#08111f; border:none; border-radius:10px; padding:12px 22px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <p class="mark">Mentor<span>OS</span></p>
+    <h1>You're offline</h1>
+    <p>MentorOS needs a connection to reach your mentor. Reconnect and try again.</p>
+    <button onclick="location.reload()">Try again</button>
+  </div>
+</body>
+</html>

@@ -1515,4 +1515,11 @@ $("btnNextQ").addEventListener("click", async () => {
   }
 });
 
+/* register the service worker on load so the offline fallback + push work in
+   the installed app (the reminders flow also registers it — register is
+   idempotent, so this just makes it happen sooner for everyone) */
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
+}
+
 boot();
