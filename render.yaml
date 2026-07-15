@@ -4,7 +4,10 @@ services:
     runtime: python
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app --timeout 180
+    # 2 workers x 4 threads: a lesson generation blocks its worker for 15-60s,
+    # and the default (1 sync worker) made every other request — even a bookmark
+    # tap — queue behind it. Comfortably fits the free tier's 512MB.
+    startCommand: gunicorn app:app --workers 2 --threads 4 --timeout 180
     envVars:
       - key: GEMINI_API_KEY
         sync: false

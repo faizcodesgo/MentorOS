@@ -21,6 +21,20 @@ MODEL_CANDIDATES = [
 
 _working_model = None
 
+# How many tokens the model may spend "thinking" before it answers.
+# 0 = off. Our prompts specify the output shape in detail, so a large thinking
+# budget mostly buys latency. Tunable without a deploy via GEMINI_THINKING.
+THINKING_BUDGET = int(os.environ.get("GEMINI_THINKING", "0"))
+
+# Flipped off for the process if a model rejects thinkingConfig, so one
+# unsupported field can never break every AI call in the app.
+_thinking_ok = True
+
+
+def _disable_thinking():
+    global _thinking_ok
+    _thinking_ok = False
+
 
 def _api_key():
     key = os.environ.get("GEMINI_API_KEY", "").strip()
@@ -31,16 +45,24 @@ def _api_key():
     return key
 
 
-def _call_model(model, system_prompt, user_prompt):
+def _call_model(model, system_prompt, user_prompt, thinking=True):
     url = f"{API_BASE}/{model}:generateContent?key={_api_key()}"
+    gen = {
+        "temperature": 0.4,
+        "maxOutputTokens": 16384,
+        "responseMimeType": "application/json",
+    }
+    # 2.5-flash runs "dynamic thinking" by default: it silently spends extra
+    # output tokens reasoning before answering, paid for in wall-clock. Our
+    # prompts specify the output shape in detail, so that budget buys little.
+    # Capping it is the biggest latency win available. `thinking=False` is the
+    # self-heal path for any model that rejects the field outright.
+    if thinking and _thinking_ok:
+        gen["thinkingConfig"] = {"thinkingBudget": THINKING_BUDGET}
     body = {
         "system_instruction": {"parts": [{"text": system_prompt}]},
         "contents": [{"role": "user", "parts": [{"text": user_prompt}]}],
-        "generationConfig": {
-            "temperature": 0.4,
-            "maxOutputTokens": 16384,
-            "responseMimeType": "application/json",
-        },
+        "generationConfig": gen,
     }
     req = urllib.request.Request(
         url,
@@ -48,8 +70,17 @@ def _call_model(model, system_prompt, user_prompt):
         headers={"Content-Type": "application/json"},
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=120) as resp:
-        return json.loads(resp.read().decode("utf-8"))
+    try:
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        # A model that doesn't know thinkingConfig 400s on every call. Rather
+        # than let a speed optimisation take the whole app down, drop the field
+        # permanently for this process and retry once.
+        if e.code == 400 and thinking and _thinking_ok:
+            _disable_thinking()
+            return _call_model(model, system_prompt, user_prompt, thinking=False)
+        raise
 
 
 def ask_json(system_prompt, user_prompt, max_retries=3):

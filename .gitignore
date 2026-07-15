@@ -1,5 +1,6 @@
 .env
 mentoros_data.json
+mentoros_data.backup.json
 __pycache__/
 *.pyc
 .claude/

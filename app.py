@@ -159,6 +159,23 @@ def plan_init():
     """Create the plan shell after the student accepts the negotiated outline."""
     body = request.get_json(force=True)
     state = storage.load_state()
+
+    # This endpoint CLEARS progress/lessons/quizzes/dna/streak below, and saves
+    # with a whole-document replace. Unguarded, a stray re-POST (double submit,
+    # stale tab, back button into onboarding) permanently destroys an in-progress
+    # plan — there is no other backup. Refuse unless the caller says "replace",
+    # and snapshot first either way.
+    if state.get("plan") and not body.get("replace"):
+        done = sum(1 for p in state.get("progress", {}).values() if p.get("completed"))
+        return jsonify({
+            "error": "plan_exists",
+            "goal": state["plan"].get("goal", ""),
+            "days_done": done,
+            "message": "You already have a plan in progress. Starting a new one erases it.",
+        }), 409
+    if state.get("plan"):
+        storage.snapshot("plan_init")
+
     # Season model: XP earned on the previous Main Quest rolls into the career total
     state["lifetime_xp"] = state.get("lifetime_xp", 0) + state.get("xp", 0)
     state["xp"] = 0
@@ -1050,13 +1067,18 @@ def push_settings():
 def cron_push():
     """Hit by the external uptime pinger on a schedule (GET or POST — a simple
     UptimeRobot monitor uses GET). Sends at most one gentle digest per day.
-    Gated by CRON_SECRET."""
+    Gated by CRON_SECRET — fails CLOSED: with no secret configured the endpoint
+    is disabled rather than public."""
     secret = os.environ.get("CRON_SECRET", "")
-    if secret and request.args.get("key") != secret:
+    if not secret or request.args.get("key") != secret:
         return jsonify({"error": "unauthorized"}), 401
     state = storage.load_state()
     result = push_engine.run_cron(state)
-    storage.save_state(state)   # persist last_notified + pruned dead subs
+    # Only write when something actually changed. This runs every few minutes;
+    # an unconditional whole-document save would rewrite the doc all day and
+    # could clobber a write the user made in the same moment.
+    if result.get("changed"):
+        storage.save_state(state)   # persist last_notified + pruned dead subs
     return jsonify(result)
 
 
@@ -1069,8 +1091,26 @@ def reset():
     body = request.get_json(silent=True) or {}
     if request.headers.get("X-Requested-With") != "MentorOS" or body.get("confirm") is not True:
         return jsonify({"error": "Reset must be confirmed from inside the app."}), 403
+    saved_at = storage.snapshot("reset")   # recoverable via /api/restore
     storage.save_state(storage._empty_state())
-    return jsonify({"ok": True})
+    return jsonify({"ok": True, "backup_saved_at": saved_at})
+
+
+@app.post("/api/restore")
+def restore():
+    """Undo the last destructive wipe (start-over or a replaced plan).
+
+    The snapshot is written by storage.snapshot() before anything clears a
+    plan. This exists so that a mis-tap is recoverable instead of terminal.
+    """
+    if request.headers.get("X-Requested-With") != "MentorOS":
+        return jsonify({"error": "Restore must be run from inside the app."}), 403
+    snap = storage.load_snapshot()
+    if not snap or not snap.get("state", {}).get("plan"):
+        return jsonify({"error": "There's no backup to restore."}), 404
+    storage.save_state(snap["state"])
+    return jsonify({"ok": True, "goal": snap["state"]["plan"].get("goal", ""),
+                    "saved_at": snap.get("saved_at", "")})
 
 
 if __name__ == "__main__":

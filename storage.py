@@ -4,10 +4,12 @@ Local development: saved to mentoros_data.json next to the code.
 Production (Render): set MONGO_URI and the same state lives in MongoDB Atlas,
 so it survives redeploys (Render's disk is wiped on every deploy).
 """
+import datetime
 import json
 import os
 
 DATA_FILE = os.path.join(os.path.dirname(__file__), "mentoros_data.json")
+BACKUP_FILE = os.path.join(os.path.dirname(__file__), "mentoros_data.backup.json")
 USER_ID = "default"  # single-user for now; becomes a real user id later
 
 _mongo = None
@@ -115,6 +117,47 @@ def save_state(state):
     else:
         with open(DATA_FILE, "w", encoding="utf-8") as f:
             json.dump(state, f, indent=2)
+
+
+def snapshot(reason=""):
+    """Copy the CURRENT saved state aside before a destructive write.
+
+    There are no backups anywhere else: Mongo saves are whole-document
+    replaces and free-tier Atlas has no automated backup, so an unguarded
+    overwrite is permanent. Anything that clears a plan calls this first.
+    Best-effort by design — a failed snapshot must never block the request.
+    """
+    try:
+        current = load_state()
+        if not current.get("plan"):
+            return None  # nothing worth keeping
+        snap = {
+            "_id": f"{USER_ID}__backup",
+            "state": current,
+            "reason": reason,
+            "saved_at": datetime.datetime.now().isoformat(),
+        }
+        if os.environ.get("MONGO_URI"):
+            _collection().replace_one({"_id": snap["_id"]}, snap, upsert=True)
+        else:
+            with open(BACKUP_FILE, "w", encoding="utf-8") as f:
+                json.dump(snap, f, indent=2)
+        return snap["saved_at"]
+    except Exception:
+        return None
+
+
+def load_snapshot():
+    """The last snapshot, or None. Used by the restore endpoint."""
+    try:
+        if os.environ.get("MONGO_URI"):
+            return _collection().find_one({"_id": f"{USER_ID}__backup"})
+        if os.path.exists(BACKUP_FILE):
+            with open(BACKUP_FILE, encoding="utf-8") as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return None
 
 
 def _empty_state():

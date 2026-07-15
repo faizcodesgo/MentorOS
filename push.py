@@ -107,4 +107,8 @@ def run_cron(state, now=None):
             sent += 1
     notif["subscriptions"] = alive
     notif.setdefault("last_notified", {})["digest"] = today
-    return {"sent": sent, "body": body}
+    # `changed` tells the caller this run mutated state and must be saved, even
+    # when sent == 0 (every subscription was dead and got pruned). Without it a
+    # save gated on `sent` would drop the prune AND last_notified, and we'd
+    # hammer the same dead endpoints on every ping for the rest of the day.
+    return {"sent": sent, "changed": True, "body": body}
