@@ -29,7 +29,7 @@ def _collection():
     return _mongo
 
 
-SCHEMA = 12
+SCHEMA = 13
 
 
 def load_state():
@@ -107,6 +107,16 @@ def _migrate(state):
         "last_notified": {},
     })
 
+    # v13: honest streak + XP once-guards.
+    # `best` is the permanent record of the longest run — it never resets, which
+    # is what makes breaking the current run survivable rather than a reason to
+    # quit. Seed it from the existing count so nobody's history is erased by the
+    # upgrade. `awarded` backs the once-per-day guards on warm-up/explain/focus.
+    st = state.setdefault("streak", {"count": 0, "shields": 0, "last_day": None})
+    st.setdefault("best", st.get("count", 0))
+    state.setdefault("awarded", {})
+    state.setdefault("warmup_pending", None)
+
     state["schema"] = SCHEMA
     return state
 
@@ -171,13 +181,15 @@ def _empty_state():
         "quizzes": {},         # day-id -> checkpoint result (score, answers, xp_earned)
         "dna": None,           # Learning DNA — computed from quiz data on each submit
         "notes_seen": True,    # False when DNA updated since the user last viewed Skills
-        "streak": {"count": 0, "shields": 0, "last_day": None},  # rewards-only streak
+        "streak": {"count": 0, "shields": 0, "last_day": None, "best": 0},  # honest streak: breaks, but `best` never does
         "repaced_at": None,    # date the plan was last re-paced (avoid repeat nudges)
         "reviews": {"queue": [], "done_upto": 0},  # spaced-review ladder for warm-ups
         "bookmarks": [],       # learner-flagged lesson sections [{day, sectionIndex, heading}]
         "asked_questions": [],  # every question text asked, so none repeats
         "weekly": {"last_shown": 0, "snap_xp": 0, "snap_mastered": []},  # weekly report snapshot
         "material": {"text": "", "scope": "", "name": ""},  # uploaded syllabus/textbook
+        "awarded": {},         # once-per-day XP guards (warm-up / explain / focus)
+        "warmup_pending": None,  # questions we served, so the SERVER grades them
         "notifications": {"enabled": False, "daily_time": "19:00", "tz_offset": 0,
                           "quiet_hours": {"start": "22:00", "end": "08:00"},
                           "subscriptions": [], "last_notified": {}},

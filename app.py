@@ -486,10 +486,27 @@ def submit_project(pid):
     return jsonify({"review": proj["review"], "xp_gained": gained, "xp": state.get("xp", 0)})
 
 
+# Confidence payoffs: (XP if right, XP if wrong).
+#
+# The old table paid `10 x wager` when right and a FLAT 2 when wrong, which made
+# "Certain" strictly dominant — EV(certain) - EV(guessing) = 10p for every p > 0,
+# so no honest student should ever have picked anything else, and the confidence
+# signal was noise. That mattered beyond XP: dna.py treats a high-confidence miss
+# as a misconception, so rational play turned every wrong answer into a phantom
+# misconception and quietly poisoned the skill map and the review queue.
+#
+# This is Gardner-Medwin certainty-based marking (correct +1/+2/+3, wrong 0/-2/-6)
+# under the affine transform 2x+12, which preserves its indifference thresholds
+# exactly: honest reporting is now the XP-maximising strategy at p<0.67 (guessing),
+# 0.67-0.80 (fairly sure) and p>0.80 (certain). +12 keeps every cell >= 0, so the
+# rewards-only pillar holds — a confident miss costs the difference, never your XP.
+PAYOFF = {"safe": (14, 12), "confident": (16, 8), "allin": (18, 0)}
+
+
 @app.post("/api/quiz/<int:day>/submit")
 def submit_quiz(day):
     """Grade a checkpoint quiz — pure Python, no AI call. XP is rewards-only:
-    wrong answers still earn scouting XP and never subtract anything."""
+    nothing is ever subtracted; an honest wrong answer still pays."""
     body = request.get_json(force=True)
     answers = body.get("answers") or []
     state = storage.load_state()
@@ -500,10 +517,10 @@ def submit_quiz(day):
         return jsonify({"error": "This checkpoint is already done."}), 400
 
     quiz = lesson["quiz"]
-    wager_mult = {"safe": 1.0, "confident": 1.5, "allin": 2.0}
     xp = 0
     correct_count = 0
     combo = 0
+    best_combo = 0
     crits = 0
     wrong_topics = []
     graded = []
@@ -515,26 +532,34 @@ def submit_quiz(day):
         a = by_index.get(i) or (answers[i] if i < len(answers) and isinstance(answers[i], dict) else {})
         chosen = a.get("chosen", -1)
         confidence = a.get("confidence", "safe")
+        hinted = bool(a.get("hint_used"))
         is_correct = chosen == q.get("answer")
+        gained = PAYOFF.get(confidence, PAYOFF["safe"])[0 if is_correct else 1]
         if is_correct:
             correct_count += 1
             combo += 1
-            combo_mult = 1.0 if combo == 1 else (1.5 if combo == 2 else 2.0)
-            gained = round(10 * wager_mult.get(confidence, 1.0) * combo_mult)
+            best_combo = max(best_combo, combo)
             if confidence == "allin":
                 crits += 1
         else:
             combo = 0
-            gained = 2  # scouting XP — the wrong answer revealed a weak point
             if q.get("topic"):
                 wrong_topics.append(q["topic"])
         xp += gained
         graded.append({"chosen": chosen, "confidence": confidence,
-                       "topic": q.get("topic", ""), "correct": is_correct, "xp": gained})
+                       "topic": q.get("topic", ""), "correct": is_correct,
+                       "hint_used": hinted, "xp": gained})
 
     perfect = correct_count == len(quiz)
     if perfect:
         xp += 25
+    # Combo is a flourish, not a measurement. It used to MULTIPLY the per-question
+    # payoff, which made the honest-reporting thresholds depend on what happened on
+    # the previous question — that destroys the calibration the wager exists to
+    # train. It's a flat end-of-run bonus now, so the drama stays and the maths
+    # stays sound.
+    combo_bonus = 10 if best_combo >= 3 else 0
+    xp += combo_bonus
 
     state.setdefault("quizzes", {})[str(day)] = {
         "score": correct_count,
@@ -563,9 +588,28 @@ def submit_quiz(day):
     review_engine.enqueue_quiz(state, day, quiz, (entry or {}).get("order", day))
 
     storage.save_state(state)
+    # Per-question review: what you picked, what was right, and WHY. The app
+    # showed a one-line verdict for ~1s and then threw the answer away forever,
+    # which is the biggest learning gap in the product — a checkpoint you can't
+    # review is a score, not a lesson. Safe to reveal now: it's been graded.
+    review = [{
+        "q": q.get("q", ""),
+        "options": q.get("options", []),
+        "answer": q.get("answer"),
+        "chosen": g["chosen"],
+        "correct": g["correct"],
+        "topic": g.get("topic", ""),
+        "why": q.get("why", ""),
+        "hint_used": g.get("hint_used", False),
+        "xp": g["xp"],
+    } for q, g in zip(quiz, graded)]
     return jsonify({"score": correct_count, "total": len(quiz), "xp_gained": xp,
                     "crits": crits, "perfect": perfect, "xp": state["xp"],
-                    "mastered": just_mastered, "revision": revision})
+                    "mastered": just_mastered, "revision": revision,
+                    "review": review,
+                    "breakdown": {"questions": xp - (25 if perfect else 0) - combo_bonus,
+                                  "perfect": 25 if perfect else 0,
+                                  "combo": combo_bonus, "best_combo": best_combo}})
 
 
 def _insert_revision(state, after_day, wrong_topics):
@@ -666,6 +710,14 @@ def warmup_start():
                           "q": q["q"], "options": q["options"], "answer": ans})
         asked.append(q["q"])
     state["asked_questions"] = asked[-200:]
+    # Remember what we served so the SERVER can grade the submission. Without
+    # this the client told us which answers were right, and that verdict fed
+    # straight into the Learning DNA and the review ladder — so any front-end
+    # bug silently corrupted the app's model of what the student knows.
+    state["warmup_pending"] = {
+        "day": today,
+        "answers": {q["ref"]: {"answer": q["answer"], "topic": q["topic"]} for q in questions},
+    }
     storage.save_state(state)
     return jsonify({"questions": questions, "today": today})
 
@@ -674,33 +726,57 @@ def warmup_start():
 def warmup_submit():
     """Grade the warm-up, advance the ladder, fold results into DNA, small XP."""
     body = request.get_json(force=True)
-    results = body.get("results") or []   # [{ref, topic, correct}]
+    results = body.get("results") or []   # [{ref, chosen}]
     state = storage.load_state()
     today = _current_order(state)
 
-    served = [r["ref"] for r in results]
-    correct_refs = [r["ref"] for r in results if r.get("correct")]
+    # Grade against what WE served, not what the client claims. Falls back to the
+    # client's verdict only for old clients that still post `correct`.
+    pending = state.get("warmup_pending") or {}
+    key = pending.get("answers") or {}
+    graded_results = []
+    for r in results:
+        ref = r.get("ref")
+        truth = key.get(ref)
+        if truth is not None and "chosen" in r:
+            correct = r.get("chosen") == truth["answer"]
+            topic = truth["topic"]
+        else:
+            correct = bool(r.get("correct"))
+            topic = r.get("topic", "")
+        graded_results.append({"ref": ref, "topic": topic, "correct": correct})
+
+    served = [r["ref"] for r in graded_results]
+    correct_refs = [r["ref"] for r in graded_results if r["correct"]]
     review_engine.advance(state, served, correct_refs, today)
 
     # fold into DNA so warm-up retrieval counts toward mastery
-    graded = [{"topic": r.get("topic", ""), "correct": bool(r.get("correct")),
-               "confidence": "safe", "chosen": -1} for r in results]
+    graded = [{"topic": r["topic"], "correct": r["correct"],
+               "confidence": "safe", "chosen": -1} for r in graded_results]
+    score = sum(1 for r in graded_results if r["correct"])
     if graded:
         state.setdefault("quizzes", {})[f"w{today}"] = {
-            "score": sum(1 for r in results if r.get("correct")),
-            "total": len(results), "answers": graded, "warmup": True,
-            "taken_at": datetime.datetime.now().isoformat(),
+            "score": score, "total": len(graded_results), "answers": graded,
+            "warmup": True, "taken_at": datetime.datetime.now().isoformat(),
         }
         state["dna"] = dna_engine.compute(state)
 
-    gained = 15 if results else 0
-    state["xp"] = state.get("xp", 0) + gained
+    # once per day — this used to pay +15 on every post, re-postable forever
+    awarded = state.setdefault("awarded", {})
+    akey = f"warmup:{_today()}"
+    gained = 0 if (awarded.get(akey) or not graded_results) else 15
+    if gained:
+        awarded[akey] = True
+        state["xp"] = state.get("xp", 0) + gained
+    streak_event = None
     # tiny-habits "minimum day": even a 2-minute warm-up keeps the streak alive
-    if results:
-        _bump_streak(state)
+    if graded_results:
+        streak_event = _bump_streak(state)
+    state["warmup_pending"] = None
     storage.save_state(state)
     return jsonify({"xp_gained": gained, "xp": state["xp"], "streak": state.get("streak"),
-                    "score": sum(1 for r in results if r.get("correct")), "total": len(results)})
+                    "streak_event": streak_event,
+                    "score": score, "total": len(graded_results)})
 
 
 @app.get("/api/skills")
@@ -744,9 +820,15 @@ def ask():
         return jsonify({"error": "Couldn't answer that one — try rephrasing it."}), 502
     item = {"q": question, "a": answer, "visual": result.get("visual") if isinstance(result, dict) else None}
 
-    # persist inside the lesson so the Q&A stays with that day forever
+    # persist inside the lesson so the Q&A stays with that day
     if day is not None and str(day) in state["lessons"]:
-        state["lessons"][str(day)].setdefault("explorations", []).append(item)
+        ex = state["lessons"][str(day)].setdefault("explorations", [])
+        ex.append(item)
+        # Capped. These append forever at 1-3KB each (more with a visual), and
+        # they live INSIDE the one state document that every single request
+        # loads and rewrites — MongoDB's hard ceiling is 16MB per document.
+        # Unbounded, a chatty term would eventually make the app unopenable.
+        del ex[:-EXPLORATIONS_PER_LESSON]
         storage.save_state(state)
     return jsonify(item)
 
@@ -778,23 +860,52 @@ def _today():
     return datetime.date.today().isoformat()
 
 
-def _bump_streak(state):
-    """Rewards-only streak: a day of activity extends it; consecutive-day
-    milestones grant Shields. Never decrements here (gaps are handled by the
-    re-pace welcome-back, which spends a shield or just pauses)."""
-    s = state.setdefault("streak", {"count": 0, "shields": 0, "last_day": None})
-    today = _today()
+def _bump_streak(state, today_date=None):
+    """An HONEST streak: it counts CONSECUTIVE days and it can break.
+
+    `today_date` is injectable so the day-gap logic can actually be tested
+    without faking the system clock.
+
+    It used to do `count = max(count, 1)` on a gap — a no-op — so nothing in the
+    app ever reset a streak and "12-day streak" really meant "12 days I did
+    something, ever". A counter that can't go down isn't a streak.
+
+    Breaking it is not a punishment: no XP is ever taken away and no progress is
+    lost. `best` is permanent, so the identity ("I did 9 days straight") survives
+    the reset — that's what stops one missed day turning into quitting.
+    Shields are EARNED at milestones only and auto-spend to cover one gap.
+    """
+    s = state.setdefault("streak", {"count": 0, "shields": 0, "last_day": None, "best": 0})
+    s.setdefault("best", s.get("count", 0))
+    d = today_date or datetime.date.today()
+    today = d.isoformat()
     if s["last_day"] == today:
         return None  # already counted today
-    yesterday = (datetime.date.today() - datetime.timedelta(days=1)).isoformat()
-    if s["last_day"] == yesterday or s["last_day"] is None:
-        s["count"] += 1
-    else:
-        # returning after a gap that the welcome-back already reconciled
-        s["count"] = max(s["count"], 1)
-    s["last_day"] = today
+
     event = None
-    if s["count"] > 0 and s["count"] % 5 == 0 and s["shields"] < 3:
+    gap = None
+    if s["last_day"]:
+        gap = (d - datetime.date.fromisoformat(s["last_day"])).days
+
+    missed = 0 if gap is None else gap - 1
+    if gap is None or gap == 1:
+        s["count"] += 1                      # first ever, or a clean consecutive day
+    elif 0 < missed <= s.get("shields", 0):
+        # ONE shield covers ONE missed day. Without the `missed <=` bound a single
+        # shield silently covered an arbitrary gap — a fortnight away kept the run.
+        s["shields"] -= missed
+        s["count"] += 1
+        event = {"type": "shield_spent", "shields": s["shields"], "days_missed": missed}
+    else:
+        broke_at = s["count"]
+        s["count"] = 1                       # honest reset — the run restarts today
+        if broke_at > 1:
+            event = {"type": "streak_broken", "was": broke_at, "best": s.get("best", 0)}
+
+    s["last_day"] = today
+    s["best"] = max(s.get("best", 0), s["count"])
+    # Shields are earned every 5 consecutive days, capped at 3. Never gifted.
+    if not event and s["count"] > 0 and s["count"] % 5 == 0 and s["shields"] < 3:
         s["shields"] += 1
         event = {"type": "shield", "count": s["count"], "shields": s["shields"]}
     return event
@@ -802,8 +913,17 @@ def _bump_streak(state):
 
 @app.post("/api/pace-check")
 def pace_check():
-    """Called when the dashboard loads. If the user has fallen behind, re-pace
-    the plan forward from today and return a welcome-back payload (once/day)."""
+    """Called when the dashboard loads. If the user has been away, say so —
+    honestly, once a day, and without paying them for it.
+
+    This used to award +50 XP and hand out a shield just for loading the
+    dashboard after 3 days away. Because `days_away` is measured from the last
+    COMPLETED day but the guard only blocked it once per CALENDAR day, it paid
+    out +50 every single day forever as long as you never studied — an infinite
+    XP faucet that rewarded absence. It also claimed to "re-pace your plan" in
+    both its docstring and its modal while touching nothing but a timestamp.
+    Now it reports, and that's all it does.
+    """
     state = storage.load_state()
     plan = state.get("plan")
     if not plan or not plan.get("curriculum"):
@@ -823,26 +943,14 @@ def pace_check():
     if state.get("repaced_at") == _today():
         return jsonify({"behind": False})  # already welcomed back today
 
-    # re-pace: nothing is regenerated or lost — we just award a comeback bonus
-    # and (if available) auto-spend a shield so the streak pauses, not breaks.
-    bonus = 50
-    state["xp"] = state.get("xp", 0) + bonus
-    s = state.setdefault("streak", {"count": 0, "shields": 0, "last_day": None})
-    shield_used = False
-    if s["shields"] > 0:
-        s["shields"] -= 1
-        shield_used = True
-    else:
-        s["shields"] = s.get("shields", 0) + 1  # gift one on return
+    # No XP, no gifted shield. Being away isn't an achievement. Nothing is taken
+    # away either — the plan, the XP and the lessons are all exactly where they
+    # were. The streak itself is settled by _bump_streak on the next real day of
+    # work, which is the only place that should touch it.
+    s = state.setdefault("streak", {"count": 0, "shields": 0, "last_day": None, "best": 0})
     state["repaced_at"] = _today()
     storage.save_state(state)
-    return jsonify({
-        "behind": True,
-        "days_away": days_away,
-        "bonus_xp": bonus,
-        "shield_used": shield_used,
-        "streak": s,
-    })
+    return jsonify({"behind": True, "days_away": days_away, "streak": s})
 
 
 @app.post("/api/interview/start")
@@ -972,7 +1080,9 @@ def bookmark_toggle():
         marks.append({"day": day, "sectionIndex": idx, "heading": heading})
         saved = True
     storage.save_state(state)
-    return jsonify({"saved": saved, "count": len(marks)})
+    # return the list so the client can update in place — it used to refetch the
+    # WHOLE state right after this call just to learn one boolean
+    return jsonify({"saved": saved, "count": len(marks), "bookmarks": marks})
 
 
 @app.post("/api/explain")
@@ -999,23 +1109,47 @@ def explain():
     except Exception:
         result = {"whats_good": "Thanks for putting it in your own words.",
                   "whats_missing": "I couldn't fully check it this time — compare yours to the lesson summary and see what you'd add."}
-    gained = 20
-    state["xp"] = state.get("xp", 0) + gained
+    # once per day per concept — this used to pay +20 for any text, every time
+    awarded = state.setdefault("awarded", {})
+    key = f"explain:{day}"
+    gained = 0 if awarded.get(key) else 20
+    if gained:
+        awarded[key] = _today()
+        state["xp"] = state.get("xp", 0) + gained
     storage.save_state(state)
     return jsonify({"whats_good": result.get("whats_good", ""),
                     "whats_missing": result.get("whats_missing", ""),
                     "xp_gained": gained, "xp": state["xp"]})
 
 
+FOCUS_XP_DAILY_CAP = 40
+EXPLORATIONS_PER_LESSON = 10   # keep the newest N Q&As per day (see /api/ask)
+
+
 @app.post("/api/focus/done")
 def focus_done():
-    """A study session finished — rewards-only XP (a bit more for a full,
-    wrapped-up session than a short bail). No penalties, ever."""
+    """A study session finished — rewards-only XP. No penalties, ever.
+
+    Guarded now: this had no once-check of any kind and paid per HTTP call, and
+    the client ends a session on EVERY navigate-away from a lesson — so it was
+    quietly minting XP during ordinary use. XP is now proportional to real
+    minutes actually studied and capped per day.
+    """
     body = request.get_json(force=True)
     state = storage.load_state()
-    gained = 30 if body.get("completed") else 15
-    state["xp"] = state.get("xp", 0) + gained
-    storage.save_state(state)
+    minutes = max(0, int(body.get("elapsed_seconds") or 0)) // 60
+    if minutes < 5:
+        return jsonify({"xp_gained": 0, "xp": state.get("xp", 0)})  # too short to count
+
+    awarded = state.setdefault("awarded", {})
+    key = f"focus:{_today()}"
+    used = awarded.get(key, 0)
+    want = 30 if body.get("completed") else 15
+    gained = max(0, min(want, FOCUS_XP_DAILY_CAP - used))
+    if gained:
+        awarded[key] = used + gained
+        state["xp"] = state.get("xp", 0) + gained
+        storage.save_state(state)
     return jsonify({"xp_gained": gained, "xp": state["xp"]})
 
 

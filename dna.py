@@ -53,7 +53,13 @@ def compute(state):
             r = topics.setdefault(key, {"correct": 0, "total": 0})
             r["total"] += 1
             if a.get("correct"):
-                r["correct"] += 1
+                # A hinted-correct answer is not the same evidence as an unaided
+                # one — the nudge did part of the retrieving. Half credit keeps the
+                # topic in the review rotation instead of marking it mastered on
+                # the strength of a hint. (The cost of a hint is that you see the
+                # idea again — never XP: penalising help-seeking makes students
+                # avoid help, which is the failure mode that actually hurts.)
+                r["correct"] += 0.5 if a.get("hint_used") else 1
             elif a.get("confidence") == "allin":
                 # high-confidence miss = misconception, highest re-teach priority
                 misconceptions.append(key)

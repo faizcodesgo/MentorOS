@@ -1,7 +1,7 @@
 /* MentorOS frontend — plain JS, no framework. */
 
 const $ = (id) => document.getElementById(id);
-const views = ["onboarding", "negotiate", "generating", "dashboard", "lesson", "quiz", "skills", "recap", "viva", "project"];
+const views = ["onboarding", "negotiate", "generating", "dashboard", "lesson", "quiz", "result", "skills", "recap", "viva", "project"];
 
 let state = null;          // slim server state (plan + progress + profile + xp)
 let negotiation = null;    // last /api/negotiate result
@@ -12,6 +12,11 @@ let chosenClass = "allrounder";   // default "Balanced"; scholar|builder|consist
 
 const RANKS = [[16, "PLATINUM"], [10, "GOLD"], [5, "SILVER"], [0, "BRONZE"]];
 
+/* Confidence payoffs: [XP if right, XP if wrong]. MUST match PAYOFF in app.py —
+   the server is authoritative; this only previews the number. See the comment
+   there for why saying "guessing" honestly still pays. */
+const PAYOFF = { safe: [14, 12], confident: [16, 8], allin: [18, 0] };
+
 /* triangular curve: level N costs 50×N XP — fast levels early, slower later */
 function levelFromXp(xp) {
   let lv = 1, total = 0, cost = 100;
@@ -21,6 +26,17 @@ function levelFromXp(xp) {
     cost = 50 * (lv + 1);
   }
   return lv;
+}
+
+/* Total XP required to REACH level `lv` — the exact inverse of levelFromXp
+   above, so the "XP to next level" meter can never disagree with the level. */
+function xpForLevel(lv) {
+  let total = 0, cost = 100;
+  for (let l = 1; l < lv; l++) {
+    total += cost;
+    cost = 50 * (l + 2);
+  }
+  return total;
 }
 
 function rankFromLevel(lv) {
@@ -70,13 +86,61 @@ function animateXpChip(el, from, to, lv) {
 
 /* ---------- helpers ---------- */
 
+/* ---------- navigation + history ----------
+
+   The app had NO History API use at all: one entry for the whole session, so
+   Android's back gesture went straight past it and CLOSED the app — mid-quiz,
+   mid-lesson, or with the Ask sheet open. Two layers get an entry, and only two:
+   the view, and an open overlay (the Ask sheet). Lesson steps deliberately do
+   NOT — nine steps would mean nine back-presses to escape one lesson, and the
+   on-screen Back button already walks them.                                    */
+
+let currentView = null;
+let suppressHistory = false;   // set while WE are reacting to a popstate
+
 function show(view) {
   views.forEach((v) => $("view-" + v).classList.toggle("hidden", v !== view));
   $("askFab").classList.toggle("hidden", view !== "lesson");   // floating Ask only in a lesson
   $("askSheet").classList.add("hidden");
   if (study && view !== "lesson") endStudy(false);   // leaving the lesson ends the session
   window.scrollTo(0, 0);
+
+  if (!suppressHistory && view !== currentView) {
+    // replace (not push) for the very first view, so there's a base entry to
+    // land on rather than an empty one that exits the app
+    if (currentView === null) history.replaceState({ v: view }, "");
+    else history.pushState({ v: view }, "");
+  }
+  currentView = view;
 }
+
+function isAskOpen() { return !$("askSheet").classList.contains("hidden"); }
+function hideAsk() { $("askSheet").classList.add("hidden"); }
+
+/* Close the sheet THROUGH history, so the ✕ and the back gesture take the same
+   path and can't leave a stale entry behind either way. */
+function closeAsk() {
+  if (history.state && history.state.overlay === "ask") history.back();
+  else hideAsk();
+}
+
+window.addEventListener("popstate", (e) => {
+  const st = e.state || {};
+  // an open overlay always eats the first back press
+  if (isAskOpen() && st.overlay !== "ask") {
+    hideAsk();
+    if (!st.v || st.v === currentView) return;
+  }
+  if (st.v && st.v !== currentView) {
+    suppressHistory = true;
+    try {
+      if (st.v === "dashboard") renderDashboard();
+      show(st.v);
+    } finally {
+      suppressHistory = false;
+    }
+  }
+});
 
 function toast(msg, ms = 4000) {
   const el = $("toast");
@@ -379,6 +443,8 @@ function renderDashboard() {
   // first plan lifetime_xp is 0, so it stays hidden (no duplicate of current XP)
   const career = state.lifetime_xp || 0;
   $("careerChip").innerHTML = career > 0 ? `Career <b>${career + xp} XP</b>` : "";
+  // the streak's full story lives here, where there's width for it
+  $("streakChip").textContent = streakDetail();
   $("progressFill").style.width = `${(doneReal / plan.days) * 100}%`;
   $("topbarStatus").innerHTML =
     `<span class="xp-chip">LV ${lv} · ${xp} XP</span>${renderStreakChip()}`;
@@ -499,11 +565,26 @@ function renderSavedCard() {
   });
 }
 
+/* The topbar is 320px wide on a small phone next to the logo — it gets the
+   headline only. Shields and the best run are detail, and detail belongs on the
+   dashboard where there's room, not ellipsised into "3-day streak · 2 sh…". */
 function renderStreakChip() {
-  const s = state.streak || { count: 0, shields: 0 };
+  const s = state.streak || { count: 0, shields: 0, best: 0 };
   if (!s.count) return "";
-  const shields = s.shields ? ` · ${s.shields} shield${s.shields > 1 ? "s" : ""}` : "";
-  return `<span class="streak-chip"><b>${s.count}</b>-day streak${shields}</span>`;
+  return `<span class="streak-chip"><b>${s.count}</b>-day streak</span>`;
+}
+
+/* The full picture, for the dashboard. `best` never resets — the current run
+   can break, but what you actually achieved survives it, which is the whole
+   reason a break is survivable instead of a reason to stop. */
+function streakDetail() {
+  const s = state.streak || { count: 0, shields: 0, best: 0 };
+  const bits = [];
+  if (s.count) bits.push(`${s.count}-day streak`);
+  else if (s.best > 1) bits.push("Streak restarts today");
+  if (s.best > Math.max(s.count, 1)) bits.push(`best ${s.best}`);
+  if (s.shields) bits.push(`${s.shields} shield${s.shields > 1 ? "s" : ""}`);
+  return bits.join(" · ");
 }
 
 /* ---------- schedule awareness (welcome back) ---------- */
@@ -518,11 +599,14 @@ async function checkPace() {
   state = await api("/api/state");
   renderDashboard();
 
+  // Honest copy. This used to claim the plan had been "re-paced" (nothing was
+  // ever re-paced) and hand out a return bonus for being away — which quietly
+  // made skipping the most XP-efficient thing you could do.
+  const d = r.days_away;
   $("wbBody").textContent =
-    `You were away for ${r.days_away} days, so your plan has been re-paced to start from today.`;
-  const rewards = [`+${r.bonus_xp} XP return bonus`];
-  rewards.push(r.shield_used ? "Streak shield used — your streak held" : "+1 streak shield");
-  $("wbRewards").innerHTML = rewards.map((t) => `<span class="wb-reward">${esc(t)}</span>`).join("");
+    `It's been ${d} day${d === 1 ? "" : "s"}. Nothing's lost — your plan, your XP and every ` +
+    `lesson are exactly where you left them. Pick up from the next day whenever you're ready.`;
+  $("wbRewards").innerHTML = "";
   $("welcomeBack").classList.remove("hidden");
 }
 
@@ -721,7 +805,10 @@ function isChapterEnd(day) {
   return day === lastDay;
 }
 
+let recapDay = null;
+
 async function openRecap(day, opts = {}) {
+  recapDay = day;
   loading(true, "Loading your recap…");
   let lesson;
   try { lesson = await api("/api/lesson/" + day); } catch { loading(false); return; }
@@ -781,10 +868,32 @@ async function openRecap(day, opts = {}) {
     $("chapterBlock").classList.add("hidden");
   }
 
+  // the segmented control always lands back on Recap when the view opens
+  $("recapSeg").querySelectorAll(".seg-item").forEach((b) =>
+    b.classList.toggle("active", b.dataset.mode === "recap"));
   show("recap");
 }
 
 $("btnRecapBack").addEventListener("click", () => { renderDashboard(); show("dashboard"); });
+
+/* Recap <-> Full session. A completed day used to open its recap with no way to
+   reach the lesson again — the only route back in was if you happened to have
+   bookmarked a section. */
+$("recapSeg").addEventListener("click", (e) => {
+  const btn = e.target.closest(".seg-item");
+  if (!btn || btn.classList.contains("active")) return;
+  if (btn.dataset.mode === "lesson") openLesson(recapDay, { review: true });
+});
+
+/* The checkpoint was the only view with no exit. Answers are only POSTed at the
+   end, so leaving really does discard the run — say so plainly, then let them go. */
+$("btnQuizQuit").addEventListener("click", () => {
+  const answered = (quizRun && quizRun.answers.length) || (warmupRun && warmupRun.results.length) || 0;
+  if (answered && !confirm("Leave the checkpoint? Your answers so far won't be saved.")) return;
+  quizRun = null; warmupRun = null;
+  renderDashboard();
+  show("dashboard");
+});
 
 /* explain-it-back — one light daily self-explanation in the recap */
 let explainConcept = null;
@@ -891,10 +1000,12 @@ $("btnVivaDone").addEventListener("click", () => { vivaRun = null; renderDashboa
 /* floating ask button → bottom sheet */
 $("askFab").addEventListener("click", () => {
   $("askSheet").classList.remove("hidden");
+  // give the sheet its own history entry so the back gesture closes IT, not the app
+  history.pushState({ v: currentView, overlay: "ask" }, "");
   $("askInput").focus();
 });
-$("askClose").addEventListener("click", () => $("askSheet").classList.add("hidden"));
-$("askSheet").addEventListener("click", (e) => { if (e.target === $("askSheet")) $("askSheet").classList.add("hidden"); });
+$("askClose").addEventListener("click", () => closeAsk());
+$("askSheet").addEventListener("click", (e) => { if (e.target === $("askSheet")) closeAsk(); });
 
 /* ---------- morning warm-up (spaced review) ---------- */
 
@@ -949,7 +1060,8 @@ function renderWarmupQ() {
       opts[q.answer].classList.add("correct");
       if (!correct) opts[warmupRun.picked].classList.add("wrong");
       opts.forEach((b) => (b.disabled = true));
-      warmupRun.results.push({ ref: q.ref, topic: q.topic, correct });
+      // send what was PICKED — the server grades it against what it served
+      warmupRun.results.push({ ref: q.ref, chosen: warmupRun.picked });
       const fb = $("quizFeedback");
       fb.className = correct ? "quiz-feedback win" : "quiz-feedback lose";
       fb.textContent = correct ? "Still got it." : "Worth another look — the answer's highlighted.";
@@ -1077,12 +1189,18 @@ async function endStudy(completed) {
   $("studyDone").classList.add("hidden");
   $("btnStudyToggle").textContent = "Hide timer";
   try { if (wakeLock) { wakeLock.release(); wakeLock = null; } } catch {}
-  // rewards-only: a wrapped/finished session pays a bit more; a quick bail is silent
-  if (completed || elapsed >= 60) {
+  // rewards-only: a wrapped/finished session pays a bit more; a quick bail is
+  // silent. The server decides the XP from real elapsed time and caps the day.
+  if (completed || elapsed >= 300) {
     try {
-      const r = await api("/api/focus/done", { method: "POST", body: JSON.stringify({ completed: !!completed }) });
-      state = await api("/api/state");
-      await rewardPill("Studied", `+${r.xp_gained} XP`);
+      const r = await api("/api/focus/done", {
+        method: "POST",
+        body: JSON.stringify({ completed: !!completed, elapsed_seconds: elapsed }),
+      });
+      if (r.xp_gained > 0) {
+        state.xp = r.xp;
+        await rewardPill("Studied", `+${r.xp_gained} XP`);
+      }
     } catch {}
   }
 }
@@ -1092,8 +1210,11 @@ async function endStudy(completed) {
 let openDay = null;
 let currentLesson = null;
 
-async function openLesson(day) {
+let lessonReviewMode = false;   // reopened a finished day from its recap
+
+async function openLesson(day, opts = {}) {
   openDay = day;
+  lessonReviewMode = !!opts.review;
   const entry = (state.plan.curriculum || []).find((d) => d.day === day) || {};
   if (entry.kind === "project") return openProject(entry);
   const label = entry.kind === "revision" ? "Preparing your revision…"
@@ -1287,6 +1408,7 @@ function renderStep() {
   $("btnStepBack").style.visibility = stepIdx === 0 ? "hidden" : "visible";
   $("btnStepNext").style.display = last ? "none" : "";
   $("completeCard").style.display = last && !done ? "" : "none";
+  $("btnBack").innerHTML = lessonReviewMode ? "&larr; Back to recap" : "&larr; Back to plan";
 
   // wire this step's dynamic bits
   if (step.kind === "section") {
@@ -1296,13 +1418,26 @@ function renderStep() {
     }
     const btn = cont.querySelector(".bookmark-btn");
     if (btn) btn.addEventListener("click", async () => {
+      // Optimistic: flip it NOW, reconcile after. This used to await the POST and
+      // THEN await a full /api/state refetch before turning gold — two serial
+      // round-trips, each queued behind whatever else the server was doing, so a
+      // star took 4-5 seconds to light up. Nothing here is destructive: the worst
+      // case is a star that un-stars itself with a message.
+      const want = !btn.classList.contains("on");
+      const paint = (on) => {
+        btn.classList.toggle("on", on);
+        btn.querySelector("svg").setAttribute("fill", on ? "currentColor" : "none");
+      };
+      paint(want);
       try {
         const r = await api("/api/bookmark/toggle", { method: "POST",
           body: JSON.stringify({ day: l.day, sectionIndex: step.i, heading: btn.dataset.heading }) });
-        btn.classList.toggle("on", r.saved);
-        btn.querySelector("svg").setAttribute("fill", r.saved ? "currentColor" : "none");
-        state = await api("/api/state");
-      } catch (err) { toast(err.message); }
+        paint(r.saved);                       // reconcile with the truth
+        state.bookmarks = r.bookmarks || state.bookmarks;
+      } catch (err) {
+        paint(!want);                         // revert — the save didn't happen
+        toast("Couldn't save that bookmark: " + err.message);
+      }
     });
     renderDiagrams(cont);   // render on reveal (offscreen diagrams render blank)
   }
@@ -1427,6 +1562,8 @@ $("btnAsk").addEventListener("click", async () => {
 });
 
 $("btnBack").addEventListener("click", () => {
+  // arrived here from a finished day's recap → go back to it, not past it
+  if (lessonReviewMode) return openRecap(openDay);
   renderDashboard();
   show("dashboard");
 });
@@ -1501,6 +1638,7 @@ function renderQuestion() {
     $("quizHintBtn").onclick = () => {
       $("quizHint").classList.remove("hidden");
       $("quizHintBtn").style.display = "none";
+      quizRun.hintUsed = true;   // costs no XP; it half-credits mastery so the topic comes back
     };
   } else {
     hintWrap.style.display = "none";
@@ -1540,24 +1678,25 @@ function revealAnswer(confidence) {
   opts[q.answer].classList.add("correct");
   if (!correct) opts[picked].classList.add("wrong");
 
-  const wager = { safe: 1, confident: 1.5, allin: 2 }[confidence];
-  let gained, cls, msg;
+  // mirrors PAYOFF in app.py — keep the two tables in step
+  const gained = PAYOFF[confidence][correct ? 0 : 1];
+  let cls, msg;
   if (correct) {
     quizRun.combo++;
-    const comboMult = quizRun.combo === 1 ? 1 : quizRun.combo === 2 ? 1.5 : 2;
-    gained = Math.round(10 * wager * comboMult);
     const sure = confidence === "allin";        // "Certain" and right
     cls = sure ? "quiz-feedback gold" : "quiz-feedback win";
     const combo = quizRun.combo >= 2 ? ` · ${quizRun.combo} in a row` : "";
     msg = `${sure ? "Sure and correct" : "Correct"} · +${gained} XP${combo}`;
   } else {
     quizRun.combo = 0;
-    gained = 2;
     cls = "quiz-feedback lose";
-    msg = `Not quite — the right answer's highlighted.`;
+    msg = confidence === "allin"
+      ? `Not quite — and you were certain. Worth a second look.`
+      : `Not quite · +${gained} XP for an honest call`;
   }
   quizRun.xp += gained;
-  quizRun.answers.push({ i: idx, chosen: picked, confidence });
+  quizRun.answers.push({ i: idx, chosen: picked, confidence, hint_used: !!quizRun.hintUsed });
+  quizRun.hintUsed = false;
 
   const fb = $("quizFeedback");
   fb.className = cls;
@@ -1582,33 +1721,100 @@ $("btnNextQ").addEventListener("click", async () => {
   }
   // finished — server grades authoritatively and awards the XP
   const finishedDay = quizRun.lesson.day;
-  loading(true, "Scoring your answers…");
+  const btn = $("btnNextQ");
+  btn.disabled = true;
+  btn.textContent = "Scoring…";
   try {
     const r = await api(`/api/quiz/${finishedDay}/submit`, {
       method: "POST",
       body: JSON.stringify({ answers: quizRun.answers }),
     });
     state = await api("/api/state");
-    loading(false);
-    const oldLv = levelFromXp(r.xp - r.xp_gained);
-    const newLv = levelFromXp(r.xp);
-    await rewardPill(r.perfect ? `Perfect run · ${r.score}/${r.total}` : `Checkpoint · ${r.score}/${r.total}`, `+${r.xp_gained} XP`);
-    if (newLv > oldLv) {
-      await rewardPill(`Level ${newLv} · ${rankLabel(newLv)}`, "");
-    }
-    for (const topic of r.mastered || []) {
-      await rewardPill("Topic mastered", topic);
-    }
-    if (r.revision) {
-      toast(`Your mentor added a revision on ${r.revision.topics.join(", ")} — we'll go over it together.`, 6000);
-    }
-    openRecap(finishedDay, { chapterEnd: isChapterEnd(finishedDay) });
+    renderResult(finishedDay, r);
   } catch (err) {
-    loading(false);
     toast(err.message, 6000);
+    btn.disabled = false;
+    btn.textContent = "See results";
   } finally {
     quizRun = null;
   }
+});
+
+/* ---------- checkpoint result ---------- */
+
+function renderResult(day, r) {
+  $("resultDay").textContent = day;
+  $("resultScore").textContent = `${r.score}/${r.total}`;
+  $("resultLine").textContent = r.perfect
+    ? "Clean run — every one."
+    : r.score / r.total >= 0.6
+      ? "Solid — a couple worth a second look."
+      : "Worth going over. The ones you missed come back in a warm-up.";
+
+  const b = r.breakdown || {};
+  const rows = [["Questions", b.questions || 0]];
+  if (b.perfect) rows.push(["Perfect run", b.perfect]);
+  if (b.combo) rows.push([`Best run of ${b.best_combo}`, b.combo]);
+  $("resultBreakdown").innerHTML = rows
+    .map(([k, v]) => `<div class="ledger-row"><span>${esc(k)}</span><span class="tnum">+${v}</span></div>`)
+    .join("");
+  $("resultTotal").textContent = `+${r.xp_gained}`;
+
+  // level meter — where this run left you
+  const lv = levelFromXp(r.xp);
+  const floor = xpForLevel(lv), ceil = xpForLevel(lv + 1);
+  $("resultLvFrom").textContent = `LV ${lv}`;
+  $("resultLvTo").textContent = `LV ${lv + 1}`;
+  $("resultLvXp").textContent = `${r.xp - floor} / ${ceil - floor} XP`;
+  requestAnimationFrame(() => {
+    $("resultLvFill").style.width = `${((r.xp - floor) / (ceil - floor)) * 100}%`;
+  });
+
+  $("resultMastered").innerHTML = (r.mastered || []).length
+    ? `<p class="label">Mastered</p>` +
+      r.mastered.map((t) => `<span class="recap-chip gold-chip">${esc(t)}</span>`).join("")
+    : "";
+
+  const rev = $("resultRevision");
+  if (r.revision) {
+    rev.classList.remove("hidden");
+    rev.innerHTML = `<p class="thin-text">Your mentor added a revision on ${esc(r.revision.topics.join(", "))}. ` +
+                    `It's in your plan — we'll go over it together.</p>`;
+  } else {
+    rev.classList.add("hidden");
+  }
+
+  // The review: what you picked, what was right, and why. Wrong ones open by
+  // default — those are the ones worth reading.
+  $("resultReview").innerHTML = (r.review || []).map((q, i) => {
+    const yours = q.chosen >= 0 && q.options[q.chosen] !== undefined ? q.options[q.chosen] : "—";
+    return `<details class="rev-item${q.correct ? "" : " wrong"}"${q.correct ? "" : " open"}>
+      <summary>
+        <span class="rev-n mono">Q${i + 1}</span>
+        <span class="rev-q">${fmt(q.q)}</span>
+        <span class="rev-mark ${q.correct ? "ok" : "no"}">${q.correct ? "Correct" : "Missed"}</span>
+      </summary>
+      <div class="rev-body">
+        ${q.correct ? "" : `<p class="rev-line"><span class="label">You said</span> ${fmt(yours)}</p>`}
+        <p class="rev-line"><span class="label">Answer</span> ${fmt(q.options[q.answer] ?? "")}</p>
+        ${q.why ? `<p class="rev-why">${fmt(q.why)}</p>` : ""}
+        ${q.hint_used ? `<p class="rev-note">You used the hint here — it'll come back in a warm-up.</p>` : ""}
+      </div>
+    </details>`;
+  }).join("");
+
+  resultDay = day;
+  show("result");
+  // level-up is the one thing that still deserves a moment of its own, and it
+  // lands ON this screen instead of blocking the road to it
+  const oldLv = levelFromXp(r.xp - r.xp_gained);
+  if (lv > oldLv) rewardPill(`Level ${lv} · ${rankLabel(lv)}`, "");
+}
+
+let resultDay = null;
+$("btnResultBack").addEventListener("click", () => { renderDashboard(); show("dashboard"); });
+$("btnResultRecap").addEventListener("click", () => {
+  openRecap(resultDay, { chapterEnd: isChapterEnd(resultDay) });
 });
 
 /* register the service worker on load so the offline fallback + push work in

@@ -339,8 +339,18 @@ Respond with JSON:
   "common_mistakes": ["mistake beginners make with today's topics", "..."],
   "summary": "3-4 sentence recap of the day",
   "quiz": [
-    {{"q": "question text (may include `code`)", "options": ["option A", "option B", "option C", "option D"], "answer": <0-3 index of the correct option>, "hint": "a ONE-sentence nudge toward the reasoning — points the way WITHOUT giving away the answer", "topic": "short tag naming which of today's topics this tests", "type": "recall" | "application" | "code"}}
+    {{"q": "question text (may include `code`)", "options": ["option A", "option B", "option C", "option D"], "answer": <0-3 index of the correct option>, "hint": "a ONE-sentence nudge toward the REASONING — name the principle to apply or the thing to trace, and NOTHING else. It must not eliminate any option, must not describe the correct one, and must leave the question still unanswerable to someone who hasn't learned the concept. A student who doesn't know the idea should be no better off after reading it.", "why": "1-2 sentences: why the correct option is right, AND why the most tempting wrong option is wrong. Name the specific reasoning error that makes the trap tempting.", "topic": "short tag naming which of today's topics this tests", "type": "recall" | "application" | "code"}}
   ]
 }}
 Rules: one section per major topic (3-6 sections). If it is a checkpoint day, sections should be revision-style (recall prompts, self-test questions) instead of new content.
-Quiz rules: exactly 5 questions testing TODAY's topics only — 2 recall, 2 application, 1 code-reading ("what does this print/do") if the goal involves programming, otherwise a 3rd application question. Plausible distractors, exactly one correct option, vary the position of the correct answer, never make the longest option the correct one. SCALE the difficulty to the PROGRESSION above — later in the plan and for a student who is doing well, make questions harder and more interview-like. NEVER reuse a question the student has already seen; write fresh ones."""
+Quiz rules: exactly 5 questions testing TODAY's topics only — 1 recall, 3 application, 1 code-reading ("what does this print/do") if the goal involves programming, otherwise a 4th application question.
+
+DISTRACTORS — this is what makes a question worth answering:
+- EVERY wrong option must be the exact answer a student would reach by making ONE specific, nameable reasoning error (an off-by-one, the right rule applied at the wrong step, a confused pair of similar concepts, a half-remembered definition). If you cannot name the error a distractor represents, it is filler — replace it.
+- NEVER include an option that is obviously absurd, off-topic, or that a student could eliminate without knowing the concept. Three real traps beat one right answer and three throwaways.
+- Where a listed misconception from the learner's profile is relevant to today's topics, make ONE distractor be exactly what a student holding that misconception would pick. Only one per question — an item where every option is a trap is a trick question, and trick questions measure nothing.
+- All options must be HOMOGENEOUS: same length, same grammar, same level of detail. Option length must not correlate with correctness in either direction (don't make the correct one longest OR shortest).
+- Never "all of the above" or "none of the above".
+- Aim for a question a student who half-learned today's material gets WRONG, and a student who actually understood it gets right by reasoning — not by recognising a phrase from the lesson.
+
+Exactly one correct option. Vary the position of the correct answer across the 5 questions. SCALE difficulty to the PROGRESSION above — later in the plan and for a student doing well, push toward interview-level. NEVER reuse a question the student has already seen; write fresh ones."""

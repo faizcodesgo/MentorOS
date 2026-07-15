@@ -184,6 +184,7 @@
       <div class="level-bar">
         <span class="level-chip mono" id="levelChip"></span>
         <span class="rank-chip mono" id="rankChip"></span>
+        <span class="streak-detail mono" id="streakChip"></span>
         <span class="career-chip mono" id="careerChip"></span>
       </div>
 
@@ -236,6 +237,44 @@
       </div>
     </section>
 
+    <!-- ============ CHECKPOINT RESULT ============ -->
+    <!-- "See results" used to lead nowhere: the score flashed for 1.5s in a
+         pill and you were auto-redirected into a lesson recap you never asked
+         for. This is the results screen it always promised. -->
+    <section id="view-result" class="view hidden">
+      <button class="btn ghost small" id="btnResultBack">&larr; Back to dashboard</button>
+      <p class="mono kicker">Checkpoint · Day <span id="resultDay"></span></p>
+      <p class="result-score tnum" id="resultScore"></p>
+      <p class="sub" id="resultLine"></p>
+
+      <div class="card card-primary result-ledger">
+        <p class="label">XP earned</p>
+        <div id="resultBreakdown"></div>
+        <div class="ledger-total">
+          <span>Total</span><span class="tnum" id="resultTotal"></span>
+        </div>
+      </div>
+
+      <div class="level-meter">
+        <div class="level-meter-head">
+          <span class="mono" id="resultLvFrom"></span>
+          <span class="mono muted" id="resultLvXp"></span>
+          <span class="mono" id="resultLvTo"></span>
+        </div>
+        <div class="progress-track"><div class="progress-fill" id="resultLvFill"></div></div>
+      </div>
+
+      <div id="resultMastered"></div>
+      <div id="resultRevision" class="card hidden"></div>
+
+      <p class="label list-label">Review</p>
+      <div id="resultReview" class="result-review"></div>
+
+      <div class="actions">
+        <button class="btn primary" id="btnResultRecap">See day recap</button>
+      </div>
+    </section>
+
     <!-- ============ DAY / CHAPTER RECAP ============ -->
     <section id="view-recap" class="view hidden">
       <button class="btn ghost small" id="btnRecapBack">&larr; Back to dashboard</button>
@@ -246,6 +285,14 @@
         <div id="chapterSolid" class="recap-chips"></div>
         <p id="chapterNext" class="chapter-next"></p>
         <button class="btn primary small" id="btnStartViva" style="margin-top:14px">Try the mock interview</button>
+      </div>
+      <!-- A finished day has two views: the short recap and the lesson itself.
+           A segmented control says that plainly — they're two views of ONE day,
+           not a main screen and a hidden escape hatch. Sits at the top so it's
+           actually found; a link at the bottom would be under 600px of content. -->
+      <div class="seg" id="recapSeg" role="tablist">
+        <button class="seg-item active" data-mode="recap" role="tab">Recap</button>
+        <button class="seg-item" data-mode="lesson" role="tab">Full session</button>
       </div>
       <div class="recap-head">
         <p class="mono kicker" id="recapKicker">Day recap</p>
@@ -352,6 +399,9 @@
 
     <!-- ============ CHECKPOINT (QUIZ) ============ -->
     <section id="view-quiz" class="view hidden">
+      <!-- every other view has a way out; this one had none, which made the
+           checkpoint the one screen you could get stuck on -->
+      <button class="btn ghost small" id="btnQuizQuit">&larr; Leave checkpoint</button>
       <div class="quiz-head">
         <p class="mono kicker">Checkpoint · Day <span id="quizDay"></span></p>
         <p class="quiz-dots mono" id="quizDots"></p>
@@ -366,9 +416,9 @@
         <div id="wagerRow" class="wager-row hidden">
           <p class="label">How sure are you?</p>
           <div class="wager-chips">
-            <button class="wager-chip" data-w="safe">Guessing</button>
-            <button class="wager-chip" data-w="confident">Fairly sure</button>
-            <button class="wager-chip allin" data-w="allin">Certain</button>
+            <button class="wager-chip" data-w="safe">Guessing<span class="wager-odds tnum">14 / 12</span></button>
+            <button class="wager-chip" data-w="confident">Fairly sure<span class="wager-odds tnum">16 / 8</span></button>
+            <button class="wager-chip allin" data-w="allin">Certain<span class="wager-odds tnum">18 / 0</span></button>
           </div>
         </div>
         <p id="quizFeedback" class="quiz-feedback hidden"></p>
