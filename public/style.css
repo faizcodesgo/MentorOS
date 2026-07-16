@@ -100,7 +100,9 @@ h3, .brand { font-family: "Inter", system-ui, sans-serif; }
 .view.hidden, .hidden { display: none !important; }
 
 .hero { margin: var(--s6) 0 var(--s5); }
-.kicker { font-size: var(--text-xs); color: var(--brand); font-weight: 600; margin-bottom: var(--s2); }
+/* accent discipline: eyebrow labels are structure, not actions — muted, not blue, so
+   the accent stays reserved for what's actionable. (14 kickers across the app.) */
+.kicker { font-size: var(--text-xs); color: var(--muted); font-weight: 600; margin-bottom: var(--s2); }
 /* one consistent heading scale */
 h1 { font-size: 1.85rem; line-height: 1.16; margin: 0 0 var(--s3); }
 h2 { font-size: 1.32rem; line-height: 1.25; }
