@@ -12,8 +12,8 @@ folder alongside it._
 >    is already safe on GitHub `main`, so a re-clone restores everything except #1 and #2.
 >
 > As of this session the git working tree is **CLEAN and pushed** (latest commit
-> `20e5b7f` "Batch 4: accent discipline"), so there is no uncommitted code to lose.
-> Only #1 and #2 above live outside git.
+> `8995b99` "Quiz scales with the day + harder"), so there is no uncommitted code to
+> lose. Only #1 and #2 above live outside git.
 > **See §12 for the complete done/pending summary of this session.**
 
 ---
@@ -603,6 +603,12 @@ Commit order (oldest→newest):
 7. `20e5b7f` — **Batch 4: accent discipline.** Neutralized decorative blue left-borders
    on peripheral info cards (`.viva-overall`/`.explain-card`/`.notes-card` → `--line`);
    blue reserved for actionable/active (Today card keeps it). Verified in-browser.
+8. `8995b99` — **Quiz scales with the day + harder.** Was hardcoded 5 questions;
+   `prompts.quiz_count_for(mins)` now scales (floor 6, cap 15): 1-2h→6, 4h→9, 6h→14,
+   8h→15. Quiz minutes come out of the budget (quiz×2), `structure_for_hours` returns
+   `"quiz"`, `estimate_minutes` counts the real question count; total est still ≈ hours.
+   Prompt biases HARD (≈65% application/multi-step, later questions harder, spread
+   across subtopics). Frontend/grading already used `len(quiz)` — no UI change needed.
 (Plus handoff.md commits keeping this file current, and the `launch.json` path fix.)
 
 **What the owner asked for on the original 16-Jul list — status map:**
