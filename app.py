@@ -424,6 +424,10 @@ def get_lesson(day):
     vid_secs += sum((s["video"].get("duration_seconds", 0))
                     for s in lesson["sections"] if s.get("video"))
     lesson["est_minutes"] = prompts.estimate_minutes(lesson, vid_secs)
+    # Q&A rescued from a stale lesson we dropped (see storage v16) — regenerating
+    # a lesson must never cost the learner something they wrote.
+    if entry.get("carried_explorations"):
+        lesson["explorations"] = entry.pop("carried_explorations")
 
     # remember every quiz question so it's never asked again (cap the list)
     asked = state.setdefault("asked_questions", [])

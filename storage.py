@@ -29,7 +29,7 @@ def _collection():
     return _mongo
 
 
-SCHEMA = 15
+SCHEMA = 16
 
 
 def load_state():
@@ -146,6 +146,34 @@ def _migrate(state):
     if plan is not None:
         plan.setdefault("achievable_scope", [])
         plan.setdefault("dropped_scope", [])
+
+    # v16: drop STALE cached lessons so they regenerate at the right length.
+    #
+    # v14 recomputed each day's est_minutes from the chosen hours — but a lesson
+    # already generated and cached under the old code is still the old ~45-minute
+    # lesson. So the card promised "5h 40m" over content that wasn't. Fixing the
+    # label without fixing the content just moved the lie.
+    #
+    # A cached lesson with no `est_minutes` predates the hours fix. If its day
+    # isn't completed yet, the cache is disposable — it regenerates on open, at
+    # the correct size. COMPLETED days are history and are never touched.
+    # Any saved Q&A is carried across so regenerating can't cost the learner
+    # anything they wrote.
+    plan = state.get("plan")
+    if plan and plan.get("curriculum"):
+        progress = state.get("progress") or {}
+        lessons = state.get("lessons") or {}
+        for entry in plan["curriculum"]:
+            day = str(entry.get("day"))
+            lesson = lessons.get(day)
+            if not lesson or lesson.get("est_minutes"):
+                continue                                   # absent, or already new
+            if progress.get(day, {}).get("completed"):
+                continue                                   # done = history, leave it
+            carried = lesson.get("explorations") or []
+            if carried:
+                entry["carried_explorations"] = carried
+            lessons.pop(day, None)
 
     state["schema"] = SCHEMA
     return state
