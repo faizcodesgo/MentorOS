@@ -11,8 +11,9 @@ folder alongside it._
 > 3. (optional) the whole `C:\Users\user\Desktop\MentorOS\` folder — but the code
 >    is already safe on GitHub `main`, so a re-clone restores everything except #1 and #2.
 >
-> As of this session the git working tree is **CLEAN and pushed** (HEAD `b4a2e93`),
-> so there is no uncommitted code to lose. Only #1 and #2 above live outside git.
+> As of this session the git working tree is **CLEAN and pushed** (latest feature
+> commit `e0b578a` "Videos + visuals richness"), so there is no uncommitted code to
+> lose. Only #1 and #2 above live outside git.
 
 ---
 
@@ -480,32 +481,52 @@ dashboard reorder, accent discipline, card hierarchy, the dead `.btn` press
 animation (one-line fix), `@media (hover:hover)` guards, skeleton loaders, the
 "top XP/level looks bad" topbar polish, "quiz XP display not proper".
 
-### IN PROGRESS — Videos + visuals richness (owner's live ask).
-Owner tested a **4-hour** plan: got 17 sections but only **~2 videos**, and wants
-"videos as much as possible for topics" + "visual diagrams as much as possible,
-only where applicable." Root cause found (two limiters):
-1. **Numeric cap** in `prompts.structure_for_hours`: `videos = 0/1/2/3/4` by
-   minutes (a 4h day allows only 3), plus `video_mins = min(mins*0.25, videos*14)`.
-2. **Conservative prompt wording** — `resource_query` is told "include ONLY where
-   seeing it beats reading… OMIT for definitions/history/motivation," so the model
-   emits few, and even the cap of 3 rarely fills. Same for `VISUAL_RULES` which
-   says "Aim for 1-2 strong diagrams… not one on every section."
-Plan (3-lens LLM council run — systems/quota, learning-science, product/UX):
-- Raise the video cap to scale with SECTIONS; keep a quality gate so it's not padding.
-- Rebalance prompt wording so the model requests a video/diagram wherever it
-  genuinely helps (NOT everywhere).
-- **Product/UX council:** demote section videos from bordered cards to slim
-  borderless "▶ Watch · 8 min" chips (collapsed, expand in place) — keep them as
-  links, NEVER 15 iframe embeds; make diagrams earn their place with two sizes +
-  optional caption to avoid monotony; show an honest "core vs +optional video"
-  time estimate instead of the raw "N / 21" step counter; chapter the progress bar
-  by block. (Owner's objection axis is monotony/clutter, NOT richness.)
-- Add **caching + a daily quota guard** to `youtube.py` so more searches can never
-  blow the shared 10,000-units/day YouTube budget.
-Files this will touch: `prompts.py` (structure_for_hours + lesson video/visual
-wording + VISUAL_RULES), `app.py` (`_attach_section_videos` cap, day-level video),
-`youtube.py` (cache + quota guard), `public/app.js` + `public/style.css` (chip UI).
-**Not yet started in code — council synthesis pending 2 of 3 members at handoff write.**
+### Videos + visuals richness — DONE (`e0b578a`).
+Owner tested a **4-hour** plan: got 17 sections but only **~2 videos**. Two limiters
+were throttling it; both fixed, plus quota safety. (3-lens LLM council: systems/quota,
+learning-science, product/UX — all converged.)
+- **`prompts.structure_for_hours`:** video count now **scales with sections**
+  (`videos = 0 if mins<45 else min(sections, 10)`) instead of a flat max of 4.
+  **Measured: 4h → up to 10 videos (was 3); 1h → 3; 0.5h → 0.** Video *time*
+  decoupled from *count* (`video_mins = min(mins*0.15, 25)`, NOT `videos*14`) so more
+  videos no longer steal practice items or re-inflate `est_minutes` (est 4h = 241 min,
+  still honest).
+- **`resource_query` prompt gate rewritten** — the REAL reason only ~2 showed. Was
+  "include ONLY where it beats reading… OMIT for definitions/history"; now "default to
+  including one on every concept section… omit only true padding, never two for the
+  same idea, prose must stand alone." (The cap change is inert without this.)
+- **`VISUAL_RULES`:** the "aim for 1-2 diagrams" ceiling → "a diagram on every section
+  where a picture genuinely helps; no upper limit." **Anti-overflow arithmetic + the
+  browser-side `fitSvgText` left UNTOUCHED — do not remove them.**
+- **Quota safety (so more searches can't blow the shared 10k/day):**
+  - `youtube.py` **query-level cache** — normalized query, 30-day TTL, 200-entry cap,
+    lives in the user's `state["yt_cache"]`. A cache HIT costs ZERO quota, so
+    regenerating a lesson is now free (this was the biggest retry-storm risk).
+  - `storage.youtube_quota_reserve()` — **hard daily-budget stop**, Mongo-backed
+    (survives the 2 gunicorn workers + Render spin-down), keyed by ~Pacific date,
+    budget 8,000 units, **FAIL-OPEN** on DB error. Over budget → `search_videos`
+    returns `[]` → the existing graceful fallback shows a search LINK.
+  - `_attach_section_videos` concurrency 4→6; per-lesson search count is bounded by
+    the cap (≤10 section + 1 day-level).
+- **UI (product/UX council):** section video demoted from a bordered card to a slim
+  **borderless "▶ Watch · 8 min" chip** (44px tap target, muted truncating
+  title/channel). Verified in-browser: borderless, single line, long titles ellipsis
+  without overflowing the card. Videos stay LINKS (never 15 iframe embeds).
+- **Verified:** `python -c "import app"` boots clean (40 routes); cache/TTL/trim/guard
+  unit-tested (guard stops at budget, cache hit skips network+guard); chip computed
+  styles confirmed in the live dev server.
+- **NOT done from the UX council (deferred to the Batch 4 design pass):** the
+  "core vs +optional video" honest time estimate replacing the raw "N / 21" step
+  counter; chaptering the progress bar by block; diagram two-size + caption treatment.
+- **Also fixed this session:** `Desktop/.claude/launch.json` still pointed at the dead
+  nested path `Desktop/mentoros/MentorOS/app.py`; corrected to
+  `C:/Users/user/Desktop/MentorOS/app.py` so `preview_start` (name `mentoros`, port
+  5000) works. `MentorOS/.claude/launch.json` also exists (name `mentoros-audit`).
+
+### NEXT UP (owner's chosen order was "videos first, then the design pass")
+Batch 4 premium design pass — see §8 for the full list. Cheapest first wins: the dead
+`.btn { transition: background }` press animation (one-line delete), dashboard reorder,
+accent discipline, skeleton loaders, the honest time-estimate above.
 
 ### How to keep this handover current
 Owner's standing rule (highest priority): **update this file after EVERY change**,
