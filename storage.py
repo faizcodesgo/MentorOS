@@ -29,7 +29,7 @@ def _collection():
     return _mongo
 
 
-SCHEMA = 13
+SCHEMA = 14
 
 
 def load_state():
@@ -116,6 +116,21 @@ def _migrate(state):
     st.setdefault("best", st.get("count", 0))
     state.setdefault("awarded", {})
     state.setdefault("warmup_pending", None)
+
+    # v14: backfill est_minutes on plans built before the hours fix.
+    # Those entries carry a model-authored number invented next to a lesson that
+    # was hardcoded to 3-6 sections regardless of hours — i.e. fiction. Lessons
+    # generated from now on are sized properly, so recompute the plan's estimate
+    # from the hours the student actually chose. Import is local: prompts imports
+    # nothing from storage, but keeping it here avoids a module-level cycle if
+    # that ever changes.
+    plan = state.get("plan")
+    if plan and plan.get("curriculum"):
+        import prompts
+        for entry in plan["curriculum"]:
+            shape = prompts.structure_for_hours(plan.get("hours_per_day", 1),
+                                                bool(entry.get("is_checkpoint")))
+            entry["est_minutes"] = shape["est"]
 
     state["schema"] = SCHEMA
     return state
