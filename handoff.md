@@ -12,8 +12,8 @@ folder alongside it._
 >    is already safe on GitHub `main`, so a re-clone restores everything except #1 and #2.
 >
 > As of this session the git working tree is **CLEAN and pushed** (latest commit
-> `8995b99` "Quiz scales with the day + harder"), so there is no uncommitted code to
-> lose. Only #1 and #2 above live outside git.
+> `a500145` "Batch 4: kickers muted"), so there is no uncommitted code to lose.
+> Only #1 and #2 above live outside git.
 > **See §12 for the complete done/pending summary of this session.**
 
 ---
@@ -623,10 +623,10 @@ Commit order (oldest→newest):
 
 ### 12.3 Everything PENDING (nothing here is started in code)
 **Batch 4 — remaining premium-design polish** (dashboard + accent discipline done):
-- Accent discipline — PARTIAL (`20e5b7f`): 3 decorative content-card borders
-  neutralized. Still to consider: `.lesson-intro`/`.exploration`/`.probe` blue
-  left-borders, and kickers → `--faint`. Left because they use the border as part of
-  their structure — needs the owner's eye on the live screens before changing.
+- Accent discipline — MOSTLY DONE (`20e5b7f` + `a500145`): 3 decorative content-card
+  borders neutralized, and all 14 `.kicker` eyebrow labels → `--muted` (were blue).
+  Still to consider: `.lesson-intro`/`.exploration`/`.probe` blue left-borders — left
+  because they use the border as part of their structure; needs the owner's eye.
 - Card hierarchy via size/contrast/elevation (reuse `.card-primary`).
 - Guard every `:hover` in `@media (hover:hover)` (sticks on touch).
 - Skeleton loaders instead of full-screen blackout on sub-second fetches.
