@@ -524,6 +524,15 @@ body.study-mode #app { padding-top: 60px; }
   margin-top: var(--s4); padding-top: var(--s4); border-top: 1px solid var(--line);
 }
 
+/* ---------- sign in ---------- */
+.auth-card { max-width: 420px; margin: var(--s7) auto 0; }
+.auth-card h1 { margin-bottom: var(--s2); }
+.auth-card .sub { margin-bottom: var(--s5); }
+.auth-card label { display: block; margin-bottom: var(--s4); }
+.auth-card .btn.primary { width: 100%; margin-top: var(--s2); }
+#btnAuthSwitch { width: 100%; margin-top: var(--s3); }
+.auth-note { font-size: var(--text-xs); color: var(--faint); margin-bottom: var(--s4); line-height: 1.5; }
+
 /* ---------- plan detail ---------- */
 .plan-assess { color: var(--ink); font-size: var(--text-md); line-height: 1.6; max-width: 62ch; }
 .plan-phases { display: flex; flex-direction: column; }

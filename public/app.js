@@ -1,7 +1,7 @@
 /* MentorOS frontend — plain JS, no framework. */
 
 const $ = (id) => document.getElementById(id);
-const views = ["onboarding", "negotiate", "generating", "dashboard", "lesson", "quiz", "result", "skills", "recap", "viva", "project", "plan"];
+const views = ["auth", "onboarding", "negotiate", "generating", "dashboard", "lesson", "quiz", "result", "skills", "recap", "viva", "project", "plan"];
 
 let state = null;          // slim server state (plan + progress + profile + xp)
 let negotiation = null;    // last /api/negotiate result
@@ -187,7 +187,15 @@ async function api(path, opts = {}) {
     ...opts,
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+  if (!res.ok) {
+    // Session gone mid-session (cleared cookies, signed out elsewhere): bounce
+    // to sign-in rather than leave them tapping a dead screen. The auth routes
+    // are excluded — a wrong password is a legitimate 401 the form handles.
+    if (res.status === 401 && !path.startsWith("/api/auth/")) renderAuth(true);
+    const err = new Error(data.error || `Request failed (${res.status})`);
+    err.status = res.status;   // callers branch on 401 -> show the sign-in screen
+    throw err;
+  }
   return data;
 }
 
@@ -211,10 +219,77 @@ function escAttr(s) {
 
 /* ---------- boot ---------- */
 
+/* ---------- accounts ---------- */
+
+let authMode = "signup";
+
+function renderAuth(anyAccounts) {
+  // First run on a fresh install: offer signup. Once accounts exist, the common
+  // case is someone coming back, so lead with login.
+  authMode = anyAccounts ? "login" : "signup";
+  paintAuth();
+  show("auth");
+}
+
+function paintAuth() {
+  const signup = authMode === "signup";
+  $("authTitle").textContent = signup ? "Make your account" : "Welcome back";
+  $("authSub").textContent = signup
+    ? "Your plan, your progress, your streak — kept to you."
+    : "Sign in to pick up where you left off.";
+  $("btnAuth").textContent = signup ? "Create account" : "Sign in";
+  $("authNote").style.display = signup ? "" : "none";
+  $("btnAuthSwitch").textContent = signup ? "I already have an account" : "Make a new account";
+  $("authPass").setAttribute("autocomplete", signup ? "new-password" : "current-password");
+}
+
+$("btnAuthSwitch").addEventListener("click", () => {
+  authMode = authMode === "signup" ? "login" : "signup";
+  paintAuth();
+});
+
+$("btnSignOut").addEventListener("click", async () => {
+  try { await api("/api/auth/logout", { method: "POST" }); } catch {}
+  state = null;
+  lastShownXp = null;              // don't animate the next person's XP from yours
+  currentView = null;              // reset the history base
+  renderAuth(true);
+});
+
+$("authForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const name = $("authName").value.trim();
+  const password = $("authPass").value;
+  if (!name || !password) return;
+  const btn = $("btnAuth");
+  btn.disabled = true;
+  btn.textContent = authMode === "signup" ? "Creating…" : "Signing in…";
+  try {
+    const r = await api(`/api/auth/${authMode}`, {
+      method: "POST",
+      body: JSON.stringify({ name, password }),
+    });
+    $("authPass").value = "";
+    if (r.claimed_existing_plan) toast("Found your existing plan — it's all here.", 5000);
+    await boot();
+  } catch (err) {
+    toast(err.message, 5000);
+    paintAuth();
+  } finally {
+    btn.disabled = false;
+  }
+});
+
 async function boot() {
   try {
     state = await api("/api/state");
   } catch (e) {
+    // 401 isn't an error worth shouting about — it just means "sign in first"
+    if (e.status === 401) {
+      let any = false;
+      try { any = (await api("/api/auth/me")).any_accounts; } catch {}
+      return renderAuth(any);
+    }
     toast("Can't reach the server: " + e.message);
     return;
   }

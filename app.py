@@ -6,7 +6,8 @@ Run locally:  python app.py   (then open http://localhost:5000)
 import datetime
 import os
 
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, g, jsonify, request, send_from_directory, session
+from werkzeug.security import check_password_hash, generate_password_hash
 
 import dna as dna_engine
 import gemini
@@ -29,6 +30,105 @@ if os.path.exists(_env_path):
 app = Flask(__name__, static_folder="public", static_url_path="")
 # reject oversized uploads early with a 413 instead of reading them into memory
 app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
+try:
+    app.secret_key = storage.secret_key()
+except Exception:
+    # Never let a slow/unreachable DB at boot take the whole app down. A random
+    # key only means "everyone signs in again"; a failed import means a total
+    # outage. Degrade, don't die.
+    import secrets as _secrets
+    app.secret_key = _secrets.token_hex(32)
+    app.logger.warning("SECRET_KEY unavailable at boot — using a temporary key; sessions won't persist.")
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,   # unreachable from JS, so an XSS in model output can't steal it
+    SESSION_COOKIE_SAMESITE="Lax",  # no cross-site context exists; Lax also blocks CSRF on POSTs
+    SESSION_COOKIE_SECURE=bool(os.environ.get("RENDER")),   # off on localhost http
+    PERMANENT_SESSION_LIFETIME=datetime.timedelta(days=365),
+)
+
+# Routes that must work with NO user: static, health, the TWA asset links, the
+# auth handshake itself, and the cron (an external pinger sends no cookie).
+OPEN_PATHS = {
+    "/api/auth/signup", "/api/auth/login", "/api/auth/logout", "/api/auth/me",
+    "/api/cron/push", "/api/vapid-public-key",
+}
+
+
+@app.before_request
+def _resolve_user():
+    """Resolve the signed-in user for every API request, or 401.
+
+    This gate is the riskiest line in the accounts change. A route missing from
+    OPEN_PATHS fails LOUDLY (401 / RuntimeError from storage._uid) — annoying,
+    obvious, fixed in minutes. A gate that DEFAULTED instead would silently mix
+    two students' plans together, which is the bug accounts exist to remove.
+    """
+    p = request.path
+    if not p.startswith("/api/") or p in OPEN_PATHS:
+        return None
+    uid = session.get("uid")
+    if not uid:
+        return jsonify({"error": "Sign in to continue.", "auth_required": True}), 401
+    g.user_id = uid
+    return None
+
+
+def _norm_name(name):
+    return (name or "").strip().lower()[:40]
+
+
+@app.get("/api/auth/me")
+def auth_me():
+    uid = session.get("uid")
+    if not uid:
+        return jsonify({"signed_in": False, "any_accounts": storage.user_count() > 0})
+    user = storage.get_user(uid)
+    if not user:                      # account deleted underneath a live cookie
+        session.clear()
+        return jsonify({"signed_in": False, "any_accounts": storage.user_count() > 0})
+    return jsonify({"signed_in": True, "name": user.get("name", uid)})
+
+
+@app.post("/api/auth/signup")
+def auth_signup():
+    body = request.get_json(force=True)
+    name = (body.get("name") or "").strip()[:40]
+    pw = body.get("password") or ""
+    uid = _norm_name(name)
+    if not uid:
+        return jsonify({"error": "Pick a name."}), 400
+    if len(pw) < 8:
+        return jsonify({"error": "Use at least 8 characters for the password."}), 400
+    # scrypt (werkzeug default). No new dependency, and no home-rolled hashing.
+    if not storage.create_user(uid, name, generate_password_hash(pw)):
+        return jsonify({"error": "That name is taken. Try another."}), 409
+    session.clear()                   # no session fixation
+    session["uid"] = uid
+    session.permanent = True          # else the cookie dies when the TWA is swiped away
+    # The first account inherits the pre-accounts plan. COPY, never move.
+    claimed = storage.claim_legacy_state(uid)
+    return jsonify({"ok": True, "name": name, "claimed_existing_plan": claimed})
+
+
+@app.post("/api/auth/login")
+def auth_login():
+    body = request.get_json(force=True)
+    uid = _norm_name(body.get("name"))
+    pw = body.get("password") or ""
+    user = storage.get_user(uid) if uid else None
+    # one message for both cases — don't reveal which names exist
+    if not user or not check_password_hash(user.get("pw_hash", ""), pw):
+        return jsonify({"error": "Wrong name or password."}), 401
+    session.clear()
+    session["uid"] = uid
+    session.permanent = True
+    return jsonify({"ok": True, "name": user.get("name", uid)})
+
+
+@app.post("/api/auth/logout")
+def auth_logout():
+    session.clear()
+    return jsonify({"ok": True})
 
 
 @app.errorhandler(Exception)
@@ -1280,14 +1380,22 @@ def cron_push():
     secret = os.environ.get("CRON_SECRET", "")
     if not secret or request.args.get("key") != secret:
         return jsonify({"error": "unauthorized"}), 401
-    state = storage.load_state()
-    result = push_engine.run_cron(state)
-    # Only write when something actually changed. This runs every few minutes;
-    # an unconditional whole-document save would rewrite the doc all day and
-    # could clobber a write the user made in the same moment.
-    if result.get("changed"):
-        storage.save_state(state)   # persist last_notified + pruned dead subs
-    return jsonify(result)
+    # No session here — an uptime pinger sends no cookie — so this is the one
+    # place that legitimately works across users. It only loads people who could
+    # actually receive a push, and writes back ONLY the notifications subtree:
+    # this runs every few minutes against everyone, and a whole-document save
+    # would race each user's own session and silently undo their work.
+    sent = 0
+    for uid in storage.notif_user_ids():
+        try:
+            state = storage.load_state_for(uid)
+            result = push_engine.run_cron(state)
+            if result.get("changed"):
+                storage.save_notifications_for(uid, state["notifications"])
+            sent += result.get("sent", 0)
+        except Exception:
+            continue          # one user's bad state must not stop everyone's digest
+    return jsonify({"sent": sent})
 
 
 @app.post("/api/reset")

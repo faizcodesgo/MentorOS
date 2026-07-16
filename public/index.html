@@ -246,7 +246,30 @@
 
       <div class="dash-footer">
         <button class="btn ghost small" id="btnReminders">Study reminders</button>
+        <button class="btn ghost small" id="btnSignOut">Sign out</button>
         <button class="btn danger ghost small" id="btnReset">Start over</button>
+      </div>
+    </section>
+
+    <!-- ============ SIGN IN ============ -->
+    <section id="view-auth" class="view hidden">
+      <div class="card form-card auth-card">
+        <p class="mono kicker">MentorOS</p>
+        <h1 id="authTitle">Make your account</h1>
+        <p class="sub" id="authSub">Your plan, your progress, your streak — kept to you.</p>
+        <form id="authForm">
+          <label>
+            <span class="label mono">Your name</span>
+            <input type="text" id="authName" maxlength="40" autocomplete="username" required />
+          </label>
+          <label>
+            <span class="label mono">Password</span>
+            <input type="password" id="authPass" minlength="8" autocomplete="current-password" required />
+          </label>
+          <p class="auth-note" id="authNote">At least 8 characters. There's no email reset — write it down somewhere.</p>
+          <button class="btn primary" id="btnAuth" type="submit">Create account</button>
+        </form>
+        <button class="btn ghost small" id="btnAuthSwitch">I already have an account</button>
       </div>
     </section>
 

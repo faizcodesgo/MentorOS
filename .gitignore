@@ -11,3 +11,4 @@ MentorOS - Google Play package/
 *.aab
 *.apk
 signing-key-info.txt
+mentoros_data/
