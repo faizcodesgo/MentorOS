@@ -246,6 +246,7 @@ def generate_phase():
     for entry in days:
         entry["order"] = entry["day"]        # display position (day is the stable id)
         entry["kind"] = "checkpoint" if entry.get("is_checkpoint") else "quest"
+        entry["est_minutes"] = _plan_minutes(plan, entry)
         plan["next_day"] = max(plan.get("next_day", 1), entry["day"] + 1)
     # the LAST day of a phase becomes a build-it PROJECT milestone — the capstone
     # of a substantial phase, and ALWAYS the plan's final phase ("apply what you
@@ -317,6 +318,7 @@ def generate_all():
         for entry in dlist:
             entry["order"] = entry["day"]
             entry["kind"] = "checkpoint" if entry.get("is_checkpoint") else "quest"
+            entry["est_minutes"] = _plan_minutes(plan, entry)
             next_day = max(next_day, entry["day"] + 1)
         phase = phases[idx]
         last = dlist[-1]
@@ -369,12 +371,14 @@ def get_lesson(day):
         f"early days build foundations, later days get harder and more interview-like. "
         f"Their overall quiz mastery so far is {avg}% — if high (>80%), push harder; if low (<50%), reinforce fundamentals first."
     )
-    # Fetch today's video(s) FIRST (with length + chapters) so the mentor can tell
-    # the student exactly what to watch today — not the whole 10-hour course.
+    # ONE day-level video, fetched FIRST (with length + chapters) so the mentor can
+    # say exactly which part to watch today rather than "here's a 10-hour course".
+    # It used to grab up to 4 and dump them all on the intro step; the per-topic
+    # videos now live on their own sections instead (see _attach_section_videos).
     videos = []
-    for query in entry.get("resource_queries", [])[:2]:
-        videos.extend(youtube.search_videos(query, max_results=2))
-    videos = videos[:4]
+    for query in entry.get("resource_queries", [])[:1]:
+        videos.extend(youtube.search_videos(query, max_results=1))
+    videos = videos[:1]
 
     lesson = gemini.ask_json(
         prompts.MENTOR_PERSONA,
@@ -399,6 +403,13 @@ def get_lesson(day):
     lesson["resource_queries"] = entry.get("resource_queries", [])
     lesson["is_checkpoint"] = entry.get("is_checkpoint", False)
     lesson["videos"] = videos
+    _attach_section_videos(lesson, plan.get("hours_per_day", 1), entry)
+    # the honest length, measured from what was actually generated — replaces the
+    # model's own `est_minutes`, which nothing ever checked
+    vid_secs = sum(v.get("duration_seconds", 0) for v in videos)
+    vid_secs += sum((s["video"].get("duration_seconds", 0))
+                    for s in lesson["sections"] if s.get("video"))
+    lesson["est_minutes"] = prompts.estimate_minutes(lesson, vid_secs)
 
     # remember every quiz question so it's never asked again (cap the list)
     asked = state.setdefault("asked_questions", [])
@@ -1124,6 +1135,49 @@ def explain():
 
 FOCUS_XP_DAILY_CAP = 40
 EXPLORATIONS_PER_LESSON = 10   # keep the newest N Q&As per day (see /api/ask)
+
+
+def _attach_section_videos(lesson, hours, entry):
+    """Put each topic's video ON that topic's step, not all in a pile at step 1.
+
+    Videos were day-level: one search, up to 2 results, every one of them
+    rendered into the intro — so you got a wall of links before you knew what
+    they were for, and nothing next to the concept it explained.
+
+    Ordering note: this HAS to run after generation, because sections don't
+    exist until the model has written them. Searches fan out in parallel — done
+    sequentially they'd add 4-6s to a call that's already slow.
+
+    Cost: every search.list is 100 units of a 10,000/day YouTube quota shared by
+    the whole project, so the count is capped by structure_for_hours() and a
+    section only gets one if the model judged video genuinely better than text.
+    """
+    shape = prompts.structure_for_hours(hours, bool(entry.get("is_checkpoint")))
+    wanted = [s for s in lesson["sections"] if (s.get("resource_query") or "").strip()][:shape["videos"]]
+    if not wanted:
+        return
+    try:
+        with ThreadPoolExecutor(max_workers=min(len(wanted), 4)) as ex:
+            found = list(ex.map(
+                lambda s: youtube.search_videos(s["resource_query"], max_results=1), wanted))
+    except Exception:
+        return   # a video is never worth failing a lesson over
+    for section, vids in zip(wanted, found):
+        if vids:
+            section["video"] = vids[0]
+
+
+def _plan_minutes(plan, entry):
+    """The day's time budget, from the hours the student chose.
+
+    This used to be model-authored (`est_minutes`) and was never read by any
+    code — the model wrote "360" next to a lesson it had generated at a fixed
+    3-6 sections regardless. Now it's derived, so the plan can't lie about
+    how long a day is before the lesson even exists.
+    """
+    shape = prompts.structure_for_hours(plan.get("hours_per_day", 1),
+                                        bool(entry.get("is_checkpoint")))
+    return shape["est"]
 
 
 @app.post("/api/focus/done")

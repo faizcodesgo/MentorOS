@@ -121,13 +121,18 @@ def material_context(material):
 
 
 def negotiate_prompt(goal, days, hours_per_day, level_notes, material=None):
+    shape = structure_for_hours(hours_per_day)
+    long_day = ""
+    if float(hours_per_day) >= 4:
+        long_day = f"""
+ON THEIR {hours_per_day}-HOUR DAYS — say this once, in mentor_message, in ONE sentence, as a professional being straight with them (NOT as a warning or a lecture): you'll give them the full {hours_per_day} hours, structured as {shape['blocks']} blocks with real breaks, and the last block of each day is practice and recall rather than new theory — because {hours_per_day} unbroken hours of new material is how people end up re-reading page one. Then move on and give them what they asked for."""
     return f"""A student wants to learn something and you must assess whether their timeline is realistic, like an honest mentor would.
 
 STUDENT REQUEST:
 - Goal: {goal}
 - Time available: {days} days, about {hours_per_day} hours/day
 - Their self-described current level: {level_notes or 'not specified — assume beginner'}
-{material_context(material)}
+{material_context(material)}{long_day}
 Think about what mastery of this goal actually requires, what fraction is achievable in the given time, and what a well-sequenced plan looks like.
 
 Respond with JSON:
@@ -170,12 +175,11 @@ Respond with JSON:
       "topics": ["specific topic", "..."],
       "practice": "one line describing the hands-on work for this day",
       "resource_queries": ["The single best YouTube search phrase to find the BEST explainer video for THIS day — whatever teaches it best, animated OR a clear lecturer/walkthrough, you decide by topic (e.g. 'four lobes of the brain explained', 'python lists for beginners'). INCLUDE one on EVERY day that introduces or explains a concept. OMIT only on pure-practice, pure-revision, or checkpoint days with nothing new to see."],
-      "est_minutes": <realistic total minutes this day's work takes: watching + reading + coding + practice, close to {hours_per_day} hours ({int(hours_per_day * 60)} min) but varying by how heavy the day is>,
       "is_checkpoint": <true if this day is a revision/assessment checkpoint, else false>
     }}
   ]
 }}
-Rules: exactly {phase['days']} day entries. Every 5th overall day (day 5, 10, 15...) that falls in this phase must be a checkpoint day (revision + self-assessment, lighter new content). Fit each day's load to about {hours_per_day} hours ({int(hours_per_day * 60)} minutes) — est_minutes should reflect that target, lighter on checkpoint days. Sequence topics so each day builds on the previous. Put exactly ONE resource_query on any day that introduces or explains something new (visual/spatial/structural/process topics ALWAYS qualify); none on pure-practice, revision, or checkpoint days."""
+Rules: exactly {phase['days']} day entries. Every 5th overall day (day 5, 10, 15...) that falls in this phase must be a checkpoint day (revision + self-assessment, lighter new content). The student has {hours_per_day} hours ({int(hours_per_day * 60)} minutes) a day — give each day ENOUGH DISTINCT TOPICS to genuinely fill that: a 6-hour day needs substantially more ground than a 1-hour day, not the same topics described at greater length. Sequence topics so each day builds on the previous. Put exactly ONE resource_query on any day that introduces or explains something new (visual/spatial/structural/process topics ALWAYS qualify); none on pure-practice, revision, or checkpoint days."""
 
 
 INTERACTION_RULES = """"interaction": OPTIONAL — omit for MOST sections. Across the WHOLE lesson, AT MOST 1 section may have one, and ONLY where guessing wrong is plausible and genuinely instructive (test the single thing that section taught). NEVER on a definition/intro/analogy section. Object:
@@ -298,7 +302,79 @@ def videos_context(videos):
             + "\n".join(lines) + "\n")
 
 
+# How long each kind of work actually takes. Used to turn "6 hours/day" into a
+# real content budget instead of a number the model writes next to a fixed-size
+# lesson. Deliberately conservative: better to slightly over-deliver than to
+# promise 6 hours and hand over 45 minutes.
+MINUTES_PER_SECTION = 9      # read it, look at the diagram, do the try-it
+MINUTES_PER_PRACTICE = 14    # a hands-on task
+MINUTES_QUIZ = 10            # the checkpoint
+
+
+def structure_for_hours(hours, is_checkpoint=False):
+    """Turn hours/day into a CONCRETE lesson structure.
+
+    The old prompt hardcoded "3-6 sections" and "exactly 5 questions" regardless
+    of hours, then asked the model to label it `est_minutes: 360`. So a 1-hour
+    day and a 6-hour day generated identical lessons and the number was fiction.
+    Python decides the shape now; the prompt is told exact counts.
+
+    Videos are capped well below what the minutes alone would allow: video is
+    largely redundant with the section that teaches the same idea, and every
+    search costs 100 units of a 10,000/day YouTube quota shared by the WHOLE
+    project. A lesson is not a playlist.
+    """
+    mins = max(20, int(round(float(hours) * 60)))
+    if is_checkpoint:
+        mins = int(mins * 0.6)          # checkpoint days are lighter by design
+
+    videos = 1 if mins < 90 else 2 if mins < 210 else 3 if mins < 330 else 4
+    video_mins = min(int(mins * 0.25), videos * 14)   # cap video at ~1/4 of the day
+
+    # Reading is capped at ~45% of the day and by what one Gemini call can
+    # actually produce (~12 sections before the 16k output cap bites). Practice
+    # then FILLS the rest — which is the honest shape of a long study day: six
+    # hours is not six hours of prose, it's a couple of hours of input and four
+    # of doing. Deriving practice from the leftover (rather than a fixed ratio)
+    # is what stops a 6h day quietly becoming a 5h day.
+    sections = max(3, min(12, round((mins * 0.45) / MINUTES_PER_SECTION)))
+    leftover = mins - video_mins - MINUTES_QUIZ - (sections * MINUTES_PER_SECTION)
+    practice = max(1, min(12, round(leftover / MINUTES_PER_PRACTICE)))
+
+    # A block is a sitting: ~75 minutes before a real break.
+    blocks = max(1, min(5, round(mins / 75)))
+
+    # What this shape can HONESTLY deliver. Above ~6h the section cap binds (one
+    # Gemini call can't write more than ~12 sections before the 16k output limit),
+    # so an 8h request really is a ~5.7h lesson. Report that number rather than
+    # printing "8h" over content that isn't — a plan that overstates itself on
+    # day 1 is exactly the bug this function exists to kill.
+    est = (sections * MINUTES_PER_SECTION + practice * MINUTES_PER_PRACTICE
+           + video_mins + MINUTES_QUIZ)
+    return {"minutes": mins, "est": int(est), "sections": int(sections),
+            "practice": int(practice), "videos": videos, "blocks": blocks}
+
+
+def estimate_minutes(lesson, video_seconds=0):
+    """The HONEST length of a generated lesson, computed from what's in it.
+
+    Replaces the model-authored `est_minutes`, which nothing ever validated.
+    """
+    sections = len(lesson.get("sections") or [])
+    practice = len(lesson.get("practice") or []) + len(lesson.get("homework") or [])
+    quiz = MINUTES_QUIZ if lesson.get("quiz") else 0
+    return int(sections * MINUTES_PER_SECTION + practice * MINUTES_PER_PRACTICE
+               + round(video_seconds / 60) + quiz)
+
+
 def lesson_prompt(goal, hours_per_day, day_entry, learner_profile, progression="", avoid_questions=None, material=None, videos=None):
+    shape = structure_for_hours(hours_per_day, day_entry.get("is_checkpoint", False))
+    blocks_rule = ""
+    if shape["blocks"] > 1:
+        blocks_rule = f"""
+PACING — today is {shape['minutes']} minutes, which is too long to sit through in one go. Split the sections across EXACTLY {shape['blocks']} blocks by setting "block": 1..{shape['blocks']} on every section (roughly equal numbers per block, in order).
+- Block 1 carries the new theory. The LAST block must be application/consolidation of what came earlier — introduce NO new concept in the final block.
+- In "intro", tell the student in ONE sentence how today is split and why (e.g. "That's {round(shape['minutes']/60, 1)} hours, so I've split it into {shape['blocks']} blocks with breaks — the last one is practice, not new theory, because that's what makes it stick.")."""
     avoid = ""
     if avoid_questions:
         joined = " | ".join(avoid_questions[-40:])
@@ -307,11 +383,13 @@ def lesson_prompt(goal, hours_per_day, day_entry, learner_profile, progression="
     avoid += videos_context(videos)
     return f"""Generate today's full lesson for this student.
 
-GOAL: {goal} (~{hours_per_day} hours today)
+GOAL: {goal}
 TODAY (Day {day_entry['day']}): {day_entry['title']}
 Objectives: {day_entry['objectives']}
 Topics: {day_entry['topics']}
 Checkpoint day: {day_entry.get('is_checkpoint', False)}
+
+TODAY'S SIZE — the student chose {hours_per_day} hours/day, so this lesson must be worth ~{shape['minutes']} MINUTES of real work. This is a hard requirement, not a target to approximate: produce EXACTLY {shape['sections']} sections and EXACTLY {shape['practice']} practice items. Do not pad with waffle to reach the count — go DEEPER instead: more worked examples, more concrete cases, edge cases, common traps, and richer explanation. If {shape['sections']} sections is more than the listed topics, break the topics into their natural sub-parts (e.g. "Cache" -> "why cache exists", "L1/L2/L3", "cache hits and misses") rather than inventing unrelated material.{blocks_rule}
 {progression}{avoid}
 
 LEARNER PROFILE (adapt your teaching to this, including their class):
@@ -323,6 +401,8 @@ Respond with JSON:
   "sections": [
     {{
       "heading": "topic name",
+      "block": <which block this section belongs to, 1-based; omit if there is only one block>,
+      "resource_query": "OPTIONAL — the YouTube search phrase for the single best video explaining THIS section's concept. Include it ONLY where seeing it genuinely beats reading it: motion, a process unfolding, spatial/physical structure, or a live coding walkthrough. OMIT for definitions, history, motivation, or anything the text above already explains fully — a video there is padding. At most {shape['videos']} sections in this whole lesson may have one.",
       "probe": "OPTIONAL — for a KEY concept only, one short 'why/how' question for the student to think about BEFORE reading (elaborative interrogation: 'Why do you think X needs Y?'). Omit for simple/intro sections.",
       "analogy": "a simple real-life analogy that makes the concept intuitive",
       "explanation": "clear teaching of the concept from first principles, in plain language, a few paragraphs. Use short paragraphs.",
@@ -342,7 +422,7 @@ Respond with JSON:
     {{"q": "question text (may include `code`)", "options": ["option A", "option B", "option C", "option D"], "answer": <0-3 index of the correct option>, "hint": "a ONE-sentence nudge toward the REASONING — name the principle to apply or the thing to trace, and NOTHING else. It must not eliminate any option, must not describe the correct one, and must leave the question still unanswerable to someone who hasn't learned the concept. A student who doesn't know the idea should be no better off after reading it.", "why": "1-2 sentences: why the correct option is right, AND why the most tempting wrong option is wrong. Name the specific reasoning error that makes the trap tempting.", "topic": "short tag naming which of today's topics this tests", "type": "recall" | "application" | "code"}}
   ]
 }}
-Rules: one section per major topic (3-6 sections). If it is a checkpoint day, sections should be revision-style (recall prompts, self-test questions) instead of new content.
+Rules: EXACTLY {shape['sections']} sections and EXACTLY {shape['practice']} practice items — the counts above are computed from the hours the student chose and are not negotiable. If it is a checkpoint day, sections should be revision-style (recall prompts, self-test questions) instead of new content.
 Quiz rules: exactly 5 questions testing TODAY's topics only — 1 recall, 3 application, 1 code-reading ("what does this print/do") if the goal involves programming, otherwise a 4th application question.
 
 DISTRACTORS — this is what makes a question worth answering:

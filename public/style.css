@@ -800,6 +800,14 @@ body.study-mode #app { padding-top: 60px; }
   .actions .btn { width: 100%; }
 }
 
+/* ---------- section video + block break ---------- */
+.section-video { margin: var(--s4) 0 var(--s2); }
+.break-card { text-align: center; }
+.break-body {
+  color: var(--muted); font-size: var(--text-md); line-height: 1.6;
+  max-width: 46ch; margin: var(--s2) auto 0;
+}
+
 /* ---------- segmented control ---------- */
 .seg {
   display: inline-flex; gap: 2px; padding: 2px;

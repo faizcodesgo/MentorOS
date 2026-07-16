@@ -1348,7 +1348,17 @@ function renderLesson(l) {
     `<p class="lesson-intro">${fmt(l.intro)}</p>` +
     (resources ? `<div class="card"><p class="label mono">Watch</p>${l.resources_note ? `<p class="resources-note">${fmt(l.resources_note)}</p>` : ""}${resources}</div>` : "")
   });
-  (l.sections || []).forEach((s, i) => lessonSteps.push({ kind: "section", i, s, widget: widgetSlots[i], html: sectionHtml(l, s, i) }));
+  // Long days are split into blocks with a real break between them. A 6-hour
+  // sitting is attendance, not learning — the break IS the feature.
+  let lastBlock = null;
+  (l.sections || []).forEach((s, i) => {
+    const block = s.block || null;
+    if (block && lastBlock !== null && block !== lastBlock) {
+      lessonSteps.push({ kind: "break", block, html: breakHtml(l, block) });
+    }
+    lastBlock = block;
+    lessonSteps.push({ kind: "section", i, s, widget: widgetSlots[i], html: sectionHtml(l, s, i) });
+  });
   lessonSteps.push({ kind: "practice", html:
     `<div class="card">
       <p class="label mono">Practice</p>
@@ -1385,8 +1395,39 @@ function sectionHtml(l, s, i) {
       <div class="explanation">${fmt(s.explanation)}</div>
       ${s.worked_example ? `<div class="worked"><p class="label">Worked example</p><div class="worked-body">${fmt(s.worked_example)}</div></div>` : ""}
       <ul class="keypoints">${(s.key_points || []).map((k) => `<li>${fmt(k)}</li>`).join("")}</ul>
+      ${sectionVideoHtml(s)}
       <div class="tryit">${fmt(s.try_it)}</div>
       ${s.interaction && validInteraction(s.interaction) ? `<div class="interaction-slot" data-slot="${i}"></div>` : ""}
+    </div>`;
+}
+
+/* This topic's video, ON this topic's step — after the explanation, so you meet
+   it having already read the idea rather than as a wall of links on step 1.
+   Falls back to a search link when the API is unavailable or out of quota, so a
+   section that wanted a video always offers one. */
+function sectionVideoHtml(s) {
+  if (s.video && s.video.url) {
+    const v = s.video;
+    return `<a class="resource-link section-video" target="_blank" rel="noopener" href="${esc(v.url)}">
+      ▶ ${esc(v.title)}<span class="channel"> · ${esc(v.channel)}${v.duration ? " · " + esc(v.duration) : ""}</span></a>`;
+  }
+  if (s.resource_query) {
+    return `<a class="resource-link section-video" target="_blank" rel="noopener"
+      href="https://www.youtube.com/results?search_query=${encodeURIComponent(s.resource_query)}">▶ ${esc(s.resource_query)}</a>`;
+  }
+  return "";
+}
+
+/* The break between blocks. Not decoration — spacing the work is what makes a
+   long day stick, so it gets its own step rather than a line of small print. */
+function breakHtml(l, nextBlock) {
+  const total = Math.max(...(l.sections || []).map((s) => s.block || 1));
+  return `<div class="card break-card">
+      <p class="label mono">Break</p>
+      <h3>Stop here for a bit</h3>
+      <p class="break-body">You've finished block ${nextBlock - 1} of ${total}. Get up, look at something
+      that isn't a screen for 10 minutes, then come back for block ${nextBlock}.
+      The pause is doing real work — it's when what you just read settles.</p>
     </div>`;
 }
 
