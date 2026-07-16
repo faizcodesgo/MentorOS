@@ -12,8 +12,8 @@ folder alongside it._
 >    is already safe on GitHub `main`, so a re-clone restores everything except #1 and #2.
 >
 > As of this session the git working tree is **CLEAN and pushed** (latest commit
-> `7668130` "Video can be the largest medium when helpful; + audit fixes"), so there
-> is no uncommitted code to lose. Only #1 and #2 above live outside git.
+> `20e5b7f` "Batch 4: accent discipline"), so there is no uncommitted code to lose.
+> Only #1 and #2 above live outside git.
 > **See §12 for the complete done/pending summary of this session.**
 
 ---
@@ -594,7 +594,16 @@ Commit order (oldest→newest):
    exceeds reading while active work stays ~40%+; total ≈ chosen hours. PLUS the
    council correctness-audit fixes (cache-trim lock, `escAttr` href, skip day-level
    video on tiny days).
-(Plus 6 handoff.md commits keeping this file current, and the `launch.json` path fix.)
+6. `0aea972` — **Low-video under-run fixed: practice is ELASTIC.** `structure_for_hours`
+   returns `practice_max` (= practice + video_mins/14, cap 12); the prompt gives a
+   RANGE and tells the model to use MORE practice when it adds few videos, so active
+   work backfills whatever video doesn't — in ONE call (no 2nd API call). Verified:
+   2h→123/121, 4h→240/232 whichever way the model leans. Long no-video days (6-8h)
+   still honestly under-run (one Gemini call caps ~12 sections+12 practice) — unavoidable.
+7. `20e5b7f` — **Batch 4: accent discipline.** Neutralized decorative blue left-borders
+   on peripheral info cards (`.viva-overall`/`.explain-card`/`.notes-card` → `--line`);
+   blue reserved for actionable/active (Today card keeps it). Verified in-browser.
+(Plus handoff.md commits keeping this file current, and the `launch.json` path fix.)
 
 **What the owner asked for on the original 16-Jul list — status map:**
 - Multi-user accounts · view-whole-session toggle · study-mode auto · goal-text fix ·
@@ -607,10 +616,11 @@ Commit order (oldest→newest):
 - Dashboard "unprofessional goal text" + motivation-first → **DONE** (`938c70b`+`0135231`).
 
 ### 12.3 Everything PENDING (nothing here is started in code)
-**Batch 4 — remaining premium-design polish** (owner chose "videos first, then design";
-dashboard done, these remain):
-- Accent discipline — blue only for actionable/moving; drop decorative blue card
-  left-borders; kickers → `--faint`.
+**Batch 4 — remaining premium-design polish** (dashboard + accent discipline done):
+- Accent discipline — PARTIAL (`20e5b7f`): 3 decorative content-card borders
+  neutralized. Still to consider: `.lesson-intro`/`.exploration`/`.probe` blue
+  left-borders, and kickers → `--faint`. Left because they use the border as part of
+  their structure — needs the owner's eye on the live screens before changing.
 - Card hierarchy via size/contrast/elevation (reuse `.card-primary`).
 - Guard every `:hover` in `@media (hover:hover)` (sticks on touch).
 - Skeleton loaders instead of full-screen blackout on sub-second fetches.
@@ -618,6 +628,12 @@ dashboard done, these remain):
   progress bar by block, replacing the raw "N / 21" counter (UX council).
 - Diagram variety — two sizes (inline vs full-width) + optional caption, to avoid
   monotony now that lessons can have many diagrams (UX council).
+**Why these are deferred, not done blind:** pixel screenshots time out in this env,
+so visual/taste changes can't be seen rendered. The dashboard + accent-discipline
+bits were done because they're verifiable via DOM measurement; the rest (card
+hierarchy, diagram sizing, skeleton transitions, hover-on-touch) genuinely need the
+owner looking at the live site — doing them blind risks degrading the design, which
+the owner explicitly warned against. Recommend pairing on these on the live URL.
 
 **Verification still owed (needs the owner's plan + spends Gemini/YouTube quota):**
 - Generate ONE real lesson end-to-end to confirm the model now emits many
@@ -629,13 +645,15 @@ dashboard done, these remain):
 CSS cause is already fixed); the "second in-app AI" idea; public Play Store listing;
 resetting the inflated 365 XP from the old pace-check farm bug (his call, left alone).
 
-### 12.4 Known trade-off deliberately accepted (video budget)
-With video reserved at 40% and reading at 23%, a day whose topics are NOT
-video-worthy (model requests few videos) will honestly run SHORT of the target
-(e.g. a no-video 4h day ≈ 148 min shown) rather than pad with marginal videos. The
-council judged honest-under-run > passive padding. If the owner dislikes under-runs,
-the fix (not built) is to convert the unused video reserve into extra ACTIVE practice
-items post-generation — needs another model call, so deferred.
+### 12.4 Video-budget under-run — FIXED (`0aea972`)
+Earlier trade-off (a low-video day ran short) is resolved: practice is now ELASTIC.
+`structure_for_hours` returns `practice_max`; the prompt gives the model a practice
+RANGE and tells it to add more practice when it uses fewer videos, so ACTIVE work
+backfills whatever video doesn't — in the SAME generation call (no 2nd API call).
+Realistic days (1-4h) now hit the target whether the model leans video or practice.
+REMAINING honest limit: a 6-8h day with NO video-worthy topics still under-runs,
+because one Gemini call can't emit more than ~12 sections + 12 practice before the
+16k output cap — unavoidable, and unrealistic for a CS curriculum.
 
 ### 12.5 How to run / verify locally (this laptop)
 - `cd C:\Users\user\Desktop\MentorOS` → `python app.py` → http://localhost:5000
