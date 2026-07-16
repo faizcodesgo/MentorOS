@@ -1,8 +1,18 @@
 # MentorOS — Handoff
 
-_Last updated: 16 July 2026. Paste this into a new chat AND use it as the
-new-machine setup guide. Read `mentor-app-project.md` +
-`mentoros-council-findings-jul16.md` in the memory folder alongside it._
+_Last updated: 16 July 2026 (later session — recovery + Batch 4 start). Paste
+this into a new chat AND use it as the new-machine setup guide. Read
+`mentor-app-project.md` + `mentoros-council-findings-jul16.md` in the memory
+folder alongside it._
+
+> **SAVE CHECKLIST — copy these to Drive to lose NOTHING (do this now):**
+> 1. `C:\Users\user\Desktop\MentorOS\.env`  ← 7 secret keys, gitignored
+> 2. `C:\Users\user\Desktop\MentorOS - Google Play package\`  ← Android keystore
+> 3. (optional) the whole `C:\Users\user\Desktop\MentorOS\` folder — but the code
+>    is already safe on GitHub `main`, so a re-clone restores everything except #1 and #2.
+>
+> As of this session the git working tree is **CLEAN and pushed** (HEAD `b4a2e93`),
+> so there is no uncommitted code to lose. Only #1 and #2 above live outside git.
 
 ---
 
@@ -12,15 +22,20 @@ Everything else is in GitHub or the cloud. **These are gitignored and exist ONLY
 on this laptop — copy them somewhere safe before wiping it:**
 
 1. **`.env`** — every secret key (Gemini, YouTube, VAPID push, cron secret).
-   Lives at `C:\Users\user\Desktop\mentoros\MentorOS\.env`.
+   Lives at `C:\Users\user\Desktop\MentorOS\.env`. Verified present this session:
+   `GEMINI_API_KEY`, `YOUTUBE_API_KEY`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`,
+   `VAPID_CLAIMS_EMAIL`, `CRON_SECRET`, `MONGO_URI_BACKUP`.
 2. **`MentorOS - Google Play package/`** — the Android **signing keystore +
    passwords**. Lose it and you can never update the installed Android app.
+   Lives at `C:\Users\user\Desktop\MentorOS - Google Play package\` (contains
+   `signing.keystore`, `signing-key-info.txt`, `MentorOS.aab/.apk`, `assetlinks.json`).
 
 Lose the repo? Re-clone. Lose these two? Gone forever.
 
-**NOTE the path changed:** the repo now lives at
-`C:\Users\user\Desktop\mentoros\MentorOS` (nested one level — `mentoros/`
-contains `MentorOS/` and `MentorOS - Google Play package/`).
+**CURRENT PATHS (this laptop):** the repo is at `C:\Users\user\Desktop\MentorOS`
+(NOT nested — the earlier `mentoros/MentorOS` layout is gone). The keystore
+folder sits beside it at `C:\Users\user\Desktop\MentorOS - Google Play package`.
+Local backups from `python backup.py` are written to the Desktop.
 
 ---
 
@@ -435,3 +450,64 @@ not in the local `.env`, so you'll need to paste it in to do that.
   not *rich* — different axes.
 - **A PWA/TWA can never block other apps** (browser sandbox). That's the phone's
   Focus mode, already deep-linked from Study mode. Asked and answered 3×.
+
+---
+
+## 11. Session log — 16 July 2026 (later session)
+
+**Context:** opened the project on a DIFFERENT (borrowed) laptop, restored from
+Drive, worried something had been lost. Full forensic check done.
+
+### Recovery / "did I lose anything?" — NO.
+- **`app.py` was missing from the folder** (only `__pycache__/app.cpython-312.pyc`
+  remained), which looked alarming. It was only a working-tree deletion — the file
+  is intact in git and on GitHub `main`. Verified the leftover `.pyc`'s recorded
+  source size (67,496 B) EXACTLY matches the committed `app.py`, and Render serves
+  prod straight from `main`, so the live site IS running `HEAD:app.py`. Restored it
+  with `git checkout HEAD -- app.py`. Nothing lost.
+- **The only genuinely unpushed work** was `public/app.js` + `public/style.css`
+  (uncommitted local edits = the Batch 4 design start). Committed as **`b4a2e93`
+  "Batch 4 start: real paragraphs, 44px touch targets, toast/reward fix"** and
+  **pushed to GitHub** — now safe. Working tree is CLEAN.
+- Both gitignored must-keep assets confirmed present (see SAVE CHECKLIST at top).
+
+### Batch 4 (premium design pass) — STARTED (`b4a2e93`), most still TODO.
+DONE in this commit: `fmtProse()` renders lesson prose as real `<p>` paragraphs
+(kills the "reads like a README" feel); 44px touch targets on `.btn.small` /
+`.bookmark-btn` / `.weekly-x` / `.sheet-x` / `.dur-chip`; `.toast` vs
+`.reward-pill` collision fixed + safe-area insets. STILL TODO (from §8 Batch 4):
+dashboard reorder, accent discipline, card hierarchy, the dead `.btn` press
+animation (one-line fix), `@media (hover:hover)` guards, skeleton loaders, the
+"top XP/level looks bad" topbar polish, "quiz XP display not proper".
+
+### IN PROGRESS — Videos + visuals richness (owner's live ask).
+Owner tested a **4-hour** plan: got 17 sections but only **~2 videos**, and wants
+"videos as much as possible for topics" + "visual diagrams as much as possible,
+only where applicable." Root cause found (two limiters):
+1. **Numeric cap** in `prompts.structure_for_hours`: `videos = 0/1/2/3/4` by
+   minutes (a 4h day allows only 3), plus `video_mins = min(mins*0.25, videos*14)`.
+2. **Conservative prompt wording** — `resource_query` is told "include ONLY where
+   seeing it beats reading… OMIT for definitions/history/motivation," so the model
+   emits few, and even the cap of 3 rarely fills. Same for `VISUAL_RULES` which
+   says "Aim for 1-2 strong diagrams… not one on every section."
+Plan (3-lens LLM council run — systems/quota, learning-science, product/UX):
+- Raise the video cap to scale with SECTIONS; keep a quality gate so it's not padding.
+- Rebalance prompt wording so the model requests a video/diagram wherever it
+  genuinely helps (NOT everywhere).
+- **Product/UX council:** demote section videos from bordered cards to slim
+  borderless "▶ Watch · 8 min" chips (collapsed, expand in place) — keep them as
+  links, NEVER 15 iframe embeds; make diagrams earn their place with two sizes +
+  optional caption to avoid monotony; show an honest "core vs +optional video"
+  time estimate instead of the raw "N / 21" step counter; chapter the progress bar
+  by block. (Owner's objection axis is monotony/clutter, NOT richness.)
+- Add **caching + a daily quota guard** to `youtube.py` so more searches can never
+  blow the shared 10,000-units/day YouTube budget.
+Files this will touch: `prompts.py` (structure_for_hours + lesson video/visual
+wording + VISUAL_RULES), `app.py` (`_attach_section_videos` cap, day-level video),
+`youtube.py` (cache + quota guard), `public/app.js` + `public/style.css` (chip UI).
+**Not yet started in code — council synthesis pending 2 of 3 members at handoff write.**
+
+### How to keep this handover current
+Owner's standing rule (highest priority): **update this file after EVERY change**,
+commit + push so it's never only on one laptop. Live prod state before any new
+work this session: LV 3, 365 XP, Day 2 of 50, 1-day streak, 1 shield (unchanged).
