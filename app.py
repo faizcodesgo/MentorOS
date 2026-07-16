@@ -93,6 +93,11 @@ def get_state():
 
 
 MATERIAL_CAP = 15000  # chars — keep prompts within token limits
+# Goals are allowed to be long: pasting a whole syllabus WORKS and produces a
+# good plan (the owner's real goal is ~1,500 chars and did exactly that). This
+# only stops an unbounded paste — past ~2k the model starts silently ignoring
+# the middle, which is worse than refusing.
+MAX_GOAL = 2000
 
 
 @app.post("/api/material")
@@ -132,7 +137,7 @@ def upload_material():
 @app.post("/api/negotiate")
 def negotiate():
     body = request.get_json(force=True)
-    goal = body.get("goal", "").strip()
+    goal = body.get("goal", "").strip()[:MAX_GOAL]
     days = int(body.get("days", 0))
     hours = float(body.get("hours_per_day", 0))
     level = body.get("level_notes", "").strip()
@@ -185,11 +190,20 @@ def plan_init():
     # would strand the progress bar below 100% forever.
     total_days = sum(int(p.get("days", 0)) for p in phases) or int(body.get("days", 0))
     state["plan"] = {
-        "goal": body["goal"],
+        "goal": body["goal"][:MAX_GOAL],
+        # 3-5 words naming what the plan BUILDS. A pasted syllabus is not its own
+        # title — the owner's real goal opens with the subjects he asked to SKIP,
+        # so any prefix of it is worse than useless as a label.
+        "short_title": (body.get("short_title") or "").strip()[:40],
         "days": total_days,
         "hours_per_day": float(body["hours_per_day"]),
         "phases": phases,                   # accepted outline from /api/negotiate
         "mentor_message": body.get("mentor_message", ""),
+        # The negotiation showed these once and threw them away. They're the
+        # promise the student accepted — what's in, and what got cut — and the
+        # only place to check the mentor against later.
+        "achievable_scope": body.get("achievable_scope") or [],
+        "dropped_scope": body.get("dropped_scope") or [],
         "curriculum": [],                    # filled phase by phase
         "phases_generated": 0,
         "next_day": 1,                       # id counter (bumped as days are added)
@@ -382,7 +396,7 @@ def get_lesson(day):
 
     lesson = gemini.ask_json(
         prompts.MENTOR_PERSONA,
-        prompts.lesson_prompt(plan["goal"], plan["hours_per_day"], entry, profile_text,
+        prompts.lesson_prompt(prompts.goal_label(plan), plan["hours_per_day"], entry, profile_text,
                               progression=progression, avoid_questions=state.get("asked_questions", []),
                               material=state.get("material"), videos=videos),
     )
@@ -440,7 +454,7 @@ def get_project(pid):
                         + dna_engine.summary_for_prompt(state.get("dna")))
         gen = gemini.ask_json(
             prompts.MENTOR_PERSONA,
-            prompts.project_brief_prompt(state["plan"]["goal"], proj, profile_text,
+            prompts.project_brief_prompt(prompts.goal_label(state["plan"]), proj, profile_text,
                                          material=state.get("material")))
         # shape guard: don't cache a blank brief (it would stick forever) or 500
         if not isinstance(gen, dict) or not gen.get("brief"):
@@ -704,7 +718,7 @@ def warmup_start():
 
     try:
         gen = gemini.ask_json(prompts.MENTOR_PERSONA,
-                              prompts.warmup_generate_prompt(state["plan"].get("goal", ""),
+                              prompts.warmup_generate_prompt(prompts.goal_label(state["plan"]),
                                                              topics, state.get("asked_questions", [])))
         fresh = gen.get("questions", [])
     except Exception:
@@ -824,7 +838,7 @@ def ask():
     )
     result = gemini.ask_json(
         prompts.MENTOR_PERSONA,
-        prompts.ask_prompt(plan["goal"] if plan else "", entry, profile_text, question),
+        prompts.ask_prompt(prompts.goal_label(plan), entry, profile_text, question),
     )
     answer = result.get("answer", "") if isinstance(result, dict) else ""
     if not answer:
@@ -992,7 +1006,7 @@ def interview_start():
 
     result = gemini.ask_json(
         prompts.MENTOR_PERSONA,
-        prompts.interview_generate_prompt(plan.get("goal", ""), phases[chapter]["name"], topics),
+        prompts.interview_generate_prompt(prompts.goal_label(plan), phases[chapter]["name"], topics),
     )
     # shape guard: only cache a set we can actually run and grade
     questions = result.get("questions", []) if isinstance(result, dict) else []
@@ -1033,7 +1047,7 @@ def interview_submit():
                      "text": by_id.get(q["id"], "")} for q in iv["questions"]]
     try:
         graded = gemini.ask_json(prompts.MENTOR_PERSONA,
-                                 prompts.interview_grade_prompt(state["plan"].get("goal", ""), graded_items))
+                                 prompts.interview_grade_prompt(prompts.goal_label(state["plan"]), graded_items))
         if not isinstance(graded, dict):
             raise ValueError("grade was not an object")
     except Exception:
@@ -1282,6 +1296,26 @@ def reset():
     saved_at = storage.snapshot("reset")   # recoverable via /api/restore
     storage.save_state(storage._empty_state())
     return jsonify({"ok": True, "backup_saved_at": saved_at})
+
+
+@app.post("/api/plan/title")
+def plan_title():
+    """Name the plan. Nothing else — this touches one field.
+
+    A pasted syllabus has no derivable title (the owner's opens with the subjects
+    he asked to SKIP), and spending an AI call to guess one would still be a
+    guess. His own five words beat a model's every time.
+    """
+    body = request.get_json(force=True)
+    title = (body.get("short_title") or "").strip()[:40]
+    if not title:
+        return jsonify({"error": "Give the plan a name first."}), 400
+    state = storage.load_state()
+    if not state.get("plan"):
+        return jsonify({"error": "No plan to name."}), 404
+    state["plan"]["short_title"] = title
+    storage.save_state(state)
+    return jsonify({"ok": True, "short_title": title})
 
 
 @app.post("/api/restore")

@@ -158,7 +158,11 @@ input:focus, textarea:focus { outline: none; border-color: var(--brand); box-sha
 .btn {
   display: inline-block; border: 1px solid transparent; border-radius: var(--r2);
   padding: var(--s3) var(--s5); font: inherit; font-weight: 600; cursor: pointer;
-  transition: background 0.15s ease;
+  /* NO `transition` here. The shared rule above already declares
+     `transition: transform, border-color, background, box-shadow` for .btn —
+     re-declaring the shorthand at equal specificity but later in the file
+     REPLACED it, dropping `transform`. The :active transform still applied, so
+     every button in the app snapped instead of pressing. One line, app-wide. */
 }
 .btn.primary { background: var(--brand); color: #08111f; }
 .btn.primary:hover { background: var(--brand-bright); }   /* lighter, no text inversion */
@@ -204,7 +208,25 @@ input:focus, textarea:focus { outline: none; border-color: var(--brand); box-sha
 
 /* ---------- dashboard ---------- */
 .dash-head { display: flex; justify-content: space-between; align-items: flex-end; gap: var(--s4); margin: var(--s5) 0 var(--s2); }
-.dash-stat { font-size: var(--text-sm); color: var(--muted); white-space: nowrap; }
+/* REQUIRED for the goal line's ellipsis. Flex items default to min-width:auto,
+   so without this the button refuses to shrink, text-overflow never fires, and
+   .dash-stat (white-space:nowrap) gets crushed instead. Looks fine on a laptop,
+   breaks on a 360px phone. */
+.dash-head-main { min-width: 0; flex: 1 1 auto; }
+.dash-stat { font-size: var(--text-sm); color: var(--muted); white-space: nowrap; flex: none; }
+
+/* The goal line. Muted, ONE line, tappable -> opens the plan detail.
+   It was `.kicker` — 12px semibold in THE accent colour — holding whatever the
+   learner typed. A pasted syllabus rendered as a wall of bold blue above the
+   title. Blue is for things you can act on; this is a label. */
+.dash-goal {
+  background: none; border: none; padding: var(--s1) 0; font: inherit;
+  font-size: var(--text-sm); font-weight: 400; color: var(--muted);
+  display: block; max-width: 100%; text-align: left; cursor: pointer;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.dash-goal:hover { color: var(--ink); }
+.dash-goal::after { content: " ›"; color: var(--faint); }
 
 /* wraps, so a long streak line can never push the chips off a narrow phone */
 .level-bar { display: flex; align-items: center; gap: var(--s3); margin: var(--s1) 0 var(--s4); flex-wrap: wrap; }
@@ -473,7 +495,58 @@ body.study-mode #app { padding-top: 60px; }
 .welcome-modal .btn { width: 100%; }
 
 /* ---------- skill map (dashboard card) ---------- */
-.dash-note { font-style: italic; color: var(--brand); font-size: var(--text-md); margin: 2px 0 var(--s4); }
+/* (.dash-note removed — the mentor's note is the skill map card's subtitle now,
+   where it belongs. It used to be a second blue block, in italics, directly
+   under the blue goal.) */
+
+.field-count { display: block; font-size: var(--text-xs); color: var(--faint); margin-top: var(--s1); }
+#inGoal { resize: vertical; min-height: 76px; }
+
+/* the warm-up, folded INTO the today card as a secondary action */
+.today-warmup {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--s3); flex-wrap: wrap;
+  margin-top: var(--s4); padding-top: var(--s4); border-top: 1px solid var(--line);
+}
+
+/* ---------- plan detail ---------- */
+.plan-assess { color: var(--ink); font-size: var(--text-md); line-height: 1.6; max-width: 62ch; }
+.plan-phases { display: flex; flex-direction: column; }
+.plan-phase {
+  display: grid; grid-template-columns: auto 1fr auto; align-items: center;
+  gap: var(--s3); padding: var(--s3) 0; border-bottom: 1px solid var(--line);
+}
+.plan-phase:last-child { border-bottom: none; }
+.pp-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--line); border: 1px solid var(--faint);
+}
+.plan-phase.done .pp-dot { background: var(--good); border-color: var(--good); }
+.plan-phase.current .pp-dot { background: var(--brand); border-color: var(--brand); }
+.pp-name { color: var(--muted); font-size: var(--text-md); }
+.plan-phase.current .pp-name { color: var(--ink); font-weight: 600; }
+.plan-phase.done .pp-name { color: var(--muted); }
+.pp-state { font-size: var(--text-xs); color: var(--faint); white-space: nowrap; }
+.plan-phase.current .pp-state { color: var(--brand); }
+.pp-focus {
+  grid-column: 2 / -1; font-size: var(--text-sm); color: var(--faint);
+  line-height: 1.5; margin-top: 2px;
+}
+.muted-list li { color: var(--faint); }
+.plan-goal-wrap { margin-bottom: var(--s6); }
+.plan-goal-wrap > summary {
+  cursor: pointer; color: var(--muted); font-size: var(--text-sm);
+  min-height: 44px; display: flex; align-items: center;
+}
+.plan-goal-wrap > summary:hover { color: var(--ink); }
+/* the contract, verbatim: never truncated, never styled up, never blue */
+.plan-goal-raw {
+  white-space: pre-wrap; word-break: break-word;
+  font-family: inherit; font-size: var(--text-sm); line-height: 1.6;
+  color: var(--faint); background: var(--bg); border: 1px solid var(--line);
+  border-radius: var(--r2); padding: var(--s4);
+  max-height: 40vh; overflow-y: auto; margin-top: var(--s2);
+}
 .skillmap-card {
   display: flex; align-items: center; gap: var(--s4); width: 100%; text-align: left;
   font: inherit; color: var(--ink); cursor: pointer; margin: var(--s5) 0 var(--s2);
@@ -760,11 +833,20 @@ body.study-mode #app { padding-top: 60px; }
   position: fixed; inset: 0; z-index: 55; display: flex; align-items: flex-end;
   background: rgba(6, 8, 12, 0.6); animation: viewIn 0.18s ease both;
 }
+/* Flex column: the head and composer hold their place, only the history
+   scrolls. The whole sheet used to be one scroll area with the history stacked
+   on top of the input, so asking a second question meant scrolling past every
+   answer to find the box. */
 .sheet {
   background: var(--panel); border-top: 1px solid var(--line);
   border-radius: var(--r3) var(--r3) 0 0; padding: var(--s5); width: 100%;
-  max-height: 82vh; overflow-y: auto; box-shadow: var(--shadow-3); animation: sheetUp 0.24s ease both;
+  max-height: 82vh; box-shadow: var(--shadow-3); animation: sheetUp 0.24s ease both;
+  display: flex; flex-direction: column; min-height: 0;
+  padding-bottom: calc(var(--s5) + env(safe-area-inset-bottom));
 }
+.sheet-head, .ask-composer { flex: none; }
+#explorations { flex: 1 1 auto; overflow-y: auto; min-height: 0; margin-top: var(--s4); }
+#remindersSheet .sheet { display: block; }   /* the reminders sheet is a plain form */
 @media (min-width: 620px) {
   .sheet-scrim { align-items: center; justify-content: center; }
   .sheet { max-width: 560px; border-radius: var(--r3); border: 1px solid var(--line); }

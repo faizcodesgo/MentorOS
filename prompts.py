@@ -120,6 +120,20 @@ def material_context(material):
             f"--- MATERIAL START ---\n{material['text']}\n--- MATERIAL END ---\n")
 
 
+def goal_label(plan):
+    """A SHORT goal, for prompts that need framing rather than the full spec.
+
+    Students paste whole syllabi. The owner's real goal is ~1,500 characters
+    opening with "First Sem : Chemistry Maths ... Yoga" and only says
+    "skip all those stuffs, only teach me C and Python" around character 430.
+    Handing that to ask_prompt — which is told to "bridge back to their goal" —
+    made the mentor connect a pointer question to Indian Constitution. Prompts
+    that need the goal as a SPEC (negotiate, curriculum) still get the full text.
+    """
+    plan = plan or {}
+    return (plan.get("short_title") or "").strip() or (plan.get("goal") or "")[:120]
+
+
 def negotiate_prompt(goal, days, hours_per_day, level_notes, material=None):
     shape = structure_for_hours(hours_per_day)
     long_day = ""
@@ -138,6 +152,7 @@ Think about what mastery of this goal actually requires, what fraction is achiev
 Respond with JSON:
 {{
   "verdict": "realistic" | "ambitious" | "unrealistic",
+  "short_title": "3-5 words naming what this plan BUILDS, as a title. Derive it from achievable_scope — what the plan will actually COVER — NOT from the opening words of their goal text. Students often paste an entire syllabus, and the part that matters is buried in the middle, or is a list of things they want SKIPPED. Max 40 characters. No 'Learn' prefix, no day count, no trailing punctuation. Examples: 'C and Python foundations', 'DSA for placements', 'Arduino and sensors'.",
   "mentor_message": "2-4 sentences. Your honest assessment, spoken directly to the student. If not realistic, say what you CAN promise in this time and what would need more days.",
   "achievable_scope": ["what WILL be covered/achieved in the given days", "..."],
   "dropped_scope": ["what a full mastery path would include but does NOT fit in this time (empty list if everything fits)", "..."],

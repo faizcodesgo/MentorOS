@@ -40,7 +40,14 @@
         </label>
         <label>
           <span class="label mono">Goal</span>
-          <input type="text" id="inGoal" placeholder="e.g. Data Structures & Algorithms in C for placement prep" required />
+          <!-- A textarea, not an input. This was a single-line <input> and the
+               owner pasted a 1,471-character syllabus into it — it WORKED and
+               made a good 50-day plan, but he could never see what he'd pasted.
+               The placeholder taught a one-liner while the tool handled far
+               more; say so. -->
+          <textarea id="inGoal" rows="3" maxlength="2000" required
+            placeholder="e.g. Data Structures & Algorithms in C for placement prep — or paste your whole syllabus, that works too"></textarea>
+          <span class="field-count mono" id="goalCount"></span>
         </label>
         <div class="row">
           <label>
@@ -173,37 +180,24 @@
     <section id="view-dashboard" class="view hidden">
       <p class="greeting" id="greeting"></p>
 
+      <!-- The goal line: ONE muted line, tappable, opening the plan detail.
+           This used to be `.kicker` (12px/600/blue) — an editorial-eyebrow class
+           meant for 2-3 word labels — fed the learner's raw goal. With a pasted
+           syllabus that rendered ~530px of bold blue text above the title and
+           pushed the only button that matters below the fold. -->
       <div class="dash-head">
-        <div>
-          <p class="mono kicker" id="dashGoal"></p>
+        <div class="dash-head-main">
+          <button class="dash-goal" id="dashGoal"></button>
           <h1 id="dashDayTitle"></h1>
         </div>
         <div class="dash-stat mono" id="dashCount"></div>
       </div>
 
-      <div class="level-bar">
-        <span class="level-chip mono" id="levelChip"></span>
-        <span class="rank-chip mono" id="rankChip"></span>
-        <span class="streak-detail mono" id="streakChip"></span>
-        <span class="career-chip mono" id="careerChip"></span>
-      </div>
-
-      <p class="dash-note" id="dashNote"></p>
-
       <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
 
-      <div class="thin-row hidden" id="weeklyCard">
-        <p class="thin-text" id="weeklyBody"></p>
-        <button class="weekly-x" id="weeklyDismiss" aria-label="Dismiss">✕</button>
-      </div>
-
-      <div class="thin-row hidden" id="warmupCard">
-        <p class="thin-text" id="warmupSub">Quick recall from earlier days.</p>
-        <button class="btn ghost small" id="btnWarmup">Start</button>
-      </div>
-      <div class="done-row hidden" id="warmupDone"></div>
-
-      <div class="card today-card" id="todayCard">
+      <!-- Today is the whole point of the screen, so it comes before anything
+           reflective. It used to be the 9th element, below the fold on a phone. -->
+      <div class="card card-primary today-card" id="todayCard">
         <p class="label mono">Today</p>
         <h2 id="todayTitle"></h2>
         <ul id="todayObjectives"></ul>
@@ -212,6 +206,25 @@
           <button class="btn primary" id="btnStartToday">Start today</button>
           <button class="btn ghost small" id="btnFocus">Study mode</button>
         </div>
+        <!-- the warm-up is a pre-step FOR today, not a rival to it. As its own
+             row above the card it pushed today down on exactly the days it showed. -->
+        <div class="today-warmup hidden" id="warmupCard">
+          <p class="thin-text" id="warmupSub">Quick recall from earlier days.</p>
+          <button class="btn ghost small" id="btnWarmup">Warm up first · 2 min</button>
+        </div>
+        <div class="done-row hidden" id="warmupDone"></div>
+      </div>
+
+      <!-- everything below here is reflective: it earns a scroll, it doesn't
+           get to stand between the student and today's lesson -->
+      <div class="level-bar">
+        <span class="streak-detail mono" id="streakChip"></span>
+        <span class="career-chip mono" id="careerChip"></span>
+      </div>
+
+      <div class="thin-row hidden" id="weeklyCard">
+        <p class="thin-text" id="weeklyBody"></p>
+        <button class="weekly-x" id="weeklyDismiss" aria-label="Dismiss">✕</button>
       </div>
 
       <button class="card skillmap-card" id="skillMapCard">
@@ -235,6 +248,36 @@
         <button class="btn ghost small" id="btnReminders">Study reminders</button>
         <button class="btn danger ghost small" id="btnReset">Start over</button>
       </div>
+    </section>
+
+    <!-- ============ PLAN DETAIL ============ -->
+    <!-- What the goal line opens. The negotiation showed the assessment and the
+         what's-in/what-I-cut lists exactly once and then destroyed them; this is
+         where they live now. The raw goal is the contract — kept verbatim,
+         last, collapsed, and never truncated in storage. -->
+    <section id="view-plan" class="view hidden">
+      <button class="btn ghost small" id="btnPlanBack">&larr; Back to dashboard</button>
+      <p class="mono kicker">Your plan</p>
+      <h1 id="planTitle"></h1>
+      <button class="btn ghost small" id="btnRenamePlan">Rename this plan</button>
+      <p class="sub" id="planMeta"></p>
+      <div class="progress-track"><div class="progress-fill" id="planProgress"></div></div>
+
+      <div class="card" id="planAssessCard">
+        <p class="label mono">What your mentor promised</p>
+        <p class="plan-assess" id="planAssess"></p>
+      </div>
+
+      <p class="label mono list-label">Phases</p>
+      <div id="planPhases" class="plan-phases"></div>
+
+      <div id="planScope"></div>
+
+      <p class="label mono list-label">The goal you gave me</p>
+      <details class="plan-goal-wrap">
+        <summary id="planGoalSummary">Show the full text</summary>
+        <pre class="plan-goal-raw" id="planGoalRaw"></pre>
+      </details>
     </section>
 
     <!-- ============ CHECKPOINT RESULT ============ -->
@@ -495,9 +538,15 @@
         <p class="label">Ask your mentor anything</p>
         <button class="sheet-x" id="askClose" aria-label="Close">✕</button>
       </div>
+      <!-- Composer FIRST, history below it. The history used to sit above the
+           textarea, so every answer pushed the box you type in further down the
+           sheet — after two or three questions you had to scroll to ask again.
+           That, not the length of the thread, is what made it feel endless. -->
+      <div class="ask-composer">
+        <textarea id="askInput" rows="2" placeholder="Type your question…"></textarea>
+        <button class="btn primary small" id="btnAsk">Ask</button>
+      </div>
       <div id="explorations"></div>
-      <textarea id="askInput" rows="2" placeholder="Type your question…"></textarea>
-      <button class="btn primary small" id="btnAsk">Ask</button>
     </div>
   </div>
 

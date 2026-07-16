@@ -29,7 +29,7 @@ def _collection():
     return _mongo
 
 
-SCHEMA = 14
+SCHEMA = 15
 
 
 def load_state():
@@ -131,6 +131,21 @@ def _migrate(state):
             shape = prompts.structure_for_hours(plan.get("hours_per_day", 1),
                                                 bool(entry.get("is_checkpoint")))
             entry["est_minutes"] = shape["est"]
+
+    # v15: every plan gets a short_title for the dashboard line.
+    # A tidy goal IS its own title. A pasted syllabus is NOT, and no string
+    # operation can make it one — the owner's real goal opens with the subjects
+    # he asked to SKIP, so a prefix would label his plan with the opposite of
+    # what it teaches. Deriving one needs an AI call we won't spend on a
+    # migration, so leave it blank: the UI falls back to "Your plan" and lets him
+    # name it himself. A generic correct label beats a specific wrong one.
+    plan = state.get("plan")
+    if plan is not None and not plan.get("short_title"):
+        goal = (plan.get("goal") or "").strip()
+        plan["short_title"] = goal if 0 < len(goal) <= 40 else ""
+    if plan is not None:
+        plan.setdefault("achievable_scope", [])
+        plan.setdefault("dropped_scope", [])
 
     state["schema"] = SCHEMA
     return state

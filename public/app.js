@@ -1,7 +1,7 @@
 /* MentorOS frontend — plain JS, no framework. */
 
 const $ = (id) => document.getElementById(id);
-const views = ["onboarding", "negotiate", "generating", "dashboard", "lesson", "quiz", "result", "skills", "recap", "viva", "project"];
+const views = ["onboarding", "negotiate", "generating", "dashboard", "lesson", "quiz", "result", "skills", "recap", "viva", "project", "plan"];
 
 let state = null;          // slim server state (plan + progress + profile + xp)
 let negotiation = null;    // last /api/negotiate result
@@ -301,7 +301,7 @@ $("goalForm").addEventListener("submit", async (e) => {
   }
   pendingInput = {
     name: $("inName").value.trim(),
-    goal: $("inGoal").value.trim(),
+    goal: $("inGoal").value.trim().slice(0, 2000),
     days: parseInt($("inDays").value, 10),
     hours_per_day: parseFloat($("inHours").value),
     level_notes: $("inLevel").value.trim(),
@@ -360,6 +360,11 @@ $("btnAccept").addEventListener("click", async () => {
         ...pendingInput,
         phases: negotiation.phases,
         mentor_message: negotiation.mentor_message,
+        short_title: negotiation.short_title,
+        // the negotiation rendered these once and dropped them — keep the
+        // receipt for what's in and what got cut
+        achievable_scope: negotiation.achievable_scope || [],
+        dropped_scope: negotiation.dropped_scope || [],
       }),
     });
     loading(false);
@@ -425,20 +430,29 @@ function renderDashboard() {
   const xp = state.xp || 0;
   const lv = levelFromXp(xp);
 
-  $("dashGoal").textContent = plan.goal;
+  // A pasted syllabus is not its own title, and its first 40 chars are actively
+  // misleading (they can be the subjects the student asked to SKIP). Blank
+  // short_title means "unnamed" — say so plainly and let them name it.
+  $("dashGoal").textContent = plan.short_title || "Your plan";
+  $("dashGoal").title = plan.goal || "";
   $("dashDayTitle").textContent = allDone
     ? "Plan complete. Well done."
     : entry.kind === "revision" ? "Revision day"
     : entry.kind === "project" ? "Milestone project"
     : `Day ${entry.day} of ${plan.days}`;
   $("dashCount").textContent = `${doneReal}/${plan.days} days done`;
-  if (lastShownXp !== null && xp > lastShownXp) {
-    animateXpChip($("levelChip"), lastShownXp, xp, lv);
-  } else {
-    $("levelChip").textContent = `LV ${lv} · ${xp} XP`;
+
+  // Topbar FIRST: LV/XP lives there, on every view. The dashboard used to print
+  // a byte-identical copy 200px below it. Build the chip before animating it —
+  // rewriting this innerHTML afterwards would wipe the count-up mid-flight.
+  $("topbarStatus").innerHTML =
+    `<span class="xp-chip">LV ${lv} · ${xp} XP</span>${renderStreakChip()}`;
+  const topChip = document.querySelector("#topbarStatus .xp-chip");
+  if (lastShownXp !== null && xp > lastShownXp && topChip) {
+    animateXpChip(topChip, lastShownXp, xp, lv);
   }
   lastShownXp = xp;
-  $("rankChip").textContent = rankLabel(lv) + " rank";
+
   // career chip only appears once a prior season's XP exists (2nd+ plan) — on a
   // first plan lifetime_xp is 0, so it stays hidden (no duplicate of current XP)
   const career = state.lifetime_xp || 0;
@@ -446,8 +460,6 @@ function renderDashboard() {
   // the streak's full story lives here, where there's width for it
   $("streakChip").textContent = streakDetail();
   $("progressFill").style.width = `${(doneReal / plan.days) * 100}%`;
-  $("topbarStatus").innerHTML =
-    `<span class="xp-chip">LV ${lv} · ${xp} XP</span>${renderStreakChip()}`;
 
   $("todayTitle").textContent = entry ? entry.title : "";
   $("todayObjectives").innerHTML = entry
@@ -699,22 +711,117 @@ $("btnDisableReminders").addEventListener("click", async () => {
   } catch (err) { toast(err.message); }
 });
 
+/* ---------- plan detail ---------- */
+
+function renderPlan() {
+  const plan = state.plan || {};
+  const ord = orderedCurriculum();
+  const doneReal = ord.filter((d) => d.kind !== "revision" && isDone(d.day)).length;
+
+  $("planTitle").textContent = plan.short_title || "Your plan";
+  const started = plan.created_at
+    ? new Date(plan.created_at).toLocaleDateString(undefined, { day: "numeric", month: "short" })
+    : "";
+  $("planMeta").textContent = [
+    started && `Started ${started}`,
+    `${plan.days} days`,
+    `${plan.hours_per_day}h a day`,
+    `${doneReal}/${plan.days} done`,
+  ].filter(Boolean).join(" · ");
+  requestAnimationFrame(() => {
+    $("planProgress").style.width = `${(doneReal / (plan.days || 1)) * 100}%`;
+  });
+
+  const msg = plan.mentor_message || "";
+  $("planAssessCard").style.display = msg ? "" : "none";
+  $("planAssess").textContent = stripMd(msg);
+
+  // phase i spans days sum(days before it)+1 .. +its own — same arithmetic the
+  // curriculum prompt uses to slice the plan
+  let start = 1;
+  $("planPhases").innerHTML = (plan.phases || []).map((p) => {
+    const len = parseInt(p.days, 10) || 0;
+    const end = start + len - 1;
+    const doneHere = ord.filter((d) => d.kind !== "revision" && d.day >= start && d.day <= end && isDone(d.day)).length;
+    const stateTxt = doneHere >= len ? "done" : doneHere > 0 ? `day ${doneHere} of ${len}` : `${len} days`;
+    const cls = doneHere >= len ? "done" : doneHere > 0 ? "current" : "";
+    const row = `<div class="plan-phase ${cls}">
+        <span class="pp-dot"></span>
+        <span class="pp-name">${esc(p.name || "")}</span>
+        <span class="pp-state mono">${esc(stateTxt)}</span>
+        ${p.focus ? `<span class="pp-focus">${esc(p.focus)}</span>` : ""}
+      </div>`;
+    start = end + 1;
+    return row;
+  }).join("");
+
+  // the receipt: what the mentor agreed to cover, and what it told you it cut
+  const inScope = plan.achievable_scope || [];
+  const cut = plan.dropped_scope || [];
+  $("planScope").innerHTML = (inScope.length || cut.length)
+    ? `${inScope.length ? `<p class="label mono list-label">What this covers</p>
+         <ul class="plain-list">${inScope.map((s) => `<li>${esc(s)}</li>`).join("")}</ul>` : ""}
+       ${cut.length ? `<p class="label mono list-label">What I left out</p>
+         <ul class="plain-list muted-list">${cut.map((s) => `<li>${esc(s)}</li>`).join("")}</ul>` : ""}`
+    : "";
+
+  const raw = plan.goal || "";
+  $("planGoalSummary").textContent = `Show the full text you gave me (${raw.length.toLocaleString()} characters)`;
+  $("planGoalRaw").textContent = raw;
+}
+
+/* Long goals are WELCOME — pasting a syllabus produces a better plan, not a
+   worse one. The counter only appears near the cap, and it says so, because
+   silently swallowing 500 characters of someone's syllabus is the worst
+   possible failure here. */
+$("inGoal").addEventListener("input", (e) => {
+  const n = e.target.value.length;
+  $("goalCount").textContent = n > 1200
+    ? `${n.toLocaleString()} / 2000 — long goals are fine, I read all of it.` : "";
+});
+$("inGoal").addEventListener("paste", () => {
+  setTimeout(() => {
+    if ($("inGoal").value.length >= 2000) {
+      toast("That's over 2000 characters, so I kept the first 2000 — check the end of the box.", 7000);
+    }
+  }, 0);
+});
+
+$("dashGoal").addEventListener("click", () => { renderPlan(); show("plan"); });
+$("btnPlanBack").addEventListener("click", () => { renderDashboard(); show("dashboard"); });
+
+/* Name it yourself. A pasted syllabus can't be auto-titled — its first words are
+   often the subjects you asked to skip — and five of your words beat a model's
+   guess, for free. */
+$("btnRenamePlan").addEventListener("click", async () => {
+  const current = (state.plan && state.plan.short_title) || "";
+  const next = prompt("Name this plan (a few words):", current);
+  if (next === null) return;
+  const title = next.trim().slice(0, 40);
+  if (!title) return;
+  try {
+    await api("/api/plan/title", { method: "POST", body: JSON.stringify({ short_title: title }) });
+    state.plan.short_title = title;
+    renderPlan();
+    toast("Renamed.");
+  } catch (err) { toast(err.message); }
+});
+
 /* ---------- skill map ---------- */
 
 function renderSkillMapCard() {
   const dna = state.dna;
-  const dashNote = $("dashNote");
-  if (dna && dna.notes && dna.total_answered >= 3) {
-    dashNote.textContent = "Mentor's note: " + stripMd(dna.notes.split(".")[0]) + ".";
-    dashNote.style.display = "";
-  } else {
-    dashNote.style.display = "none";
-  }
-
+  // The mentor's note used to be its own blue italic line on the dashboard,
+  // directly under the blue goal — two blue blocks sandwiching the title, in an
+  // app whose CSS calls blue "THE one accent". It says the same thing as this
+  // card's subtitle, which was a hardcoded placeholder. One home, no colour.
   const topics = dna ? Object.entries(dna.topics || {}) : [];
-  $("skillMapSub").textContent = topics.length
+  const note = dna && dna.notes && dna.total_answered >= 3
+    ? stripMd(dna.notes.split(".")[0]) + "."
+    : "";
+  $("skillMapSub").textContent = note || (topics.length
     ? `${topics.length} topic${topics.length > 1 ? "s" : ""} tracked · ${Math.round((dna.overall_mastery || 0) * 100)}% overall`
-    : "Finish a checkpoint and your skill map appears here.";
+    : "Finish a checkpoint and your skill map appears here.");
 
   const top = topics.slice().sort((a, b) => b[1].attempts - a[1].attempts).slice(0, 3);
   $("skillMapDots").innerHTML = top.map(([, r]) => `<span class="sdot ${r.band}"></span>`).join("");
@@ -1425,7 +1532,8 @@ function renderLesson(l) {
   const done = state.progress[String(l.day)] && state.progress[String(l.day)].completed;
   $("completeReward").textContent = `+${l.is_checkpoint ? 150 : 100} XP`;
   $("askInput").value = "";
-  $("explorations").innerHTML = (l.explorations || []).map(explorationHtml).join("");
+  // newest first, matching where new answers land (see the ask handler)
+  $("explorations").innerHTML = [...(l.explorations || [])].reverse().map(explorationHtml).join("");
 
   stepIdx = 0;
   renderStep();
@@ -1641,10 +1749,12 @@ $("btnAsk").addEventListener("click", async () => {
       method: "POST",
       body: JSON.stringify({ question, day: openDay }),
     });
-    $("explorations").insertAdjacentHTML("beforeend", explorationHtml(item));
+    // newest FIRST — it sits directly under the composer, so the answer you
+    // just asked for is the one you're looking at, with no scrolling
+    $("explorations").insertAdjacentHTML("afterbegin", explorationHtml(item));
     $("askInput").value = "";
     renderDiagrams($("explorations"));
-    $("explorations").lastElementChild.scrollIntoView({ block: "center", behavior: "smooth" });
+    $("explorations").scrollTop = 0;
   } catch (err) {
     toast(err.message, 6000);
   } finally {
