@@ -368,7 +368,20 @@ def videos_context(videos):
 # promise 6 hours and hand over 45 minutes.
 MINUTES_PER_SECTION = 9      # read it, look at the diagram, do the try-it
 MINUTES_PER_PRACTICE = 14    # a hands-on task
-MINUTES_QUIZ = 10            # the checkpoint
+MINUTES_QUIZ = 10            # legacy flat fallback (old lessons); real quiz scales below
+MINUTES_PER_QUIZ_Q = 2       # read, wager, answer, see feedback
+
+
+def quiz_count_for(mins):
+    """How many quiz questions this day earns. Scales with the day instead of a flat
+    5 — a longer day covers more topics and deserves a longer, harder checkpoint.
+    Floor 6 (never fewer than the old 5), capped 15 so one Gemini call can still emit
+    the whole lesson + quiz under the 16k output limit."""
+    try:
+        mins = max(20, int(mins))
+    except (TypeError, ValueError):
+        mins = 60
+    return max(6, min(15, round(mins / 26)))
 
 
 def structure_for_hours(hours, is_checkpoint=False):
@@ -400,8 +413,13 @@ def structure_for_hours(hours, is_checkpoint=False):
     # lands on the hours the student chose. The owner's rule: watching a video IS
     # studying, so video time is a COUNTED part of the day, not extra piled on top —
     # a "4-hour" day with lots of videos must still be ~4 hours, not 5.5.
+    # Quiz scales with the day now (was a flat 5 questions / 10 min). More topics on a
+    # longer day => a longer, harder checkpoint; its minutes come out of the budget.
+    quiz = quiz_count_for(mins)
+    quiz_mins = quiz * MINUTES_PER_QUIZ_Q
+
     has_video = mins >= 45      # a <45-min day can't spare time for a video
-    usable = mins - MINUTES_QUIZ
+    usable = mins - quiz_mins
 
     # THREE explicit pools (owner: "videos could be more than text if it's more
     # helpful"). Video gets the LARGEST reserve so it CAN exceed the prose block when
@@ -453,10 +471,11 @@ def structure_for_hours(hours, is_checkpoint=False):
     # What this shape can HONESTLY deliver, ≈ the chosen minutes. Above ~6h the
     # section cap binds, so an 8h request really is a ~5.7h lesson — report THAT.
     est = (sections * MINUTES_PER_SECTION + practice * MINUTES_PER_PRACTICE
-           + video_mins + MINUTES_QUIZ)
+           + video_mins + quiz_mins)
     return {"minutes": mins, "est": int(est), "sections": int(sections),
             "video_mins": int(video_mins), "practice_max": int(practice_max),
-            "practice": int(practice), "videos": videos, "blocks": blocks}
+            "practice": int(practice), "videos": videos, "blocks": blocks,
+            "quiz": int(quiz)}
 
 
 def estimate_minutes(lesson, video_seconds=0):
@@ -466,7 +485,8 @@ def estimate_minutes(lesson, video_seconds=0):
     """
     sections = len(lesson.get("sections") or [])
     practice = len(lesson.get("practice") or []) + len(lesson.get("homework") or [])
-    quiz = MINUTES_QUIZ if lesson.get("quiz") else 0
+    # count the REAL number of quiz questions now that it scales (was flat 10 min)
+    quiz = len(lesson.get("quiz") or []) * MINUTES_PER_QUIZ_Q
     return int(sections * MINUTES_PER_SECTION + practice * MINUTES_PER_PRACTICE
                + round(video_seconds / 60) + quiz)
 
@@ -529,7 +549,7 @@ Respond with JSON:
 }}
 Rules: EXACTLY {shape['sections']} sections. Practice items: write BETWEEN {shape['practice']} and {shape['practice_max']} of them — lean toward {shape['practice_max']} when you are adding FEW videos today, toward {shape['practice']} when you are adding MANY, so the day stays full of ACTIVE work whichever medium you lean on. These counts come from the hours the student chose. If it is a checkpoint day, sections should be revision-style (recall prompts, self-test questions) instead of new content.
 Video budget: today has room for up to {shape['videos']} videos and they may be the DAY'S LARGEST medium when the topics are better seen than read — a visual/spatial process (recursion, pointers, tree/graph ops, a physical process), a live IDE/CLI/tool walkthrough, or step-by-step debugging you must SEE. Add a `resource_query` freely on those sections. But do NOT pad: OMIT it for definitional, comparison, syntax, history, or motivation material — those are text-friendly. When a topic doesn't warrant a video, do NOT force one and do NOT leave the day short — add another PRACTICE item instead (that is what the practice range above is for). Never put two video sections back-to-back without a hands-on/try-it step between them, and every section still ends in its own active try-it (watching never replaces doing).
-Quiz rules: exactly 5 questions testing TODAY's topics only — 1 recall, 3 application, 1 code-reading ("what does this print/do") if the goal involves programming, otherwise a 4th application question.
+Quiz rules: EXACTLY {shape['quiz']} questions testing TODAY's topics only. Composition: ~15% recall, ~65% application / multi-step reasoning, ~20% code-reading ("what does this print/do") if the goal involves programming (otherwise more application). BIAS HARD — the majority must require APPLYING or COMBINING today's concepts, not recognising a definition; a student who only skimmed should get them wrong, one who truly understood gets them by reasoning. Spread the questions across DIFFERENT topics/subtopics from today (do not test the same idea twice), and make the later questions harder than the earlier ones.
 
 DISTRACTORS — this is what makes a question worth answering:
 - EVERY wrong option must be the exact answer a student would reach by making ONE specific, nameable reasoning error (an off-by-one, the right rule applied at the wrong step, a confused pair of similar concepts, a half-remembered definition). If you cannot name the error a distractor represents, it is filler — replace it.
@@ -539,4 +559,4 @@ DISTRACTORS — this is what makes a question worth answering:
 - Never "all of the above" or "none of the above".
 - Aim for a question a student who half-learned today's material gets WRONG, and a student who actually understood it gets right by reasoning — not by recognising a phrase from the lesson.
 
-Exactly one correct option. Vary the position of the correct answer across the 5 questions. SCALE difficulty to the PROGRESSION above — later in the plan and for a student doing well, push toward interview-level. NEVER reuse a question the student has already seen; write fresh ones."""
+Exactly one correct option. Vary the position of the correct answer across all {shape['quiz']} questions. SCALE difficulty to the PROGRESSION above — later in the plan and for a student doing well, push toward interview-level. NEVER reuse a question the student has already seen; write fresh ones."""
