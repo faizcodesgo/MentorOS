@@ -56,7 +56,11 @@ h1, h2 { font-family: "Space Grotesk", "Inter", system-ui, sans-serif; letter-sp
 h3, .brand { font-family: "Inter", system-ui, sans-serif; }
 
 /* numbers/stats: same family, tabular figures (no separate mono typeface) */
-.mono { font-variant-numeric: tabular-nums; letter-spacing: 0; }
+/* Figures that must not jitter as they change (XP counting up, scores, timers).
+   `.mono` is the legacy name for the same thing and is applied ~40x, including
+   to prose where it does nothing — new markup uses .tnum. Neither sets a mono
+   FAMILY; the name is historical. */
+.mono, .tnum { font-variant-numeric: tabular-nums; letter-spacing: 0; }
 
 /* keyboard focus is visible everywhere, not just inputs */
 :where(button, a, summary, [role="button"]):focus-visible {
@@ -90,7 +94,6 @@ h3, .brand { font-family: "Inter", system-ui, sans-serif; }
 }
 .topbar-right .xp-chip { color: var(--gold); font-weight: 600; flex: none; }
 .topbar-right .streak-chip { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.topbar-right .muted-chip { color: var(--faint); }
 
 /* ---------- layout ---------- */
 #app { max-width: 720px; margin: 0 auto; padding: var(--s6) var(--s4) 80px; }
@@ -231,12 +234,9 @@ input:focus, textarea:focus { outline: none; border-color: var(--brand); box-sha
 /* wraps, so a long streak line can never push the chips off a narrow phone */
 .level-bar { display: flex; align-items: center; gap: var(--s3); margin: var(--s1) 0 var(--s4); flex-wrap: wrap; }
 .streak-detail { font-size: var(--text-xs); color: var(--muted); }
-.level-chip {
-  font-size: var(--text-xs); letter-spacing: 0.04em; font-weight: 600;
-  color: var(--gold); border: 1px solid rgba(245, 197, 66, 0.4);
-  padding: 3px var(--s3); border-radius: var(--r-full);
-}
-.rank-chip { font-size: var(--text-xs); letter-spacing: 0.04em; color: var(--muted); }
+/* (.level-chip and .rank-chip removed — the level chip was a byte-identical
+   copy of the topbar's, and rank is derivable from the level. Both gone with
+   their DOM in Batch 4a.) */
 
 .progress-track { height: 6px; background: var(--line); border-radius: var(--r-full); overflow: hidden; margin-bottom: var(--s5); position: relative; }
 .progress-fill { height: 100%; background: var(--brand); border-radius: var(--r-full); transition: width 0.4s ease; position: relative; }
@@ -366,8 +366,23 @@ code {
 
 .resources-note { color: var(--muted); font-size: var(--text-sm); margin-bottom: var(--s3); line-height: 1.5; }
 
-/* level chip subtle emphasis when XP changes (no glow) */
-.level-chip.bump { color: var(--gold); }
+/* Emphasis while XP counts up. It used to be `color: gold` on the dashboard's
+   level chip — but animateXpChip now targets the TOPBAR chip, which is ALREADY
+   gold, so that was a no-op. A brief lift reads on any colour, and transform is
+   the one property we're happy animating. */
+/* A one-shot ANIMATION, not a transition: animateXpChip adds this class and
+   never removes it (the remove -> void offsetWidth -> add dance is the
+   restart-the-animation idiom). A transition would leave the chip permanently
+   enlarged; a keyframe pops once and settles back. */
+.bump {
+  display: inline-block;
+  animation: bumpPop 0.32s ease;
+}
+@keyframes bumpPop {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
 
 /* toast — quiet, bottom, no bounce */
 .toast { animation: toastIn 0.22s ease both; }

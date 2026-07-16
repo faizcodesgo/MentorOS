@@ -348,11 +348,23 @@ def structure_for_hours(hours, is_checkpoint=False):
     search costs 100 units of a 10,000/day YouTube quota shared by the WHOLE
     project. A lesson is not a playlist.
     """
-    mins = max(20, int(round(float(hours) * 60)))
+    # None-safe: this runs inside storage._migrate, and a migration that throws
+    # means the app won't load AT ALL. `.get(k, 1)` only defaults on a MISSING
+    # key, not a null one, so a plan carrying hours_per_day: null would have
+    # bricked every request.
+    try:
+        hours = float(hours)
+    except (TypeError, ValueError):
+        hours = 1.0
+    mins = max(20, int(round(hours * 60)))
     if is_checkpoint:
         mins = int(mins * 0.6)          # checkpoint days are lighter by design
 
-    videos = 1 if mins < 90 else 2 if mins < 210 else 3 if mins < 330 else 4
+    # A short day can't afford a video: one explainer is ~14 min, which is half
+    # of a 30-minute session. Without this the floors alone made a 30-min day
+    # cost ~58 min — the same overstatement this function exists to kill, at the
+    # other end of the range.
+    videos = 0 if mins < 45 else 1 if mins < 90 else 2 if mins < 210 else 3 if mins < 330 else 4
     video_mins = min(int(mins * 0.25), videos * 14)   # cap video at ~1/4 of the day
 
     # Reading is capped at ~45% of the day and by what one Gemini call can
@@ -361,9 +373,14 @@ def structure_for_hours(hours, is_checkpoint=False):
     # hours is not six hours of prose, it's a couple of hours of input and four
     # of doing. Deriving practice from the leftover (rather than a fixed ratio)
     # is what stops a 6h day quietly becoming a 5h day.
-    sections = max(3, min(12, round((mins * 0.45) / MINUTES_PER_SECTION)))
+    # floor of 1, not 2: a ~20-minute checkpoint is one recall section plus the
+    # quiz, and forcing a second section made the card promise 28 min for an
+    # 18-min day. Only bites below ~27 min; every real size is unaffected.
+    sections = max(1, min(12, round((mins * 0.45) / MINUTES_PER_SECTION)))
     leftover = mins - video_mins - MINUTES_QUIZ - (sections * MINUTES_PER_SECTION)
-    practice = max(1, min(12, round(leftover / MINUTES_PER_PRACTICE)))
+    # a day under an hour may legitimately carry no separate practice item —
+    # the sections' own try-its are the practice at that size
+    practice = max(0 if mins < 60 else 1, min(12, round(leftover / MINUTES_PER_PRACTICE)))
 
     # A block is a sitting: ~75 minutes before a real break.
     blocks = max(1, min(5, round(mins / 75)))

@@ -1138,12 +1138,14 @@ def explain():
     except Exception:
         result = {"whats_good": "Thanks for putting it in your own words.",
                   "whats_missing": "I couldn't fully check it this time — compare yours to the lesson summary and see what you'd add."}
-    # once per day per concept — this used to pay +20 for any text, every time
+    # Once per LESSON-day, ever — not per calendar day (contrast warm-up/focus,
+    # which are daily). Re-opening an old recap shouldn't pay again; this used to
+    # award +20 for any text, on every single call.
     awarded = state.setdefault("awarded", {})
     key = f"explain:{day}"
     gained = 0 if awarded.get(key) else 20
     if gained:
-        awarded[key] = _today()
+        awarded[key] = _today()   # value is for debugging; the guard is presence
         state["xp"] = state.get("xp", 0) + gained
     storage.save_state(state)
     return jsonify({"whats_good": result.get("whats_good", ""),
