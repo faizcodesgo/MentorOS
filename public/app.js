@@ -555,6 +555,14 @@ function renderDashboard() {
   $("streakChip").textContent = streakDetail();
   $("progressFill").style.width = `${(doneReal / plan.days) * 100}%`;
 
+  // XP to the next level — the plan strip's motivator. Same math as the result
+  // screen (xpForLevel is the exact inverse of levelFromXp) so the meter can never
+  // disagree with the LV shown in the topbar.
+  const lvFloor = xpForLevel(lv), lvCeil = xpForLevel(lv + 1);
+  const span = Math.max(1, lvCeil - lvFloor);
+  $("xpToNext").textContent = `${Math.max(0, lvCeil - xp)} XP to LV ${lv + 1}`;
+  $("xpFill").style.width = `${Math.min(100, Math.max(0, ((xp - lvFloor) / span) * 100))}%`;
+
   $("todayTitle").textContent = entry ? entry.title : "";
   $("todayObjectives").innerHTML = entry
     ? (entry.objectives || []).map((o) => `<li>${esc(o)}</li>`).join("")

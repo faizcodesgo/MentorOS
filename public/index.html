@@ -185,15 +185,24 @@
            meant for 2-3 word labels — fed the learner's raw goal. With a pasted
            syllabus that rendered ~530px of bold blue text above the title and
            pushed the only button that matters below the fold. -->
-      <div class="dash-head">
-        <div class="dash-head-main">
-          <button class="dash-goal" id="dashGoal"></button>
-          <h1 id="dashDayTitle"></h1>
-        </div>
-        <div class="dash-stat mono" id="dashCount"></div>
-      </div>
+      <button class="dash-goal" id="dashGoal"></button>
 
-      <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+      <!-- Plan strip: where am I, how far through the plan, and how close to the
+           next level — the three "momentum" signals, merged into one block above
+           the Today card. The day title used to be an <h1> competing with the
+           Today card's own heading; it's a quiet label here. XP-to-next is the new
+           motivator (LV·XP itself lives in the topbar, not duplicated here). -->
+      <div class="plan-strip">
+        <div class="plan-strip-head">
+          <span class="ps-day" id="dashDayTitle"></span>
+          <span class="ps-count mono" id="dashCount"></span>
+        </div>
+        <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+        <div class="plan-strip-xp">
+          <span class="ps-xp mono" id="xpToNext"></span>
+          <div class="xp-track"><div class="xp-fill" id="xpFill"></div></div>
+        </div>
+      </div>
 
       <!-- Today is the whole point of the screen, so it comes before anything
            reflective. It used to be the 9th element, below the fold on a phone. -->

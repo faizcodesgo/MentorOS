@@ -213,13 +213,21 @@ input:focus, textarea:focus { outline: none; border-color: var(--brand); box-sha
 .gen-actions { display: flex; gap: var(--s3); justify-content: center; margin-top: var(--s4); flex-wrap: wrap; }
 
 /* ---------- dashboard ---------- */
-.dash-head { display: flex; justify-content: space-between; align-items: flex-end; gap: var(--s4); margin: var(--s5) 0 var(--s2); }
-/* REQUIRED for the goal line's ellipsis. Flex items default to min-width:auto,
-   so without this the button refuses to shrink, text-overflow never fires, and
-   .dash-stat (white-space:nowrap) gets crushed instead. Looks fine on a laptop,
-   breaks on a 360px phone. */
-.dash-head-main { min-width: 0; flex: 1 1 auto; }
-.dash-stat { font-size: var(--text-sm); color: var(--muted); white-space: nowrap; flex: none; }
+/* Plan strip: the three momentum signals — where am I (day) / how far through the
+   plan / how close to the next level — merged into one block above the Today card.
+   The day title used to be an <h1> competing with the Today card's heading; here
+   it's a quiet label, so the Today card clearly wins the eye. */
+.plan-strip { margin: var(--s4) 0; }
+.plan-strip-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s3); margin-bottom: var(--s2); }
+.ps-day { font-size: var(--text-md); font-weight: 600; color: var(--ink); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ps-count { font-size: var(--text-sm); color: var(--muted); white-space: nowrap; flex: none; }
+.plan-strip .progress-track { margin-bottom: 0; }
+/* XP-to-next meter: the motivator. Thinner (4px) than the days bar (6px) so the two
+   read as a hierarchy — plan progress first, level progress as the quieter nudge. */
+.plan-strip-xp { display: flex; align-items: center; gap: var(--s3); margin-top: var(--s2); }
+.ps-xp { font-size: var(--text-xs); color: var(--muted); white-space: nowrap; flex: none; }
+.xp-track { flex: 1 1 auto; height: 4px; background: var(--line); border-radius: var(--r-full); overflow: hidden; }
+.xp-fill { height: 100%; background: var(--brand); border-radius: var(--r-full); transition: width 0.4s ease; }
 
 /* The goal line. Muted, ONE line, tappable -> opens the plan detail.
    It was `.kicker` — 12px semibold in THE accent colour — holding whatever the
@@ -942,7 +950,6 @@ body.study-mode #app { padding-top: 60px; }
   .row { flex-direction: column; gap: 0; }
   .scope-grid { grid-template-columns: 1fr; }
   .class-grid { grid-template-columns: 1fr; }
-  .dash-head { flex-direction: column; align-items: flex-start; }
   .actions .btn { width: 100%; }
 }
 
