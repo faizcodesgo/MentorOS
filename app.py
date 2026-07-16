@@ -937,6 +937,20 @@ def ask():
     if plan and day is not None:
         entry = next((d for d in plan["curriculum"] if d["day"] == day), None)
 
+    # Resolve the exact part of the lesson the student is looking at, from OUR
+    # cached copy — so a reference like "that try-it-now" has a concrete thing
+    # to point at. We take only the section identity from the client, never its
+    # content. `section` is the index within lesson["sections"]; step_kind lets
+    # us name a non-section step (practice/summary/intro) too.
+    section = None
+    lesson = state["lessons"].get(str(day)) if day is not None else None
+    sec_i = body.get("section")
+    if lesson and isinstance(sec_i, int):
+        secs = lesson.get("sections") or []
+        if 0 <= sec_i < len(secs):
+            section = secs[sec_i]
+    focus = prompts.ask_focus(lesson, section, body.get("step_kind"))
+
     profile = state["profile"]
     name = (profile.get("name") or "").strip()
     profile_text = (
@@ -947,7 +961,7 @@ def ask():
     )
     result = gemini.ask_json(
         prompts.MENTOR_PERSONA,
-        prompts.ask_prompt(prompts.goal_label(plan), entry, profile_text, question),
+        prompts.ask_prompt(prompts.goal_label(plan), entry, profile_text, question, focus=focus),
     )
     answer = result.get("answer", "") if isinstance(result, dict) else ""
     if not answer:
@@ -1415,6 +1429,21 @@ def reset():
     saved_at = storage.snapshot("reset")   # recoverable via /api/restore
     storage.save_state(storage._empty_state())
     return jsonify({"ok": True, "backup_saved_at": saved_at})
+
+
+@app.post("/api/pref")
+def set_pref():
+    """Store one learner UI preference. Small keys only (study-mode opt-in etc.);
+    not a general KV store."""
+    body = request.get_json(force=True)
+    key = (body.get("key") or "").strip()[:40]
+    allowed = {"study_auto"}
+    if key not in allowed:
+        return jsonify({"error": "unknown preference"}), 400
+    state = storage.load_state()
+    state["profile"].setdefault("preferences", {})[key] = body.get("value")
+    storage.save_state(state)
+    return jsonify({"ok": True})
 
 
 @app.post("/api/plan/title")

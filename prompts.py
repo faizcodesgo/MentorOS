@@ -287,22 +287,58 @@ Respond with JSON:
 }}"""
 
 
-def ask_prompt(goal, day_entry, learner_profile, question):
+def ask_focus(lesson, section, step_kind):
+    """The exact thing on the student's screen, so 'explain that' has a referent.
+
+    Reads from the SERVER's cached lesson, never from the client. Kept tight —
+    the whole section explanation would drown the question — but includes the
+    try-it verbatim, because "the try-it-now you gave me" is the canonical case
+    this exists for.
+    """
+    if not lesson:
+        return ""
+    parts = []
+    headings = [s.get("heading", "") for s in (lesson.get("sections") or []) if s.get("heading")]
+    if headings:
+        parts.append("Today's sections, in order: " + "; ".join(headings) + ".")
+    if section:
+        parts.append(f'The student is reading the section "{section.get("heading", "")}".')
+        expl = (section.get("explanation") or "").strip()
+        if expl:
+            parts.append("What that section teaches: " + expl[:1200])
+        if section.get("try_it"):
+            parts.append(f'The "try it now" exercise on this section (VERBATIM — this is '
+                         f'what they mean if they say "the try-it-now you gave me"): '
+                         f'"{section["try_it"]}"')
+        if section.get("worked_example"):
+            parts.append("A worked example is shown here: " + section["worked_example"][:600])
+    elif step_kind == "practice":
+        tasks = (lesson.get("practice") or []) + (lesson.get("homework") or [])
+        if tasks:
+            parts.append("The student is on the practice step. The tasks shown: "
+                         + " | ".join(str(t) for t in tasks[:8]))
+    elif step_kind == "summary":
+        if lesson.get("summary"):
+            parts.append("The student is on the summary step: " + lesson["summary"])
+    return "\n".join(parts)
+
+
+def ask_prompt(goal, day_entry, learner_profile, question, focus=""):
     context = "The student is not inside a specific lesson right now."
     if day_entry:
         context = (f"The student is on Day {day_entry['day']}: \"{day_entry['title']}\" "
                    f"(topics: {day_entry.get('topics', [])}).")
+    on_screen = f"\nWHAT'S ON THEIR SCREEN RIGHT NOW:\n{focus}\n" if focus else ""
     return f"""The student paused their study session to ask you a curious question. This is a GOOD thing — curiosity is how real learning happens. Answer it properly, even if it goes beyond today's syllabus.
 
 STUDENT'S GOAL: {goal or 'not set'}
-{context}
-
+{context}{on_screen}
 LEARNER PROFILE: {learner_profile}
 
 THEIR QUESTION:
 {question}
 
-Answer like a great mentor: direct, clear, from first principles, with an analogy if it helps. If the question connects to their goal or today's lesson, point out the connection. If it's completely unrelated, answer it anyway and gently bridge back. Keep it SHORT and focused — 2 to 4 short paragraphs, no filler.
+Answer like a great mentor: direct, clear, from first principles, with an analogy if it helps. If they refer to "this", "that", "the try it now", "the example", or "what you just showed me", they mean WHAT'S ON THEIR SCREEN above — answer about THAT specific thing, don't ask them to clarify. If the question connects to their goal or today's lesson, point out the connection. If it's completely unrelated, answer it anyway and gently bridge back. Keep it SHORT and focused — 2 to 4 short paragraphs, no filler.
 
 Respond with JSON:
 {{
@@ -450,6 +486,7 @@ Respond with JSON:
       "worked_example": "OPTIONAL — for an APPLIED / problem-solving / coding section, a COMPLETE step-by-step worked solution to a concrete example, so the student studies the full solution BEFORE trying their own (worked-example effect). Number the steps. Omit for purely conceptual sections.",
       "key_points": ["the 2-4 things to remember", "..."],
       "try_it": "a small concrete exercise the student should do right now (specific, not vague)",
+      "try_it_answer": "the answer to try_it, so a student stuck ALONE isn't stranded. Two short parts separated by a blank line: first HOW to approach it (the idea, one sentence — often enough on its own), then the actual answer/solution with the ONE reason it's right. Keep it tight, 2-4 sentences total. This is revealed only AFTER they commit their own attempt, so don't hedge.",
       {INTERACTION_RULES},
       {VISUAL_RULES}
     }}

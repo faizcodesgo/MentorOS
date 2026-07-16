@@ -527,6 +527,20 @@
     </div>
   </div>
 
+  <!-- Asked ONCE, the first time a lesson opens. After this it just starts, with
+       a visible End every time. -->
+  <div id="studyOptSheet" class="modal-scrim hidden">
+    <div class="modal">
+      <p class="mono kicker" id="studyOptTitle">Study mode</p>
+      <h2>Start a study session automatically?</h2>
+      <p class="sub">When you open a lesson, MentorOS can start a quiet study timer and keep your screen on. There's always a one-tap way to turn it off, and you can block distracting apps from your phone's own Focus mode.</p>
+      <div class="focus-actions">
+        <button class="btn primary" id="btnStudyOptYes">Yes, start it for me</button>
+        <button class="btn ghost" id="btnStudyOptNo">No, I'll start it myself</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Study mode: a slim timer bar pinned over the live lesson (no takeover) -->
   <div id="studyBar" class="study-bar hidden">
     <div class="study-bar-row">

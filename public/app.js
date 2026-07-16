@@ -1306,9 +1306,10 @@ $("btnOpenFocusMode") && $("btnOpenFocusMode").addEventListener("click", () => {
 
 function startStudyTick() {
   study.timer = setInterval(() => {
-    study.left--; study.elapsed++;
+    study.elapsed++;
+    if (!study.openEnded) study.left--;
     tickStudy();
-    if (study.left <= 0) reachedZero();
+    if (!study.openEnded && study.left <= 0) reachedZero();
   }, 1000);
 }
 
@@ -1333,6 +1334,13 @@ $("btnFocusStart").addEventListener("click", async () => {
 });
 
 function tickStudy() {
+  if (study.openEnded) {
+    // count UP, no bar to fill — the session runs until the student ends it
+    const m = Math.floor(study.elapsed / 60), s = study.elapsed % 60;
+    $("studyTime").textContent = `${m}:${String(s).padStart(2, "0")}`;
+    $("studyBarFill").style.width = "0%";
+    return;
+  }
   const left = Math.max(0, study.left);
   const m = Math.floor(left / 60), s = left % 60;
   $("studyTime").textContent = `${m}:${String(s).padStart(2, "0")}`;
@@ -1412,11 +1420,58 @@ async function openLesson(day, opts = {}) {
     const lesson = await api("/api/lesson/" + day);
     renderLesson(lesson);
     show("lesson");
+    maybeAutoStudy();
   } catch (err) {
     toast(err.message, 6000);
   } finally {
     loading(false);
   }
+}
+
+/* Study mode when you're actually studying — asked ONCE, then it just starts,
+   always with a one-tap way off. Never on a completed day being reviewed. */
+function maybeAutoStudy() {
+  if (lessonReviewMode || study) return;
+  const pref = (state.profile && state.profile.preferences) || {};
+  if (pref.study_auto === true) { startAutoStudy(); return; }
+  if (pref.study_auto === false) return;              // asked before, declined
+  // first lesson ever — ask once, non-blocking
+  askStudyOptIn();
+}
+
+async function setStudyPref(on) {
+  state.profile = state.profile || {};
+  state.profile.preferences = state.profile.preferences || {};
+  state.profile.preferences.study_auto = on;
+  try { await api("/api/pref", { method: "POST", body: JSON.stringify({ key: "study_auto", value: on }) }); } catch {}
+}
+
+function askStudyOptIn() {
+  $("studyOptTitle") && ($("studyOptSheet").classList.remove("hidden"));
+}
+$("btnStudyOptYes") && $("btnStudyOptYes").addEventListener("click", async () => {
+  $("studyOptSheet").classList.add("hidden");
+  await setStudyPref(true);
+  startAutoStudy();
+});
+$("btnStudyOptNo") && $("btnStudyOptNo").addEventListener("click", async () => {
+  $("studyOptSheet").classList.add("hidden");
+  await setStudyPref(false);
+});
+
+/* A lightweight session with no pre-commit sheet: it just runs, open-ended, with
+   the same visible bar and one-tap End. The full "commit an intent + pick a
+   length" sheet is still there behind the Study mode button for when you want it. */
+function startAutoStudy() {
+  if (study || $("view-lesson").classList.contains("hidden")) return;
+  study = { total: 0, left: -1, elapsed: 0, timer: null, goal: "", openEnded: true };
+  $("studyGoal").textContent = "";
+  $("studyDone").classList.add("hidden");
+  $("studyBar").classList.remove("hidden");
+  document.body.classList.add("study-mode");
+  tickStudy();
+  requestWakeLock();
+  startStudyTick();
 }
 
 /* allow only safe, self-contained SVG from the model */
@@ -1635,8 +1690,22 @@ function sectionHtml(l, s, i) {
       ${s.worked_example ? `<div class="worked"><p class="label">Worked example</p><div class="worked-body">${fmt(s.worked_example)}</div></div>` : ""}
       <ul class="keypoints">${(s.key_points || []).map((k) => `<li>${fmt(k)}</li>`).join("")}</ul>
       ${sectionVideoHtml(s)}
-      <div class="tryit">${fmt(s.try_it)}</div>
+      <div class="tryit">${fmt(s.try_it)}${tryItAnswerHtml(s, i)}</div>
       ${s.interaction && validInteraction(s.interaction) ? `<div class="interaction-slot" data-slot="${i}"></div>` : ""}
+    </div>`;
+}
+
+/* The try-it answer, revealed only AFTER a committed attempt. A one-line "your
+   attempt" box gates it — the friction isn't security, it's a cue: an
+   unsuccessful attempt still improves how well the answer sticks, and a bare
+   "show answer" button just gets reflex-tapped. Studying alone with no answer
+   key is the worse failure — you practise the mistake and never find out. */
+function tryItAnswerHtml(s, i) {
+  if (!s.try_it_answer) return "";
+  return `<div class="tryit-answer" data-i="${i}">
+      <input class="tryit-input" type="text" placeholder="Your answer — even a guess" aria-label="Your attempt" />
+      <button class="btn ghost small tryit-reveal" type="button">Check it</button>
+      <div class="tryit-solution hidden">${fmt(s.try_it_answer)}</div>
     </div>`;
 }
 
@@ -1695,6 +1764,19 @@ function renderStep() {
     if (step.widget) {
       const slot = cont.querySelector(`.interaction-slot[data-slot="${step.i}"]`);
       if (slot) slot.appendChild(buildInteraction(step.widget));
+    }
+    const ta = cont.querySelector(".tryit-answer");
+    if (ta) {
+      const reveal = () => {
+        ta.querySelector(".tryit-solution").classList.remove("hidden");
+        ta.querySelector(".tryit-reveal").classList.add("hidden");
+        ta.querySelector(".tryit-input").disabled = true;
+      };
+      ta.querySelector(".tryit-reveal").addEventListener("click", reveal);
+      // Enter in the attempt box also reveals — committing an answer IS the gate
+      ta.querySelector(".tryit-input").addEventListener("keydown", (e) => {
+        if (e.key === "Enter") { e.preventDefault(); reveal(); }
+      });
     }
     const btn = cont.querySelector(".bookmark-btn");
     if (btn) btn.addEventListener("click", async () => {
@@ -1825,9 +1907,14 @@ $("btnAsk").addEventListener("click", async () => {
   $("btnAsk").disabled = true;
   loadingCycle(["Working on your answer…"]);
   try {
+    // Tell the server WHICH part of the lesson is on screen, so "explain that
+    // try-it-now you gave me" has something to resolve "that" against. We send
+    // identity (the section index), not content — the server reads the section
+    // from its own cached lesson.
+    const step = lessonSteps[stepIdx] || {};
     const item = await api("/api/ask", {
       method: "POST",
-      body: JSON.stringify({ question, day: openDay }),
+      body: JSON.stringify({ question, day: openDay, step_kind: step.kind, section: step.i }),
     });
     // newest FIRST — it sits directly under the composer, so the answer you
     // just asked for is the one you're looking at, with no scrolling
