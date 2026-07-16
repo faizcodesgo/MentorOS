@@ -1,6 +1,9 @@
 .env
 mentoros_data.json
 mentoros_data.backup.json
+# database dumps from backup.py — your whole plan in one file. If one ever lands
+# inside the repo folder it must NOT reach the public GitHub repo.
+mentoros-backup-*.json
 __pycache__/
 *.pyc
 .claude/

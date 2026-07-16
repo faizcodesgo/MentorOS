@@ -294,6 +294,28 @@ def user_count():
 LEGACY_OWNER = os.environ.get("LEGACY_OWNER", "faiz").strip().lower()
 
 
+def legacy_waiting():
+    """Is there a pre-accounts plan still waiting for its owner to sign up?
+
+    Used only to put a line on the sign-in screen. Without it the owner opens the
+    app after the accounts deploy, sees a signup form and an empty dashboard, and
+    concludes his 50 days are gone — which is exactly when people press
+    destructive buttons.
+    """
+    try:
+        if get_user(LEGACY_OWNER):
+            return False              # already claimed
+        if using_mongo():
+            doc = _collection().find_one({"_id": LEGACY_ID}, {"state.plan.days": 1})
+            return bool(((doc or {}).get("state") or {}).get("plan"))
+        if os.path.exists(LEGACY_FILE):
+            with open(LEGACY_FILE, encoding="utf-8") as f:
+                return bool(json.load(f).get("plan"))
+    except Exception:
+        pass
+    return False
+
+
 def claim_legacy_state(uid):
     """Give the pre-accounts document to its rightful owner, once.
 

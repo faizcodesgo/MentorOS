@@ -222,11 +222,13 @@ function escAttr(s) {
 /* ---------- accounts ---------- */
 
 let authMode = "signup";
+let legacyWaiting = false;
 
-function renderAuth(anyAccounts) {
+function renderAuth(anyAccounts, legacy) {
   // First run on a fresh install: offer signup. Once accounts exist, the common
   // case is someone coming back, so lead with login.
   authMode = anyAccounts ? "login" : "signup";
+  legacyWaiting = !!legacy;
   paintAuth();
   show("auth");
 }
@@ -237,6 +239,9 @@ function paintAuth() {
   $("authSub").textContent = signup
     ? "Your plan, your progress, your streak — kept to you."
     : "Sign in to pick up where you left off.";
+  // An unclaimed plan from before accounts existed. Without this line the owner
+  // sees a signup form and an empty app and assumes his 50 days are gone.
+  $("authLegacy").classList.toggle("hidden", !(legacyWaiting && signup));
   $("btnAuth").textContent = signup ? "Create account" : "Sign in";
   $("authNote").style.display = signup ? "" : "none";
   $("btnAuthSwitch").textContent = signup ? "I already have an account" : "Make a new account";
@@ -286,9 +291,9 @@ async function boot() {
   } catch (e) {
     // 401 isn't an error worth shouting about — it just means "sign in first"
     if (e.status === 401) {
-      let any = false;
-      try { any = (await api("/api/auth/me")).any_accounts; } catch {}
-      return renderAuth(any);
+      let me = {};
+      try { me = await api("/api/auth/me"); } catch {}
+      return renderAuth(me.any_accounts, me.legacy_waiting);
     }
     toast("Can't reach the server: " + e.message);
     return;

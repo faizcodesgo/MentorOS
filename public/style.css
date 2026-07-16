@@ -532,6 +532,11 @@ body.study-mode #app { padding-top: 60px; }
 .auth-card .btn.primary { width: 100%; margin-top: var(--s2); }
 #btnAuthSwitch { width: 100%; margin-top: var(--s3); }
 .auth-note { font-size: var(--text-xs); color: var(--faint); margin-bottom: var(--s4); line-height: 1.5; }
+.auth-legacy {
+  font-size: var(--text-sm); color: var(--ink); line-height: 1.6;
+  background: var(--panel-2); border: 1px solid var(--line);
+  border-radius: var(--r2); padding: var(--s3) var(--s4); margin-bottom: var(--s5);
+}
 
 /* ---------- plan detail ---------- */
 .plan-assess { color: var(--ink); font-size: var(--text-md); line-height: 1.6; max-width: 62ch; }

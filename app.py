@@ -80,13 +80,18 @@ def _norm_name(name):
 @app.get("/api/auth/me")
 def auth_me():
     uid = session.get("uid")
-    if not uid:
-        return jsonify({"signed_in": False, "any_accounts": storage.user_count() > 0})
-    user = storage.get_user(uid)
-    if not user:                      # account deleted underneath a live cookie
-        session.clear()
-        return jsonify({"signed_in": False, "any_accounts": storage.user_count() > 0})
-    return jsonify({"signed_in": True, "name": user.get("name", uid)})
+    if not uid or not storage.get_user(uid):
+        if uid:
+            session.clear()           # account gone from under a live cookie
+        return jsonify({
+            "signed_in": False,
+            "any_accounts": storage.user_count() > 0,
+            # An in-progress plan predating accounts, still unclaimed. Say so on
+            # the sign-in screen: otherwise the owner opens the app, sees a
+            # signup form and no plan, and reasonably concludes it's all gone.
+            "legacy_waiting": storage.legacy_waiting(),
+        })
+    return jsonify({"signed_in": True, "name": storage.get_user(uid).get("name", uid)})
 
 
 @app.post("/api/auth/signup")
