@@ -12,8 +12,8 @@ folder alongside it._
 >    is already safe on GitHub `main`, so a re-clone restores everything except #1 and #2.
 >
 > As of this session the git working tree is **CLEAN and pushed** (latest feature
-> commit `dea7ead` "Video time is part of the day's budget"), so there is no
-> uncommitted code to lose. Only #1 and #2 above live outside git.
+> commit `0135231` "dashboard plan strip + XP-to-next"), so there is no uncommitted
+> code to lose. Only #1 and #2 above live outside git.
 
 ---
 
@@ -529,14 +529,22 @@ learning-science, product/UX — all converged.)
   `C:/Users/user/Desktop/MentorOS/app.py` so `preview_start` (name `mentoros`, port
   5000) works. `MentorOS/.claude/launch.json` also exists (name `mentoros-audit`).
 
-### NEXT UP (owner's chosen order was "videos first, then the design pass")
-Batch 4 premium design pass. **Correction to §8:** the dead `.btn { transition:
-background }` press animation was ALREADY fixed in `938c70b` (the `.btn` rule now
-carries no transition shorthand — see the comment at style.css ~161). Genuinely
-remaining Batch 4 items:
-- **Dashboard reorder** (motivation-first): greeting → goal line → plan strip
-  (progress + XP-to-next) → **Today card above the fold**; cut the LV/XP/streak the
-  topbar already shows. (Highest impact; taste-dependent — get owner's eye on it.)
+### Batch 4 progress
+**Correction to §8:** the dead `.btn { transition: background }` press animation was
+ALREADY fixed in `938c70b` (the `.btn` rule carries no transition shorthand — see the
+comment at style.css ~161). Don't redo it.
+
+**DONE — dashboard plan strip + XP-to-next (`0135231`).** Merged the day title, day
+count, and days-progress bar into one `.plan-strip` above the Today card, and added
+the missing **XP-to-next-level meter** (the council's motivator). The day title was an
+`<h1>` competing with the Today card's heading → now a quiet `<span>`. LV/XP is NOT
+duplicated (topbar only); the streak stays split (topbar compact / dashboard detail),
+already reconciled in code — left as-is. Removed dead `.dash-head*` rules.
+**Verified in-browser (375×812): order greeting→goal→plan strip→Today card; Today card
+top 256px and its "Start today" button fully above the fold.** (Verify design changes
+via `read_page`/`javascript_tool` positions — pixel screenshots time out here.)
+
+**Genuinely remaining Batch 4 items:**
 - **Accent discipline**: blue only for actionable/moving; drop decorative blue card
   left-borders; kickers → `--faint`.
 - **Card hierarchy** via size/contrast/elevation (reuse `.card-primary`).
