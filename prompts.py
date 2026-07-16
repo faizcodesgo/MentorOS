@@ -204,7 +204,7 @@ INTERACTION_RULES = """"interaction": OPTIONAL — omit for MOST sections. Acros
 Both grade by option index. Keep the explanation genuinely teaching. Max 1 per lesson."""
 
 
-VISUAL_RULES = """"visual": Include a labeled diagram whenever the section is SPATIAL, STRUCTURAL, ANATOMICAL, or a PROCESS/SEQUENCE — for these a picture is REQUIRED, not optional (anatomy: label the parts; process: show the steps/flow; structure: show the layout; comparison: show it side-by-side; timelines, memory layouts, call stacks, trees/graphs). For purely verbal/abstract sections (definitions, history, motivation, opinion) OMIT it — a diagram there is clutter. Rule of thumb: if a good textbook would print a figure on this section, include one. Aim for 1-2 strong diagrams in a typical lesson (not one on every section). Object: {"type": "svg", "code": "..."} — "svg" is the ONLY supported type; anything else is discarded.
+VISUAL_RULES = """"visual": Include a labeled diagram whenever the section is SPATIAL, STRUCTURAL, ANATOMICAL, or a PROCESS/SEQUENCE — for these a picture is REQUIRED, not optional (anatomy: label the parts; process: show the steps/flow; structure: show the layout; comparison: show it side-by-side; timelines, memory layouts, call stacks, trees/graphs). For purely verbal/abstract sections (definitions, history, motivation, opinion) OMIT it — a diagram there is clutter. Rule of thumb: if a good textbook would print a figure on this section, include one. Include a diagram on EVERY section where a picture genuinely aids understanding — in a visual lesson that may be most of the sections, and that is correct; there is no upper limit on how many a lesson may have. The only test is the textbook-figure one above: if yes, draw it; if the section is purely verbal/abstract (definition, history, motivation, opinion), omit it. Never skip a warranted diagram just to keep the count low, and never manufacture one for a section that does not call for it. Object: {"type": "svg", "code": "..."} — "svg" is the ONLY supported type; anything else is discarded.
 SVG rules: start with <svg viewBox="0 0 600 380" xmlns="http://www.w3.org/2000/svg"> (height 240-450 as needed), TRANSPARENT background (no full-size background rect), colors ONLY from this palette: #4f8cff (blue, primary), #8b5cf6 (purple, secondary), #facc15 (gold, highlights), #22c55e (green, success), #e6edf3 (text), #8b949e (muted text/arrows), #1c2330 (box fills) with #283042 (box strokes). Use font-family="Inter, sans-serif", rounded rects (rx="8"), max ~50 elements. No scripts, no images, no links.
 
 TEXT MUST FIT — this is the #1 way these diagrams break, because you cannot see the rendered result. Follow the arithmetic, do not eyeball it:
@@ -396,13 +396,6 @@ def structure_for_hours(hours, is_checkpoint=False):
     if is_checkpoint:
         mins = int(mins * 0.6)          # checkpoint days are lighter by design
 
-    # A short day can't afford a video: one explainer is ~14 min, which is half
-    # of a 30-minute session. Without this the floors alone made a 30-min day
-    # cost ~58 min — the same overstatement this function exists to kill, at the
-    # other end of the range.
-    videos = 0 if mins < 45 else 1 if mins < 90 else 2 if mins < 210 else 3 if mins < 330 else 4
-    video_mins = min(int(mins * 0.25), videos * 14)   # cap video at ~1/4 of the day
-
     # Reading is capped at ~45% of the day and by what one Gemini call can
     # actually produce (~12 sections before the 16k output cap bites). Practice
     # then FILLS the rest — which is the honest shape of a long study day: six
@@ -412,7 +405,22 @@ def structure_for_hours(hours, is_checkpoint=False):
     # floor of 1, not 2: a ~20-minute checkpoint is one recall section plus the
     # quiz, and forcing a second section made the card promise 28 min for an
     # 18-min day. Only bites below ~27 min; every real size is unaffected.
+    # sections is computed FIRST now, because the video ceiling scales off it.
     sections = max(1, min(12, round((mins * 0.45) / MINUTES_PER_SECTION)))
+
+    # Videos are per-section, optional SUPPLEMENTS now — not a rationed few. Allow
+    # up to one per section (hard-capped at 10 for YouTube quota safety: each search
+    # is ~100 of 10,000 units/day). This is a CEILING, not a quota to fill — the
+    # prompt still asks the model for a video only where it genuinely helps, so a
+    # section on a pure definition won't get one. A short day still can't afford one
+    # (one explainer ~14 min = half a 30-min session), hence the 45-min floor.
+    videos = 0 if mins < 45 else min(int(sections), 10)
+    # Video TIME is DECOUPLED from the count. Videos are additive material a student
+    # samples, not minutes they sit through end-to-end, so a flat ~15% (≤25 min)
+    # keeps practice from shrinking and keeps est_minutes honest as the count climbs.
+    # (Displayed length is recomputed from REAL fetched durations in app.py anyway.)
+    video_mins = min(int(mins * 0.15), 25)
+
     leftover = mins - video_mins - MINUTES_QUIZ - (sections * MINUTES_PER_SECTION)
     # a day under an hour may legitimately carry no separate practice item —
     # the sections' own try-its are the practice at that size
@@ -479,7 +487,7 @@ Respond with JSON:
     {{
       "heading": "topic name",
       "block": <which block this section belongs to, 1-based; omit if there is only one block>,
-      "resource_query": "OPTIONAL — the YouTube search phrase for the single best video explaining THIS section's concept. Include it ONLY where seeing it genuinely beats reading it: motion, a process unfolding, spatial/physical structure, or a live coding walkthrough. OMIT for definitions, history, motivation, or anything the text above already explains fully — a video there is padding. At most {shape['videos']} sections in this whole lesson may have one.",
+      "resource_query": "The YouTube search phrase for the best short video on THIS section's concept. DEFAULT TO INCLUDING ONE on every section that teaches or applies a concept — a beginner benefits from a second way in: hearing it explained by a person, watching it happen, or a worked walkthrough. Choose the query by what the topic needs: an animation for anything dynamic/spatial/structural, a clear lecturer or whiteboard explainer for a concept, a live coding walkthrough for anything applied. OMIT ONLY where a video would be genuine padding: a one-line definition the text already nails, pure history/motivation/opinion, a trivial recap, or a concept you ALREADY gave a video for earlier in THIS lesson (never two videos for the same idea). The video is a SUPPLEMENT that adds motion or voice — it must NOT merely restate the prose above, and your prose must stand on its own without it. Prefer a query returning a focused single-concept video, not a multi-hour course. Include one on the large majority of concept sections; at most one per section.",
       "probe": "OPTIONAL — for a KEY concept only, one short 'why/how' question for the student to think about BEFORE reading (elaborative interrogation: 'Why do you think X needs Y?'). Omit for simple/intro sections.",
       "analogy": "a simple real-life analogy that makes the concept intuitive",
       "explanation": "clear teaching of the concept from first principles, in plain language, a few paragraphs. Use short paragraphs.",

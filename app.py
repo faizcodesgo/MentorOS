@@ -494,9 +494,13 @@ def get_lesson(day):
     # say exactly which part to watch today rather than "here's a 10-hour course".
     # It used to grab up to 4 and dump them all on the intro step; the per-topic
     # videos now live on their own sections instead (see _attach_section_videos).
+    # query-level cache lives in the user's state doc: a cache hit costs ZERO quota,
+    # which is what makes REGENERATING a lesson free. The daily guard is a hard stop.
+    yt_cache = state.setdefault("yt_cache", {})
     videos = []
     for query in entry.get("resource_queries", [])[:1]:
-        videos.extend(youtube.search_videos(query, max_results=1))
+        videos.extend(youtube.search_videos(query, max_results=1,
+                                             cache=yt_cache, guard=storage.youtube_quota_reserve))
     videos = videos[:1]
 
     lesson = gemini.ask_json(
@@ -522,7 +526,7 @@ def get_lesson(day):
     lesson["resource_queries"] = entry.get("resource_queries", [])
     lesson["is_checkpoint"] = entry.get("is_checkpoint", False)
     lesson["videos"] = videos
-    _attach_section_videos(lesson, plan.get("hours_per_day", 1), entry)
+    _attach_section_videos(lesson, plan.get("hours_per_day", 1), entry, cache=yt_cache)
     # the honest length, measured from what was actually generated — replaces the
     # model's own `est_minutes`, which nothing ever checked
     vid_secs = sum(v.get("duration_seconds", 0) for v in videos)
@@ -1276,7 +1280,7 @@ FOCUS_XP_DAILY_CAP = 40
 EXPLORATIONS_PER_LESSON = 10   # keep the newest N Q&As per day (see /api/ask)
 
 
-def _attach_section_videos(lesson, hours, entry):
+def _attach_section_videos(lesson, hours, entry, cache=None):
     """Put each topic's video ON that topic's step, not all in a pile at step 1.
 
     Videos were day-level: one search, up to 2 results, every one of them
@@ -1288,17 +1292,24 @@ def _attach_section_videos(lesson, hours, entry):
     sequentially they'd add 4-6s to a call that's already slow.
 
     Cost: every search.list is 100 units of a 10,000/day YouTube quota shared by
-    the whole project, so the count is capped by structure_for_hours() and a
-    section only gets one if the model judged video genuinely better than text.
+    the whole project. The count is capped by structure_for_hours() (now up to one
+    per section, ceiling 10), and a section only gets one if the MODEL wrote a
+    resource_query — the prompt asks for one wherever a video genuinely helps and
+    omits it for pure definitions/history. `cache` (the user's yt_cache) makes a
+    repeat search free; storage.youtube_quota_reserve is the hard daily-budget stop.
     """
     shape = prompts.structure_for_hours(hours, bool(entry.get("is_checkpoint")))
     wanted = [s for s in lesson["sections"] if (s.get("resource_query") or "").strip()][:shape["videos"]]
     if not wanted:
         return
     try:
-        with ThreadPoolExecutor(max_workers=min(len(wanted), 4)) as ex:
+        # concurrency 6 (was 4): a rich lesson can want ~10 videos; 6 threads keeps
+        # the added latency to ~2 waves without hammering the free-tier CPU.
+        with ThreadPoolExecutor(max_workers=min(len(wanted), 6)) as ex:
             found = list(ex.map(
-                lambda s: youtube.search_videos(s["resource_query"], max_results=1), wanted))
+                lambda s: youtube.search_videos(s["resource_query"], max_results=1,
+                                                cache=cache, guard=storage.youtube_quota_reserve),
+                wanted))
     except Exception:
         return   # a video is never worth failing a lesson over
     for section, vids in zip(wanted, found):

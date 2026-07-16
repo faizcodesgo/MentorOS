@@ -427,6 +427,38 @@ def secret_key():
     return key
 
 
+_YT_LOCAL_QUOTA = {}   # {pacific_date: units} — local-dev fallback, per-process
+
+
+def youtube_quota_reserve(units=101, budget=8000):
+    """Reserve `units` of today's YouTube quota; return True if still within budget.
+
+    The free quota is 10,000 units/day shared by the WHOLE project and resets at
+    midnight Pacific. This is a HARD stop so a bug (e.g. a regeneration storm that
+    somehow misses the cache) can never blow it — over budget → False → the caller
+    shows a plain search link instead of a fetched pick. Budget 8,000 leaves margin
+    for counting races. Counter lives in Mongo (survives the 2 gunicorn workers and
+    Render's spin-down); keyed by an approximate Pacific date (UTC-8).
+
+    FAIL-OPEN: any DB error returns True. A single user won't approach 10k, and the
+    per-lesson video cap already bounds the blast radius — the guard must never
+    become a new source of outage.
+    """
+    day = (datetime.datetime.now(datetime.timezone.utc)
+           - datetime.timedelta(hours=8)).date().isoformat()
+    try:
+        if using_mongo():
+            doc = _db()["config"].find_one_and_update(
+                {"_id": f"ytq:{day}"},
+                {"$inc": {"units": units}},
+                upsert=True, return_document=True)   # ReturnDocument.AFTER == True
+            return int((doc or {}).get("units", units)) <= budget
+        _YT_LOCAL_QUOTA[day] = _YT_LOCAL_QUOTA.get(day, 0) + units
+        return _YT_LOCAL_QUOTA[day] <= budget
+    except Exception:
+        return True   # fail-open — never let the quota guard cause an outage
+
+
 def notif_user_ids():
     """Users who could actually receive a push — the cron never loads anyone else."""
     if using_mongo():

@@ -1730,12 +1730,16 @@ function tryItAnswerHtml(s, i) {
 function sectionVideoHtml(s) {
   if (s.video && s.video.url) {
     const v = s.video;
-    return `<a class="resource-link section-video" target="_blank" rel="noopener" href="${esc(v.url)}">
-      ▶ ${esc(v.title)}<span class="channel"> · ${esc(v.channel)}${v.duration ? " · " + esc(v.duration) : ""}</span></a>`;
+    // A slim, borderless "▶ Watch · 8 min" chip — prose stays primary, and ten of
+    // these down a lesson read as optional footnotes, not a link-dump playlist. The
+    // title/channel sit muted and truncate; the full title is on hover/long-press.
+    const meta = [v.title, v.channel].filter(Boolean).map(esc).join(" · ");
+    return `<a class="section-video" target="_blank" rel="noopener" href="${esc(v.url)}" title="${escAttr(v.title || "")}">
+      <span class="sv-play">▶</span><span class="sv-text">Watch${v.duration ? " · " + esc(v.duration) : ""}</span>${meta ? `<span class="sv-meta">${meta}</span>` : ""}</a>`;
   }
   if (s.resource_query) {
-    return `<a class="resource-link section-video" target="_blank" rel="noopener"
-      href="https://www.youtube.com/results?search_query=${encodeURIComponent(s.resource_query)}">▶ ${esc(s.resource_query)}</a>`;
+    return `<a class="section-video is-search" target="_blank" rel="noopener"
+      href="https://www.youtube.com/results?search_query=${encodeURIComponent(s.resource_query)}"><span class="sv-play">▶</span><span class="sv-text">Find a video</span><span class="sv-meta">${esc(s.resource_query)}</span></a>`;
   }
   return "";
 }

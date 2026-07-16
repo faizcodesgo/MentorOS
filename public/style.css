@@ -947,7 +947,22 @@ body.study-mode #app { padding-top: 60px; }
 }
 
 /* ---------- section video + block break ---------- */
-.section-video { margin: var(--s4) 0 var(--s2); }
+/* Slim, borderless "▶ Watch · 8 min" chip. No border/background on purpose: with
+   up to one video per section, bordered cards would stack into a link-dump. This
+   reads as an optional footnote to the prose, which is the correct role for a
+   supplementary video (prose stays the source of truth). */
+.section-video {
+  display: flex; align-items: center; gap: var(--s2);
+  margin: var(--s3) 0 var(--s2); padding: var(--s1) 0; min-height: 44px;
+  max-width: 62ch; text-decoration: none; font-size: var(--text-sm); min-width: 0;
+}
+.section-video .sv-play { color: var(--brand); font-size: 0.82em; flex-shrink: 0; }
+.section-video .sv-text { color: var(--brand); font-weight: 600; flex-shrink: 0; }
+.section-video .sv-meta {
+  color: var(--muted); min-width: 0; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.section-video:hover .sv-text { text-decoration: underline; }
 .break-card { text-align: center; }
 .break-body {
   color: var(--muted); font-size: var(--text-md); line-height: 1.6;
