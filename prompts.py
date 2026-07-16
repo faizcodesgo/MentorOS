@@ -403,27 +403,38 @@ def structure_for_hours(hours, is_checkpoint=False):
     has_video = mins >= 45      # a <45-min day can't spare time for a video
     usable = mins - MINUTES_QUIZ
 
-    # Reserve ~28% of the day for watching (owner wants video counted, but the day
-    # must not become mostly passive — reading + practice + try-its still hold the
-    # majority). Reading + doing split the REST. video_mins shrinks the reading
-    # budget, which is exactly what keeps the total honest as videos grow.
-    video_mins = int(usable * 0.28) if has_video else 0
-    learn_mins = usable - video_mins
+    # THREE explicit pools (owner: "videos could be more than text if it's more
+    # helpful"). Video gets the LARGEST reserve so it CAN exceed the prose block when
+    # the day's topics warrant it — but hands-on practice is a PROTECTED floor so the
+    # day never collapses into passive watching. Fractions of `usable`:
+    #   video 0.40 (reserve/ceiling)  ·  reading 0.23  ·  practice 0.37 (active floor)
+    # Guarantees at every duration: video reserve > reading, AND active
+    # (practice + quiz + the per-section try-its) stays >= ~40% of the day.
+    # The reserve is FIXED and generous, and app.py counts REAL video durations
+    # capped at it — so a video-worthy day fills toward 40% and legitimately tops the
+    # prose, while a text-friendly day uses little video and honestly runs SHORT
+    # rather than padding with marginal videos (padding = the passive-illusion trap).
+    if has_video:
+        video_mins = int(usable * 0.40)
+        reading_mins = int(usable * 0.23)
+        practice_mins = usable - video_mins - reading_mins    # ~0.37, the active floor
+    else:
+        video_mins = 0
+        reading_mins = int(usable * 0.50)
+        practice_mins = usable - reading_mins
 
-    # ~50/50 reading vs doing of what's left; sections capped at 12 (one Gemini call
-    # can't write more before the 16k output cap bites — so a big day's extra time
-    # goes into practice, the honest shape of a long study day).
-    # floor of 1: a ~20-min checkpoint is one recall section plus the quiz.
-    sections = max(1, min(12, round(learn_mins * 0.5 / MINUTES_PER_SECTION)))
-    leftover = learn_mins - (sections * MINUTES_PER_SECTION)
+    # sections capped at 12 (one Gemini call can't write more before the 16k output
+    # cap bites); floor of 1 so a tiny checkpoint still has one recall section.
+    sections = max(1, min(12, round(reading_mins / MINUTES_PER_SECTION)))
     # a day under an hour may legitimately carry no separate practice item —
     # the sections' own try-its are the practice at that size
-    practice = max(0 if mins < 60 else 1, min(12, round(leftover / MINUTES_PER_PRACTICE)))
+    practice = max(0 if mins < 60 else 1, min(12, round(practice_mins / MINUTES_PER_PRACTICE)))
 
-    # Video COUNT scales with sections (up to one per section, hard-capped at 10 for
-    # YouTube quota: each search is ~100 of 10,000 units/day). A CEILING, not a quota
-    # to fill — the prompt only asks for a video where it genuinely helps.
-    videos = min(int(sections), 10) if has_video else 0
+    # Video COUNT ceiling. Decoupled from section count (max(sections, budget/10)) so
+    # a video-forward day isn't slot-starved when reading is small — every section
+    # can carry one and there's headroom. Hard-capped at 10 for YouTube quota (each
+    # search is ~100 of 10,000 units/day). A CEILING, not a quota to fill.
+    videos = min(10, max(int(sections), round(video_mins / 10))) if has_video else 0
 
     # A block is a sitting: ~75 minutes before a real break.
     blocks = max(1, min(5, round(mins / 75)))
@@ -506,6 +517,7 @@ Respond with JSON:
   ]
 }}
 Rules: EXACTLY {shape['sections']} sections and EXACTLY {shape['practice']} practice items — the counts above are computed from the hours the student chose and are not negotiable. If it is a checkpoint day, sections should be revision-style (recall prompts, self-test questions) instead of new content.
+Video budget: today has room for up to {shape['videos']} videos and they may be the DAY'S LARGEST medium when the topics are better seen than read — a visual/spatial process (recursion, pointers, tree/graph ops, a physical process), a live IDE/CLI/tool walkthrough, or step-by-step debugging you must SEE. Add a `resource_query` freely on those sections. But do NOT pad: OMIT it for definitional, comparison, syntax, history, or motivation material — those are text-friendly, and it is completely fine for a day to use FEW videos and be shorter than the target rather than fill it with marginal ones. Never put two video sections back-to-back without a hands-on/try-it step between them, and every section still ends in its own active try-it (watching never replaces doing).
 Quiz rules: exactly 5 questions testing TODAY's topics only — 1 recall, 3 application, 1 code-reading ("what does this print/do") if the goal involves programming, otherwise a 4th application question.
 
 DISTRACTORS — this is what makes a question worth answering:

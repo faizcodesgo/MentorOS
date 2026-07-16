@@ -497,11 +497,16 @@ def get_lesson(day):
     # query-level cache lives in the user's state doc: a cache hit costs ZERO quota,
     # which is what makes REGENERATING a lesson free. The daily guard is a hard stop.
     yt_cache = state.setdefault("yt_cache", {})
+    _shape = prompts.structure_for_hours(plan.get("hours_per_day", 1),
+                                         bool(entry.get("is_checkpoint")))
+    # skip the day-level video entirely when the day has no video budget (a <45-min
+    # day) — otherwise it spends ~100 quota units on a video the est would count as 0.
     videos = []
-    for query in entry.get("resource_queries", [])[:1]:
-        videos.extend(youtube.search_videos(query, max_results=1,
-                                             cache=yt_cache, guard=storage.youtube_quota_reserve))
-    videos = videos[:1]
+    if _shape["video_mins"] > 0:
+        for query in entry.get("resource_queries", [])[:1]:
+            videos.extend(youtube.search_videos(query, max_results=1,
+                                                 cache=yt_cache, guard=storage.youtube_quota_reserve))
+        videos = videos[:1]
 
     lesson = gemini.ask_json(
         prompts.MENTOR_PERSONA,
@@ -529,12 +534,10 @@ def get_lesson(day):
     _attach_section_videos(lesson, plan.get("hours_per_day", 1), entry, cache=yt_cache)
     # the honest length, measured from what was actually generated — replaces the
     # model's own `est_minutes`, which nothing ever checked. Video counts toward the
-    # day (watching IS studying), but CAPPED at the day's reserved video budget: the
-    # picked explainers guide the student to the relevant part (chapters / what-to-
-    # watch), so a "4-hour" day stays ~4 hours instead of ballooning when the model
-    # attaches ten long videos on top.
-    _shape = prompts.structure_for_hours(plan.get("hours_per_day", 1),
-                                         bool(entry.get("is_checkpoint")))
+    # day (watching IS studying), but CAPPED at the day's reserved video budget
+    # (_shape computed above): the picked explainers guide the student to the relevant
+    # part (chapters / what-to-watch), so the day stays within its hours instead of
+    # ballooning when the model attaches many long videos.
     vid_secs = sum(v.get("duration_seconds", 0) for v in videos)
     vid_secs += sum((s["video"].get("duration_seconds", 0))
                     for s in lesson["sections"] if s.get("video"))

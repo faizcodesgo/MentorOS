@@ -12,6 +12,7 @@ import html
 import json
 import os
 import re
+import threading
 import urllib.parse
 import urllib.request
 
@@ -19,6 +20,11 @@ _API = "https://www.googleapis.com/youtube/v3"
 
 _CACHE_TTL_DAYS = 30      # a good explainer rarely dies within a month
 _CACHE_MAX = 200          # keep the per-user cache from bloating the 16MB state doc
+# section-video fetches fan out across up to 6 threads sharing one cache dict; the
+# lock serialises the insert+trim so `sorted(cache.items())` can't race another
+# thread's insert ("dict changed size during iteration"), which would silently drop
+# an already-fetched (already-quota-paid) video.
+_CACHE_LOCK = threading.Lock()
 
 
 def _norm(query):
@@ -44,12 +50,13 @@ def _cache_get(cache, key):
 def _cache_put(cache, key, videos):
     if not isinstance(cache, dict):
         return
-    cache[key] = {"videos": videos,
-                  "ts": datetime.datetime.now(datetime.timezone.utc).isoformat()}
-    # trim oldest by timestamp so the cache can't grow without bound
-    if len(cache) > _CACHE_MAX:
-        for k, _ in sorted(cache.items(), key=lambda kv: kv[1].get("ts", ""))[:len(cache) - _CACHE_MAX]:
-            cache.pop(k, None)
+    with _CACHE_LOCK:
+        cache[key] = {"videos": videos,
+                      "ts": datetime.datetime.now(datetime.timezone.utc).isoformat()}
+        # trim oldest by timestamp so the cache can't grow without bound
+        if len(cache) > _CACHE_MAX:
+            for k, _ in sorted(cache.items(), key=lambda kv: kv[1].get("ts", ""))[:len(cache) - _CACHE_MAX]:
+                cache.pop(k, None)
 
 
 def _get(path, params):

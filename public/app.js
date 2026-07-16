@@ -1742,7 +1742,7 @@ function sectionVideoHtml(s) {
     // these down a lesson read as optional footnotes, not a link-dump playlist. The
     // title/channel sit muted and truncate; the full title is on hover/long-press.
     const meta = [v.title, v.channel].filter(Boolean).map(esc).join(" · ");
-    return `<a class="section-video" target="_blank" rel="noopener" href="${esc(v.url)}" title="${escAttr(v.title || "")}">
+    return `<a class="section-video" target="_blank" rel="noopener" href="${escAttr(v.url)}" title="${escAttr(v.title || "")}">
       <span class="sv-play">▶</span><span class="sv-text">Watch${v.duration ? " · " + esc(v.duration) : ""}</span>${meta ? `<span class="sv-meta">${meta}</span>` : ""}</a>`;
   }
   if (s.resource_query) {
