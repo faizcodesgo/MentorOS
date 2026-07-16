@@ -396,47 +396,44 @@ def structure_for_hours(hours, is_checkpoint=False):
     if is_checkpoint:
         mins = int(mins * 0.6)          # checkpoint days are lighter by design
 
-    # Reading is capped at ~45% of the day and by what one Gemini call can
-    # actually produce (~12 sections before the 16k output cap bites). Practice
-    # then FILLS the rest — which is the honest shape of a long study day: six
-    # hours is not six hours of prose, it's a couple of hours of input and four
-    # of doing. Deriving practice from the leftover (rather than a fixed ratio)
-    # is what stops a 6h day quietly becoming a 5h day.
-    # floor of 1, not 2: a ~20-minute checkpoint is one recall section plus the
-    # quiz, and forcing a second section made the card promise 28 min for an
-    # 18-min day. Only bites below ~27 min; every real size is unaffected.
-    # sections is computed FIRST now, because the video ceiling scales off it.
-    sections = max(1, min(12, round((mins * 0.45) / MINUTES_PER_SECTION)))
+    # Budget the whole day TOP-DOWN so the total (reading + video + practice + quiz)
+    # lands on the hours the student chose. The owner's rule: watching a video IS
+    # studying, so video time is a COUNTED part of the day, not extra piled on top —
+    # a "4-hour" day with lots of videos must still be ~4 hours, not 5.5.
+    has_video = mins >= 45      # a <45-min day can't spare time for a video
+    usable = mins - MINUTES_QUIZ
 
-    # Videos are per-section, optional SUPPLEMENTS now — not a rationed few. Allow
-    # up to one per section (hard-capped at 10 for YouTube quota safety: each search
-    # is ~100 of 10,000 units/day). This is a CEILING, not a quota to fill — the
-    # prompt still asks the model for a video only where it genuinely helps, so a
-    # section on a pure definition won't get one. A short day still can't afford one
-    # (one explainer ~14 min = half a 30-min session), hence the 45-min floor.
-    videos = 0 if mins < 45 else min(int(sections), 10)
-    # Video TIME is DECOUPLED from the count. Videos are additive material a student
-    # samples, not minutes they sit through end-to-end, so a flat ~15% (≤25 min)
-    # keeps practice from shrinking and keeps est_minutes honest as the count climbs.
-    # (Displayed length is recomputed from REAL fetched durations in app.py anyway.)
-    video_mins = min(int(mins * 0.15), 25)
+    # Reserve ~28% of the day for watching (owner wants video counted, but the day
+    # must not become mostly passive — reading + practice + try-its still hold the
+    # majority). Reading + doing split the REST. video_mins shrinks the reading
+    # budget, which is exactly what keeps the total honest as videos grow.
+    video_mins = int(usable * 0.28) if has_video else 0
+    learn_mins = usable - video_mins
 
-    leftover = mins - video_mins - MINUTES_QUIZ - (sections * MINUTES_PER_SECTION)
+    # ~50/50 reading vs doing of what's left; sections capped at 12 (one Gemini call
+    # can't write more before the 16k output cap bites — so a big day's extra time
+    # goes into practice, the honest shape of a long study day).
+    # floor of 1: a ~20-min checkpoint is one recall section plus the quiz.
+    sections = max(1, min(12, round(learn_mins * 0.5 / MINUTES_PER_SECTION)))
+    leftover = learn_mins - (sections * MINUTES_PER_SECTION)
     # a day under an hour may legitimately carry no separate practice item —
     # the sections' own try-its are the practice at that size
     practice = max(0 if mins < 60 else 1, min(12, round(leftover / MINUTES_PER_PRACTICE)))
 
+    # Video COUNT scales with sections (up to one per section, hard-capped at 10 for
+    # YouTube quota: each search is ~100 of 10,000 units/day). A CEILING, not a quota
+    # to fill — the prompt only asks for a video where it genuinely helps.
+    videos = min(int(sections), 10) if has_video else 0
+
     # A block is a sitting: ~75 minutes before a real break.
     blocks = max(1, min(5, round(mins / 75)))
 
-    # What this shape can HONESTLY deliver. Above ~6h the section cap binds (one
-    # Gemini call can't write more than ~12 sections before the 16k output limit),
-    # so an 8h request really is a ~5.7h lesson. Report that number rather than
-    # printing "8h" over content that isn't — a plan that overstates itself on
-    # day 1 is exactly the bug this function exists to kill.
+    # What this shape can HONESTLY deliver, ≈ the chosen minutes. Above ~6h the
+    # section cap binds, so an 8h request really is a ~5.7h lesson — report THAT.
     est = (sections * MINUTES_PER_SECTION + practice * MINUTES_PER_PRACTICE
            + video_mins + MINUTES_QUIZ)
     return {"minutes": mins, "est": int(est), "sections": int(sections),
+            "video_mins": int(video_mins),
             "practice": int(practice), "videos": videos, "blocks": blocks}
 
 

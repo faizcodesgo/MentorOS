@@ -528,10 +528,17 @@ def get_lesson(day):
     lesson["videos"] = videos
     _attach_section_videos(lesson, plan.get("hours_per_day", 1), entry, cache=yt_cache)
     # the honest length, measured from what was actually generated — replaces the
-    # model's own `est_minutes`, which nothing ever checked
+    # model's own `est_minutes`, which nothing ever checked. Video counts toward the
+    # day (watching IS studying), but CAPPED at the day's reserved video budget: the
+    # picked explainers guide the student to the relevant part (chapters / what-to-
+    # watch), so a "4-hour" day stays ~4 hours instead of ballooning when the model
+    # attaches ten long videos on top.
+    _shape = prompts.structure_for_hours(plan.get("hours_per_day", 1),
+                                         bool(entry.get("is_checkpoint")))
     vid_secs = sum(v.get("duration_seconds", 0) for v in videos)
     vid_secs += sum((s["video"].get("duration_seconds", 0))
                     for s in lesson["sections"] if s.get("video"))
+    vid_secs = min(vid_secs, _shape["video_mins"] * 60)
     lesson["est_minutes"] = prompts.estimate_minutes(lesson, vid_secs)
     # Q&A rescued from a stale lesson we dropped (see storage v16) — regenerating
     # a lesson must never cost the learner something they wrote.
