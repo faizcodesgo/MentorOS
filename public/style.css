@@ -655,7 +655,7 @@ body.study-mode #app { padding-top: 60px; }
 #vivaInput { margin-bottom: var(--s4); }
 .viva-card .btn.primary { width: 100%; margin-bottom: var(--s2); }
 .viva-card .btn.ghost { width: 100%; }
-.viva-overall { border-left: 3px solid var(--brand); }
+.viva-overall { border-left: 3px solid var(--line); }   /* accent discipline: blue reserved for actionable/active, not static info cards */
 .viva-overall-text { line-height: 1.6; margin-top: var(--s1); max-width: 65ch; }
 .viva-result { border-left: 3px solid var(--line); }
 .viva-result.strong { border-left-color: var(--good); }
@@ -693,7 +693,7 @@ body.study-mode #app { padding-top: 60px; }
 .saved-day { color: var(--muted); font-size: var(--text-xs); }
 
 /* ---------- explain-it-back ---------- */
-.explain-card { border-left: 3px solid var(--brand); }
+.explain-card { border-left: 3px solid var(--line); }
 .explain-prompt { font-weight: 500; margin: var(--s1) 0 var(--s3); }
 #explainInput { margin-bottom: var(--s3); }
 .explain-feedback { margin-bottom: var(--s3); line-height: 1.6; }
@@ -749,7 +749,7 @@ body.study-mode #app { padding-top: 60px; }
 
 /* ---------- skills view ---------- */
 .skills-head { margin: var(--s4) 0 var(--s3); }
-.notes-card { border-left: 3px solid var(--brand); }
+.notes-card { border-left: 3px solid var(--line); }
 .notes-body { line-height: 1.6; margin-top: var(--s2); max-width: 65ch; }
 .skill-row { display: flex; align-items: flex-start; gap: var(--s3); padding: var(--s4) var(--s1); border-bottom: 1px solid var(--line); }
 .skill-row .sdot { margin-top: var(--s1); flex-shrink: 0; }
