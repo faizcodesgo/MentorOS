@@ -48,8 +48,14 @@ Study mode). Owner: **Faiz** — beginner dev, sole user, prepping for RVCE CSE
   Optional: `GEMINI_THINKING` (default 0), `GEMINI_MODEL`.
 - **UptimeRobot:** pings `/healthz` every 5 min (keeps Render warm). Second
   monitor on `/api/cron/push?key=…` fires the daily reminder.
-- **`MONGO_URI` is NOT in the local `.env`** — local dev uses
-  `mentoros_data.json`. Production data exists ONLY in Atlas.
+- **Local `.env` has `MONGO_URI_BACKUP`, NOT `MONGO_URI`** — that is deliberate.
+  `storage.py` switches to Mongo whenever `MONGO_URI` is set, so that name in a
+  local `.env` makes `python app.py` connect to **production** and every local
+  test rewrite the real plan. Local dev = `mentoros_data.json`. Render keeps its
+  own `MONGO_URI`; the deploy is unaffected.
+- **`python backup.py`** dumps prod to the Desktop (read-only). Atlas M0 has NO
+  automated backups and every save is a whole-document replace — run it before
+  touching `storage.py`, and now and then regardless.
 
 ---
 
@@ -203,6 +209,47 @@ Schema `SCHEMA = 13` in `storage.py` with an idempotent `_migrate()` chain.
   **Quota reality: `search.list` = 100 units of 10,000/day for the WHOLE
   project.** That's why videos are capped, not per-section-unconditional.
 
+### `938c70b` — Batch 4a: the dashboard, and the 1,500-char goal
+- The owner's real `plan.goal` is **~1,471 characters** — his whole pasted
+  syllabus. `.kicker` (12px/600/`--brand`, a class for 2-3 word labels) rendered
+  it as ~530px of bold blue above the title. That is why the Today card was 9th.
+- **Never truncate that goal to a prefix.** Its first 50 chars are
+  "First Sem : Chemistry Maths PLC(…" — the subjects he asked to SKIP. The real
+  sentence is at ~char 600. Prefixes are worse than useless here.
+- `short_title` (≤40) now comes from negotiate, derived from `achievable_scope`.
+  **Migration v15 does not guess**: tidy goal → itself; syllabus → `""` → UI says
+  "Your plan" + a rename button (`POST /api/plan/title`). A generic correct label
+  beats a specific wrong one.
+- Measured on 360×640 with his real string: goal 530px→**29px**, "Start today"
+  9th element→**455px (above the fold)**, blue elements 7→**1**.
+- **New `#view-plan`** — `achievable_scope`/`dropped_scope` were computed, shown
+  once on the negotiate screen, and thrown away (the client sent only phases +
+  mentor_message). They're the promise he accepted and his "skip all those
+  stuffs" receipt. Stored + shown, with per-phase progress and the verbatim goal
+  (collapsed; NEVER truncated in storage — it's the contract).
+- **`prompts.goal_label()`** — `ask_prompt` got the full syllabus AND is told to
+  "bridge back to their goal", so a pointer question was bridged back to Yoga and
+  Indian Constitution. Six framing prompts now get the short goal; negotiate +
+  curriculum keep the FULL text (his "Module 1 — CPU — RAM" IS the spec). This
+  was a **quality** bug, not the token cost (~$1/year).
+- `#inGoal` was a single-line `<input>` — he pasted 1,471 chars into a ~40-char
+  box. Now a textarea, `maxlength=2000` (his paste WORKS — don't break it),
+  counter past 1,200, loud toast instead of silent truncation.
+- `#levelChip` was a byte-identical copy of the topbar chip; deleted,
+  `animateXpChip` retargeted to the topbar. **Topbar innerHTML is built BEFORE
+  the animation** — rewriting it after wipes the count-up mid-flight.
+- `.btn { transition: background }` (later in the file, equal specificity)
+  REPLACED the shared `transition: transform,…` → every button snapped instead of
+  pressing. One deleted line, app-wide.
+- Ask sheet: `#explorations` sat ABOVE the textarea, so each answer pushed the
+  input down — **that**, not thread length, was "the conversation is too long".
+  Flex column, composer pinned, history scrolls, newest first.
+
+### `6b66a6b` — real logo + est_minutes backfill (schema 14)
+Icons generated from `logo.jpeg` (mark auto-detected, luminance-keyed onto
+`--bg`, 22% maskable safe zone). Schema 14 recomputes `est_minutes` on plans
+built before the hours fix — his live plan's day 1 went 180 (invented) → 342.
+
 ### `4f3dc91` — diagram labels no longer overflow their boxes
 Reported from real use (a CPU diagram printing "Control Unit (CU" across
 "Arithmetic Logic Unit"). Two halves, because **neither works alone**:
@@ -223,8 +270,24 @@ have fixed it. The browser can measure; it gets the final say. Don't delete
 
 ## 8. What is NOT done (the rest of Faiz's 16 Jul list)
 
-**Batch 2 — multi-user accounts (DECIDED, NOT BUILT).** Faiz chose real accounts
-(name + password). Council design, ready to implement:
+**Batch 2 — multi-user accounts — COUNCIL SAYS NO-GO FOR NOW (16 Jul).**
+Faiz chose accounts; a second council said don't build them yet, and found the
+reason nobody had spotted:
+- **`storage.snapshot()` keys the backup `f"{USER_ID}__backup"`** (`storage.py`).
+  The moment `USER_ID` becomes `_uid()`, `load_snapshot()` looks for
+  `<newuid>__backup` and the existing `default__backup` becomes **unreachable by
+  any code path** (`_uid()` must raise, never default). So the auth migration
+  would orphan the live doc AND the only backup, in one commit. Whoever builds
+  this must re-key BOTH documents, in order.
+- Zero other users exist. Person B only ever sees his plan if he sends B the URL
+  — that's a decision, not a leak. **"B shouldn't see my plan" is ~1 hour (one
+  `APP_PASSWORD` + session cookie, `USER_ID` untouched, zero call sites).
+  "B should have their own plan" is ~12 hours.** He asked for the second, but the
+  first is the pre-baked answer for the day he wants to show someone.
+- No password reset (no mail server) → the failure mode is lockout from the one
+  asset he's about to depend on for 50 days.
+- **Do it the afternoon before he shares the link**, starting from a fresh
+  `python backup.py`. Design below is sound and still stands:
 - `storage.py:13` is `USER_ID = "default"` — one hardcoded Mongo `_id`, so every
   browser on earth shares one document. **There are no sessions; there is no
   session bug.** This was flagged in `AUDIT.md:67` and deliberately deferred.
