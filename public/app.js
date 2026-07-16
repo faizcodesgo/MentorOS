@@ -212,6 +212,20 @@ function fmt(s) {
     .replace(/`([^`]+)`/g, "<code>$1</code>");
 }
 
+/* Prose as real PARAGRAPHS. The lesson bodies used `white-space: pre-line`,
+   which turns "\n\n" into a bare line break with NO spacing between paragraphs —
+   which is, mechanically, exactly what a README looks like. Splitting on blank
+   lines into <p> elements is the single biggest "textbook, not documentation"
+   change, and it's a few lines. A single-line string just becomes one <p>. */
+function fmtProse(s) {
+  return String(s || "")
+    .split(/\n\s*\n/)
+    .map((para) => para.trim())
+    .filter(Boolean)
+    .map((para) => `<p>${fmt(para).replace(/\n/g, "<br>")}</p>`)
+    .join("");
+}
+
 /* attribute-safe escaping (quotes matter inside data-* attributes) */
 function escAttr(s) {
   return esc(s).replace(/"/g, "&quot;");
@@ -1638,7 +1652,7 @@ function renderLesson(l) {
   // build the step list: intro(+watch) → each section → practice bundle → summary
   lessonSteps = [];
   lessonSteps.push({ kind: "intro", html:
-    `<p class="lesson-intro">${fmt(l.intro)}</p>` +
+    `<div class="lesson-intro">${fmtProse(l.intro)}</div>` +
     (resources ? `<div class="card"><p class="label mono">Watch</p>${l.resources_note ? `<p class="resources-note">${fmt(l.resources_note)}</p>` : ""}${resources}</div>` : "")
   });
   // Long days are split into blocks with a real break between them. A 6-hour
@@ -1686,8 +1700,8 @@ function sectionHtml(l, s, i) {
       ${s.probe ? `<div class="probe">${fmt(s.probe)}</div>` : ""}
       <div class="analogy">${fmt(s.analogy)}</div>
       ${visualHolder(s.visual)}
-      <div class="explanation">${fmt(s.explanation)}</div>
-      ${s.worked_example ? `<div class="worked"><p class="label">Worked example</p><div class="worked-body">${fmt(s.worked_example)}</div></div>` : ""}
+      <div class="explanation">${fmtProse(s.explanation)}</div>
+      ${s.worked_example ? `<div class="worked"><p class="label">Worked example</p><div class="worked-body">${fmtProse(s.worked_example)}</div></div>` : ""}
       <ul class="keypoints">${(s.key_points || []).map((k) => `<li>${fmt(k)}</li>`).join("")}</ul>
       ${sectionVideoHtml(s)}
       <div class="tryit">${fmt(s.try_it)}${tryItAnswerHtml(s, i)}</div>
@@ -1896,7 +1910,7 @@ function renderBossCard(l, done) {
 function explorationHtml(x) {
   return `<div class="exploration">
     <p class="exp-q"><span class="mono">You asked</span> ${esc(x.q)}</p>
-    <div class="exp-a">${fmt(x.a)}</div>
+    <div class="exp-a">${fmtProse(x.a)}</div>
     ${visualHolder(x.visual)}
   </div>`;
 }

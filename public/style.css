@@ -172,7 +172,10 @@ input:focus, textarea:focus { outline: none; border-color: var(--brand); box-sha
 .btn.ghost { background: transparent; border-color: var(--line); color: var(--muted); }
 .btn.ghost:hover { border-color: var(--faint); color: var(--ink); }
 .btn.danger { color: var(--bad); }
-.btn.small { padding: var(--s2) var(--s4); font-size: var(--text-sm); }
+/* 44px is the minimum comfortable touch target. .btn.small is every back link
+   in the app, so it was the most-tapped too-small control. min-height + centring
+   keeps the compact look while making the whole 44px tappable. */
+.btn.small { padding: var(--s2) var(--s4); font-size: var(--text-sm); min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
 .btn:disabled { opacity: 0.55; cursor: wait; }
 
 /* ---------- verdict ---------- */
@@ -295,7 +298,15 @@ input:focus, textarea:focus { outline: none; border-color: var(--brand); box-sha
   padding: var(--s3) var(--s4); font-size: var(--text-md); margin-bottom: var(--s3);
 }
 .analogy::before { content: "Analogy"; font-size: var(--text-xs); font-weight: 600; color: var(--brand); display: block; margin-bottom: var(--s1); }
-.explanation { white-space: pre-line; margin-bottom: var(--s3); line-height: 1.6; max-width: 65ch; }
+/* Real paragraphs now (fmtProse emits <p>), so no pre-line. 16px at 1.7 line
+   height: prose under 16px on a phone reads as reference material, and light-on-
+   dark needs more leading than light mode or the lines bloom together. This is
+   the change that stops the lesson feeling like documentation. */
+.explanation { margin-bottom: var(--s3); font-size: var(--text-lg); line-height: 1.7; max-width: 62ch; color: var(--ink); }
+.explanation p { margin: 0 0 var(--s4); }
+.explanation p:last-child { margin-bottom: 0; }
+.lesson-intro p { margin: 0 0 var(--s4); }
+.lesson-intro p:last-child { margin-bottom: 0; }
 .probe {
   border-left: 2px solid var(--brand); padding: var(--s1) 0 var(--s1) var(--s3); margin-bottom: var(--s3);
   color: var(--muted); font-style: italic; font-size: var(--text-md); max-width: 65ch;
@@ -305,7 +316,9 @@ input:focus, textarea:focus { outline: none; border-color: var(--brand); box-sha
   background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--r2);
   padding: var(--s3) var(--s4); margin-bottom: var(--s3);
 }
-.worked-body { white-space: pre-line; line-height: 1.6; font-size: var(--text-md); margin-top: var(--s2); max-width: 65ch; }
+.worked-body { line-height: 1.7; font-size: var(--text-md); margin-top: var(--s2); max-width: 62ch; }
+.worked-body p { margin: 0 0 var(--s3); }
+.worked-body p:last-child { margin-bottom: 0; }
 code {
   font-family: "IBM Plex Mono", monospace; font-size: 0.88em;
   background: var(--panel-2); border-radius: var(--r1); padding: 1px 5px; color: #b8c2ff;
@@ -350,7 +363,9 @@ code {
 }
 .exp-q { font-weight: 600; margin-bottom: var(--s2); }
 .exp-q .mono { font-size: var(--text-xs); color: var(--brand); margin-right: var(--s2); }
-.exp-a { white-space: pre-line; color: var(--ink); margin-bottom: var(--s3); max-width: 65ch; }
+.exp-a { color: var(--ink); margin-bottom: var(--s3); max-width: 62ch; line-height: 1.65; }
+.exp-a p { margin: 0 0 var(--s3); }
+.exp-a p:last-child { margin-bottom: 0; }
 
 .complete-card { text-align: center; margin-top: var(--s5); }
 .complete-card h3 { margin-bottom: var(--s1); }
@@ -406,9 +421,9 @@ code {
 
 /* small reward pill shown inline after a quest (replaces full-screen banner) */
 .reward-pill {
-  position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%);
+  position: fixed; left: 50%; bottom: calc(22px + env(safe-area-inset-bottom)); transform: translateX(-50%);
   background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--gold);
-  color: var(--ink); padding: var(--s3) var(--s4); border-radius: var(--r2); z-index: 50;
+  color: var(--ink); padding: var(--s3) var(--s4); border-radius: var(--r2); z-index: 51;
   font-weight: 600; font-size: var(--text-md); max-width: 90vw;
   box-shadow: var(--shadow-2);
   animation: toastIn 0.24s ease both;
@@ -430,7 +445,9 @@ code {
   border-bottom: 1px solid var(--line);
 }
 .thin-text { color: var(--muted); font-size: var(--text-sm); }
-.weekly-x { background: none; border: none; color: var(--faint); cursor: pointer; font-size: var(--text-md); padding: 2px 6px; }
+/* the little ✕ dismiss buttons were ~20x24px. Give them a full 44px hit area
+   with a negative margin so they don't visually grow. */
+.weekly-x { background: none; border: none; color: var(--faint); cursor: pointer; font-size: var(--text-md); min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; margin: calc(-1 * var(--s3)); }
 .weekly-x:hover { color: var(--muted); }
 .done-row {
   display: flex; align-items: center; gap: var(--s2);
@@ -448,6 +465,7 @@ code {
   font: inherit; font-weight: 600; color: var(--muted);
   background: var(--bg); border: 1px solid var(--line); border-radius: var(--r-full);
   padding: var(--s2) var(--s4); cursor: pointer; transition: border-color 0.15s ease, color 0.15s ease;
+  min-height: 44px; display: inline-flex; align-items: center; justify-content: center;
 }
 .dur-chip.selected { border-color: var(--brand); color: var(--ink); background: var(--brand-soft); }
 .focus-note { font-size: var(--text-sm); color: var(--faint); margin-bottom: var(--s3); line-height: 1.5; }
@@ -646,10 +664,12 @@ body.study-mode #app { padding-top: 60px; }
 .section-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s3); }
 .section-head h3 { margin-bottom: var(--s3); }
 .bookmark-btn {
-  background: none; border: none; cursor: pointer; color: var(--faint); padding: 2px;
+  background: none; border: none; cursor: pointer; color: var(--faint);
   flex-shrink: 0; transition: color 0.15s ease;
+  min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center;
+  margin: calc(-1 * var(--s2));   /* absorb the target, keep the optical size */
 }
-.bookmark-btn svg { width: 19px; height: 19px; display: block; }
+.bookmark-btn svg { width: 20px; height: 20px; display: block; }
 .bookmark-btn:hover { color: var(--muted); }
 .bookmark-btn.on { color: var(--gold); }
 .saved-block { margin: var(--s4) 0; }
@@ -895,16 +915,18 @@ body.study-mode #app { padding-top: 60px; }
 }
 @keyframes sheetUp { from { transform: translateY(20px); opacity: 0.6; } to { transform: none; opacity: 1; } }
 .sheet-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--s3); }
-.sheet-x { background: none; border: none; color: var(--faint); cursor: pointer; font-size: var(--text-md); padding: 2px 6px; }
+.sheet-x { background: none; border: none; color: var(--faint); cursor: pointer; font-size: var(--text-md); min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; margin: calc(-1 * var(--s3)); }
 .sheet-x:hover { color: var(--muted); }
 .sheet #askInput { margin-bottom: var(--s3); }
 
 /* ---------- toast & loading ---------- */
 .toast {
-  position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%);
+  /* sits ABOVE the reward-pill's slot: both used to share bottom:22px / z:50 and
+     both fire after a checkpoint, so they overlapped */
+  position: fixed; bottom: calc(80px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%);
   background: var(--panel-2); color: var(--ink); border: 1px solid var(--line);
   padding: var(--s3) var(--s4); border-radius: var(--r2);
-  font-size: var(--text-sm); z-index: 50; max-width: 90vw;
+  font-size: var(--text-sm); z-index: 52; max-width: 90vw;
   box-shadow: var(--shadow-2);
 }
 .loading {
