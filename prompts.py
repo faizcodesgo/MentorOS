@@ -430,6 +430,17 @@ def structure_for_hours(hours, is_checkpoint=False):
     # the sections' own try-its are the practice at that size
     practice = max(0 if mins < 60 else 1, min(12, round(practice_mins / MINUTES_PER_PRACTICE)))
 
+    # PRACTICE IS ELASTIC — this is what stops a low-video day running short. The model
+    # can't know video DURATIONS (we fetch those after), but it DOES know, in its one
+    # generation call, how many videos it's adding. So we give it a RANGE: use MORE
+    # practice (toward practice_max) when it adds few videos, FEWER when it adds many,
+    # so the day stays full of ACTIVE work either way — no second API call. practice_max
+    # covers the whole video reserve with hands-on items (capped at 12: one Gemini call
+    # can't reliably emit more content than ~12 sections + 12 practice before the 16k
+    # output limit — so a long day with no video-worthy topics still honestly runs short,
+    # which is unavoidable and correct).
+    practice_max = min(12, practice + round(video_mins / MINUTES_PER_PRACTICE)) if has_video else practice
+
     # Video COUNT ceiling. Decoupled from section count (max(sections, budget/10)) so
     # a video-forward day isn't slot-starved when reading is small — every section
     # can carry one and there's headroom. Hard-capped at 10 for YouTube quota (each
@@ -444,7 +455,7 @@ def structure_for_hours(hours, is_checkpoint=False):
     est = (sections * MINUTES_PER_SECTION + practice * MINUTES_PER_PRACTICE
            + video_mins + MINUTES_QUIZ)
     return {"minutes": mins, "est": int(est), "sections": int(sections),
-            "video_mins": int(video_mins),
+            "video_mins": int(video_mins), "practice_max": int(practice_max),
             "practice": int(practice), "videos": videos, "blocks": blocks}
 
 
@@ -516,8 +527,8 @@ Respond with JSON:
     {{"q": "question text (may include `code`)", "options": ["option A", "option B", "option C", "option D"], "answer": <0-3 index of the correct option>, "hint": "a ONE-sentence nudge toward the REASONING — name the principle to apply or the thing to trace, and NOTHING else. It must not eliminate any option, must not describe the correct one, and must leave the question still unanswerable to someone who hasn't learned the concept. A student who doesn't know the idea should be no better off after reading it.", "why": "1-2 sentences: why the correct option is right, AND why the most tempting wrong option is wrong. Name the specific reasoning error that makes the trap tempting.", "topic": "short tag naming which of today's topics this tests", "type": "recall" | "application" | "code"}}
   ]
 }}
-Rules: EXACTLY {shape['sections']} sections and EXACTLY {shape['practice']} practice items — the counts above are computed from the hours the student chose and are not negotiable. If it is a checkpoint day, sections should be revision-style (recall prompts, self-test questions) instead of new content.
-Video budget: today has room for up to {shape['videos']} videos and they may be the DAY'S LARGEST medium when the topics are better seen than read — a visual/spatial process (recursion, pointers, tree/graph ops, a physical process), a live IDE/CLI/tool walkthrough, or step-by-step debugging you must SEE. Add a `resource_query` freely on those sections. But do NOT pad: OMIT it for definitional, comparison, syntax, history, or motivation material — those are text-friendly, and it is completely fine for a day to use FEW videos and be shorter than the target rather than fill it with marginal ones. Never put two video sections back-to-back without a hands-on/try-it step between them, and every section still ends in its own active try-it (watching never replaces doing).
+Rules: EXACTLY {shape['sections']} sections. Practice items: write BETWEEN {shape['practice']} and {shape['practice_max']} of them — lean toward {shape['practice_max']} when you are adding FEW videos today, toward {shape['practice']} when you are adding MANY, so the day stays full of ACTIVE work whichever medium you lean on. These counts come from the hours the student chose. If it is a checkpoint day, sections should be revision-style (recall prompts, self-test questions) instead of new content.
+Video budget: today has room for up to {shape['videos']} videos and they may be the DAY'S LARGEST medium when the topics are better seen than read — a visual/spatial process (recursion, pointers, tree/graph ops, a physical process), a live IDE/CLI/tool walkthrough, or step-by-step debugging you must SEE. Add a `resource_query` freely on those sections. But do NOT pad: OMIT it for definitional, comparison, syntax, history, or motivation material — those are text-friendly. When a topic doesn't warrant a video, do NOT force one and do NOT leave the day short — add another PRACTICE item instead (that is what the practice range above is for). Never put two video sections back-to-back without a hands-on/try-it step between them, and every section still ends in its own active try-it (watching never replaces doing).
 Quiz rules: exactly 5 questions testing TODAY's topics only — 1 recall, 3 application, 1 code-reading ("what does this print/do") if the goal involves programming, otherwise a 4th application question.
 
 DISTRACTORS — this is what makes a question worth answering:
