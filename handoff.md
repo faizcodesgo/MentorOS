@@ -346,7 +346,18 @@ PRODUCTION. Owner's dumps live in `Desktop/mentoros/.claude/` (outside the repo)
   removes the "no undo" objection, and the zero-call-site design shrinks the
   blast radius. **Faiz's call stands, but do it carefully and locally first.**
 
-**Batch 3b — content (NOT started):**
+**Batch 3b — DONE (`0e8fae4`).**
+- **Ask remembers the on-screen step.** `/api/ask` gets `{section, step_kind}`
+  (identity, not content); the server reads that section from ITS cached lesson
+  and `prompts.ask_focus()` builds context incl. the try-it verbatim. "the try
+  it now you gave me, explain it" now works — verified live.
+- **`try_it_answer`** on the lesson schema, revealed only after a committed
+  attempt (a one-line guess box gates it). Old lessons lack the field → no reveal.
+- **Study mode auto-starts** — asked once (`profile.preferences.study_auto` via
+  `POST /api/pref`), then a lightweight open-ended session per lesson with a
+  one-tap End. Full commit-intent sheet still behind the Study mode button.
+
+**Batch 3b — original notes (superseded, kept for context):**
 - **Ask context.** `/api/ask` sends only `{question, day}`; the prompt sees only
   day title + topics, so "explain the try-it-now you gave me" is unanswerable.
   Send `{day, step:{kind,i}}` and pull the section from the **server-side cached
