@@ -11,9 +11,10 @@ folder alongside it._
 > 3. (optional) the whole `C:\Users\user\Desktop\MentorOS\` folder — but the code
 >    is already safe on GitHub `main`, so a re-clone restores everything except #1 and #2.
 >
-> As of this session the git working tree is **CLEAN and pushed** (latest feature
-> commit `0135231` "dashboard plan strip + XP-to-next"), so there is no uncommitted
-> code to lose. Only #1 and #2 above live outside git.
+> As of this session the git working tree is **CLEAN and pushed** (latest commit
+> `7668130` "Video can be the largest medium when helpful; + audit fixes"), so there
+> is no uncommitted code to lose. Only #1 and #2 above live outside git.
+> **See §12 for the complete done/pending summary of this session.**
 
 ---
 
@@ -488,15 +489,19 @@ learning-science, product/UX — all converged.)
 - **`prompts.structure_for_hours`:** video count now **scales with sections**
   (`videos = 0 if mins<45 else min(sections, 10)`) instead of a flat max of 4.
   **Measured: 4h → up to 9–10 videos (was 3); 1h → 2; 0.5h → 0.**
-- **`structure_for_hours` budgets TOP-DOWN so the TOTAL day ≈ the chosen hours
-  (`dea7ead`, owner's rule: watching a video IS studying, count it — don't pile it
-  on top).** Reserve ~28% of the day for video, reading + practice split the rest.
-  **Measured totals: 4h → 239 min (video 27%, active 69%); 1h → 56; 6h → 356.**
-  Returns `video_mins`. `app.py` caps the counted video seconds at that reserved
-  budget, so the model attaching ten long videos can't balloon a "4-hour" day past
-  4 hours (the picks' chapters point the student to the relevant part). NOTE: this
-  REPLACED an earlier decoupled `video_mins = mins*0.15` reserve — don't reintroduce
-  that; it made videos additive-on-top, which overshoots the chosen hours.
+- **`structure_for_hours` budgets TOP-DOWN so the TOTAL day ≈ the chosen hours**
+  (owner's rule: watching a video IS studying — count it, don't pile it on top).
+  **FINAL model (`7668130`, superseding the earlier 28% reserve): THREE pools of
+  `usable` (mins − quiz): video 0.40 · reading 0.23 · practice 0.37.** Owner's later
+  ask — "videos could be more than text if more helpful" — so video is the LARGEST
+  reserve and structurally exceeds reading at every duration ≥1h, while active work
+  (practice + quiz + per-section try-its) stays ~40%+ so it's never all-passive.
+  **Measured totals ≈ chosen hours: 1h→53, 2h→123, 4h→240, 6h→357, 8h→474** (8h now
+  honestly ~8h; the old section-only model capped it at ~5.7h). Returns `video_mins`.
+  `app.py` caps counted video seconds at that reserve, so many long videos can't
+  balloon the day past its hours; a low-video day honestly runs SHORT rather than
+  padding with marginal videos. **Do NOT reintroduce the old `video_mins=mins*0.15`
+  or `*0.28` reserves — those capped video below reading and overshoot/under-serve.**
 - **`resource_query` prompt gate rewritten** — the REAL reason only ~2 showed. Was
   "include ONLY where it beats reading… OMIT for definitions/history"; now "default to
   including one on every concept section… omit only true padding, never two for the
@@ -560,3 +565,85 @@ verified). The dashboard needs a logged-in account + a plan to render.
 Owner's standing rule (highest priority): **update this file after EVERY change**,
 commit + push so it's never only on one laptop. Live prod state before any new
 work this session: LV 3, 365 XP, Day 2 of 50, 1-day streak, 1 shield (unchanged).
+
+---
+
+## 12. COMPLETE SESSION SUMMARY (16 Jul 2026, later session) — the backup
+
+**Read this first next time.** Self-contained snapshot of everything done + pending.
+
+### 12.1 Was anything lost? NO.
+- `app.py` was deleted from the working folder (only its `.pyc` remained) but was
+  intact in git + live on Render; restored via `git checkout HEAD -- app.py`. Proven
+  not-lost by matching the `.pyc`'s recorded source size to the committed file.
+- The only unpushed work (Batch 4 design start in `app.js`/`style.css`) was committed
+  and pushed. `.env` + keystore both confirmed present (see SAVE CHECKLIST up top).
+
+### 12.2 Everything DONE this session (all committed + pushed to GitHub `main`)
+Commit order (oldest→newest):
+1. `b4a2e93` — Batch 4 start (rescued unpushed work): real `<p>` paragraphs
+   (`fmtProse`), 44px touch targets, toast/reward-pill collision fix.
+2. `e0b578a` — **Videos + visuals richness.** Video cap scales with sections; video
+   prompt gate rewritten to include a video wherever it helps; diagram "1-2" ceiling
+   lifted; `youtube.py` query cache + `storage.youtube_quota_reserve` daily guard;
+   section videos → slim "▶ Watch" chips.
+3. `dea7ead` — video time counted INSIDE the day budget (first cut, 28% reserve).
+4. `0135231` — **Dashboard plan strip + XP-to-next meter**, Today card above the fold.
+5. `7668130` — **Video can be the LARGEST medium when helpful** (owner's refinement):
+   final 3-pool budget video 0.40 / reading 0.23 / practice 0.37; video structurally
+   exceeds reading while active work stays ~40%+; total ≈ chosen hours. PLUS the
+   council correctness-audit fixes (cache-trim lock, `escAttr` href, skip day-level
+   video on tiny days).
+(Plus 6 handoff.md commits keeping this file current, and the `launch.json` path fix.)
+
+**What the owner asked for on the original 16-Jul list — status map:**
+- Multi-user accounts · view-whole-session toggle · study-mode auto · goal-text fix ·
+  harder quizzes · back-to-dashboard · confidence/hint XP tiers · plan sized to hours ·
+  streak/shield honesty · per-topic videos · Ask remembers the step · try-it answers ·
+  bookmark speed · Android back · diagram overflow → **ALL DONE in earlier commits**
+  (see §7). The image issues (diagrams / XP-level / quiz-XP) — owner confirmed DONE.
+- More videos per topic + total time = chosen hours + videos-can-exceed-text +
+  more diagrams → **DONE this session** (commits 2,3,5).
+- Dashboard "unprofessional goal text" + motivation-first → **DONE** (`938c70b`+`0135231`).
+
+### 12.3 Everything PENDING (nothing here is started in code)
+**Batch 4 — remaining premium-design polish** (owner chose "videos first, then design";
+dashboard done, these remain):
+- Accent discipline — blue only for actionable/moving; drop decorative blue card
+  left-borders; kickers → `--faint`.
+- Card hierarchy via size/contrast/elevation (reuse `.card-primary`).
+- Guard every `:hover` in `@media (hover:hover)` (sticks on touch).
+- Skeleton loaders instead of full-screen blackout on sub-second fetches.
+- Honest lesson time estimate ("core vs +optional video") + chapter the step
+  progress bar by block, replacing the raw "N / 21" counter (UX council).
+- Diagram variety — two sizes (inline vs full-width) + optional caption, to avoid
+  monotony now that lessons can have many diagrams (UX council).
+
+**Verification still owed (needs the owner's plan + spends Gemini/YouTube quota):**
+- Generate ONE real lesson end-to-end to confirm the model now emits many
+  videos/diagrams and the day totals the chosen hours. All plumbing is unit-verified;
+  only the live model-behaviour proof is outstanding. **Existing Day 1–2 lessons are
+  cached — richness shows on NEW days or on regeneration, not retroactively.**
+
+**Parked / low priority (owner's call):** per-step separate Ask threads (the "too long"
+CSS cause is already fixed); the "second in-app AI" idea; public Play Store listing;
+resetting the inflated 365 XP from the old pace-check farm bug (his call, left alone).
+
+### 12.4 Known trade-off deliberately accepted (video budget)
+With video reserved at 40% and reading at 23%, a day whose topics are NOT
+video-worthy (model requests few videos) will honestly run SHORT of the target
+(e.g. a no-video 4h day ≈ 148 min shown) rather than pad with marginal videos. The
+council judged honest-under-run > passive padding. If the owner dislikes under-runs,
+the fix (not built) is to convert the unused video reserve into extra ACTIVE practice
+items post-generation — needs another model call, so deferred.
+
+### 12.5 How to run / verify locally (this laptop)
+- `cd C:\Users\user\Desktop\MentorOS` → `python app.py` → http://localhost:5000
+  (local uses `mentoros_data.json`; `MONGO_URI` is deliberately NOT in local `.env`).
+- Or Claude Code preview: `preview_start` name `mentoros` (port 5000). **Pixel
+  screenshots time out here — verify via `read_page` + `javascript_tool` computed
+  styles/positions** (that's how the chip + dashboard were verified this session).
+- Quick shape check: `python -c "import prompts as p; print(p.structure_for_hours(4))"`.
+- Two 3-lens LLM councils were run this session (video/visuals design; then video-share
+  + correctness audit). Audit found NO high-severity bugs; the 3 actionable low/med
+  items were fixed in `7668130`.
