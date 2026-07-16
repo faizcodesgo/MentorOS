@@ -1253,12 +1253,63 @@ function sanitizeSvg(code) {
   return new XMLSerializer().serializeToString(svg);
 }
 
+/* Make every label fit the box it's in.
+
+   The model writes these diagrams blind — it cannot measure rendered text, so it
+   guesses a box width and long labels spill over their box and collide with the
+   next one ("Control Unit (CU" printed across "Arithmetic Logic Unit"). The
+   prompt now gives it the width arithmetic, but the prompt can't be trusted to
+   be right every time. The BROWSER can measure, so it gets the final say.
+
+   For each <text>: find the smallest <rect> that contains it, and if the text is
+   wider, step the font down; if it still won't fit, squeeze it with textLength.
+   Slightly condensed type is always better than two labels on top of each other. */
+function fitSvgText(svg) {
+  const rects = [...svg.querySelectorAll("rect")].map((r) => {
+    try { return { el: r, box: r.getBBox() }; } catch { return null; }
+  }).filter(Boolean);
+
+  for (const t of svg.querySelectorAll("text")) {
+    let len;
+    try { len = t.getComputedTextLength(); } catch { continue; }
+    if (!len) continue;
+    let bx;
+    try { bx = t.getBBox(); } catch { continue; }
+    const cx = bx.x + bx.width / 2, cy = bx.y + bx.height / 2;
+
+    // the tightest rect this label sits inside
+    let host = null;
+    for (const { box } of rects) {
+      if (cx >= box.x && cx <= box.x + box.width && cy >= box.y && cy <= box.y + box.height) {
+        if (!host || box.width < host.width) host = box;
+      }
+    }
+    const limit = (host ? host.width : (svg.viewBox.baseVal.width || 600)) - 12;
+    if (limit <= 0 || len <= limit) continue;
+
+    // step the font down before resorting to squeezing
+    let size = parseFloat(getComputedStyle(t).fontSize) || 14;
+    while (size > 9 && len > limit) {
+      size -= 1;
+      t.setAttribute("font-size", size);
+      try { len = t.getComputedTextLength(); } catch { break; }
+    }
+    if (len > limit) {
+      t.setAttribute("textLength", Math.max(10, limit));
+      t.setAttribute("lengthAdjust", "spacingAndGlyphs");
+    }
+  }
+}
+
 function renderDiagrams(root) {
   // SVG-only — the prompts forbid mermaid, so nothing else ever renders
   for (const h of (root || document).querySelectorAll(".diagram[data-code]")) {
     const clean = sanitizeSvg(h.dataset.code);
     if (clean) h.innerHTML = clean; else h.remove();
     h.removeAttribute("data-code");
+    // must run AFTER insertion — text can only be measured once it's in the DOM
+    const svg = h.querySelector && h.querySelector("svg");
+    if (svg) { try { fitSvgText(svg); } catch {} }
   }
 }
 
