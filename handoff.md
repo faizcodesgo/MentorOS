@@ -12,8 +12,8 @@ folder alongside it._
 >    is already safe on GitHub `main`, so a re-clone restores everything except #1 and #2.
 >
 > As of this session the git working tree is **CLEAN and pushed** (latest feature
-> commit `e0b578a` "Videos + visuals richness"), so there is no uncommitted code to
-> lose. Only #1 and #2 above live outside git.
+> commit `dea7ead` "Video time is part of the day's budget"), so there is no
+> uncommitted code to lose. Only #1 and #2 above live outside git.
 
 ---
 
@@ -487,10 +487,16 @@ were throttling it; both fixed, plus quota safety. (3-lens LLM council: systems/
 learning-science, product/UX — all converged.)
 - **`prompts.structure_for_hours`:** video count now **scales with sections**
   (`videos = 0 if mins<45 else min(sections, 10)`) instead of a flat max of 4.
-  **Measured: 4h → up to 10 videos (was 3); 1h → 3; 0.5h → 0.** Video *time*
-  decoupled from *count* (`video_mins = min(mins*0.15, 25)`, NOT `videos*14`) so more
-  videos no longer steal practice items or re-inflate `est_minutes` (est 4h = 241 min,
-  still honest).
+  **Measured: 4h → up to 9–10 videos (was 3); 1h → 2; 0.5h → 0.**
+- **`structure_for_hours` budgets TOP-DOWN so the TOTAL day ≈ the chosen hours
+  (`dea7ead`, owner's rule: watching a video IS studying, count it — don't pile it
+  on top).** Reserve ~28% of the day for video, reading + practice split the rest.
+  **Measured totals: 4h → 239 min (video 27%, active 69%); 1h → 56; 6h → 356.**
+  Returns `video_mins`. `app.py` caps the counted video seconds at that reserved
+  budget, so the model attaching ten long videos can't balloon a "4-hour" day past
+  4 hours (the picks' chapters point the student to the relevant part). NOTE: this
+  REPLACED an earlier decoupled `video_mins = mins*0.15` reserve — don't reintroduce
+  that; it made videos additive-on-top, which overshoots the chosen hours.
 - **`resource_query` prompt gate rewritten** — the REAL reason only ~2 showed. Was
   "include ONLY where it beats reading… OMIT for definitions/history"; now "default to
   including one on every concept section… omit only true padding, never two for the
