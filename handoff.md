@@ -270,9 +270,40 @@ have fixed it. The browser can measure; it gets the final say. Don't delete
 
 ## 8. What is NOT done (the rest of Faiz's 16 Jul list)
 
-**Batch 2 — multi-user accounts — COUNCIL SAYS NO-GO FOR NOW (16 Jul).**
-Faiz chose accounts; a second council said don't build them yet, and found the
-reason nobody had spotted:
+**Batch 2 — multi-user accounts: BUILT AND LIVE (16 Jul, `813d20f`).**
+Superseded the NO-GO once a real backup existed. Kept below for the reasoning.
+
+**HOW IT WORKS NOW**
+- The user resolves INSIDE `storage.py` from `flask.g`, so `load_state()` /
+  `save_state()` kept their signatures — **all ~54 call sites needed ZERO edits**.
+- **`storage._uid()` RAISES; it never defaults.** Do not "fix" this with a
+  fallback: that turns a missed route into silently reading someone else's plan.
+- `before_request` 401s every `/api/` route outside `OPEN_PATHS`. Verified: all
+  23 gated routes 401 without an account.
+- `pw_hash` lives in the **`users` collection, never in state** — `/api/state`
+  serialises the whole state dict to the browser.
+- `_id` = lowercased name → uniqueness is structural (no index to forget).
+- `SECRET_KEY` needs **no manual env var**: generated once and persisted
+  (`mentoros.config` in prod, `mentoros_data/_secret.txt` locally), because
+  Render free spins down at 15 min and a boot key would log everyone out daily.
+  Boot degrades to a temporary key rather than dying if the DB is unreachable.
+- **`LEGACY_OWNER`** (env, default `faiz`) decides who inherits the pre-accounts
+  `default` doc. NOT "first signup" — the app is on a public URL and a bot could
+  have claimed his 50 days. `claim_legacy_state()` re-keys **both** `default`
+  AND `default__backup`, copying and never moving; the legacy docs stay forever.
+- The cron has no session by nature: it iterates `notif_user_ids()` and writes
+  back ONLY the notifications subtree via `$set`, so it can't race a user's save.
+- `legacy_waiting` on `/api/auth/me` puts a line on the signup screen so the
+  owner doesn't think his plan vanished.
+- **No password reset** (no mail server). Forgotten password = edit Atlas by hand.
+
+**`python backup.py`** dumps prod (read-only) — reads `MONGO_URI_BACKUP`, NOT
+`MONGO_URI`, because that name in a local `.env` makes `python app.py` write to
+PRODUCTION. Owner's dumps live in `Desktop/mentoros/.claude/` (outside the repo).
+
+---
+
+**The original NO-GO reasoning (kept — the traps it found were real):**
 - **`storage.snapshot()` keys the backup `f"{USER_ID}__backup"`** (`storage.py`).
   The moment `USER_ID` becomes `_uid()`, `load_snapshot()` looks for
   `<newuid>__backup` and the existing `default__backup` becomes **unreachable by
