@@ -530,9 +530,23 @@ learning-science, product/UX — all converged.)
   5000) works. `MentorOS/.claude/launch.json` also exists (name `mentoros-audit`).
 
 ### NEXT UP (owner's chosen order was "videos first, then the design pass")
-Batch 4 premium design pass — see §8 for the full list. Cheapest first wins: the dead
-`.btn { transition: background }` press animation (one-line delete), dashboard reorder,
-accent discipline, skeleton loaders, the honest time-estimate above.
+Batch 4 premium design pass. **Correction to §8:** the dead `.btn { transition:
+background }` press animation was ALREADY fixed in `938c70b` (the `.btn` rule now
+carries no transition shorthand — see the comment at style.css ~161). Genuinely
+remaining Batch 4 items:
+- **Dashboard reorder** (motivation-first): greeting → goal line → plan strip
+  (progress + XP-to-next) → **Today card above the fold**; cut the LV/XP/streak the
+  topbar already shows. (Highest impact; taste-dependent — get owner's eye on it.)
+- **Accent discipline**: blue only for actionable/moving; drop decorative blue card
+  left-borders; kickers → `--faint`.
+- **Card hierarchy** via size/contrast/elevation (reuse `.card-primary`).
+- Guard every `:hover` in `@media (hover:hover)` (they stick on touch tap-hold).
+- **Skeleton loaders** instead of the full-screen blackout for sub-second fetches.
+- **Honest time estimate** (UX council): "core vs +optional video" + chapter the
+  progress bar by block, replacing the raw "N / 21" step counter.
+NOTE: pixel screenshots time out in this env (known gotcha) — verify design changes
+via `read_page` + `javascript_tool` computed styles/positions (how the video chip was
+verified). The dashboard needs a logged-in account + a plan to render.
 
 ### How to keep this handover current
 Owner's standing rule (highest priority): **update this file after EVERY change**,
