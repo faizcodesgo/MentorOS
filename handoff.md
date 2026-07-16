@@ -181,6 +181,30 @@ Schema `SCHEMA = 13` in `storage.py` with an idempotent `_migrate()` chain.
 
 ---
 
+### Batch 3a — `cc47be8` — the hours are real, videos are per-topic
+- **The 6-hours bug.** `prompts.py` hardcoded "3-6 sections" and "exactly 5
+  questions" regardless of hours, then asked the model to label it
+  `est_minutes: 360`. Nothing ever read that number. `structure_for_hours()`
+  now computes sections/practice/videos/blocks in **Python** and the prompt gets
+  exact counts as a hard requirement ("go deeper, don't pad"). `est_minutes` is
+  derived twice — from the shape at plan time, from real content + real video
+  durations at lesson time.
+  **MEASURED: 1h → 3 sections / 79 min / 16k chars; 6h → 14 sections / 15
+  practice / 5 blocks / 346 min / 42k chars.** Both were ~45 min before.
+  Fits in ONE call (~10.5k of 16k).
+- **Long days are blocked**, not just longer: sections carry `block`, the step
+  engine inserts a real Break step, the last block is consolidation only, and
+  the mentor explains the split once. Above ~6h the section cap binds, so an 8h
+  ask honestly reports ~5h42m rather than printing "8h" over a 5h lesson.
+- **Per-section videos** (`resource_query` on the section), fetched AFTER
+  generation (sections don't exist before it), fanned out in parallel, capped by
+  `structure_for_hours`, with a search-link fallback. One day-level video is
+  kept so `resources_note` keeps its what-to-watch guidance.
+  **Quota reality: `search.list` = 100 units of 10,000/day for the WHOLE
+  project.** That's why videos are capped, not per-section-unconditional.
+
+---
+
 ## 8. What is NOT done (the rest of Faiz's 16 Jul list)
 
 **Batch 2 — multi-user accounts (DECIDED, NOT BUILT).** Faiz chose real accounts
@@ -212,24 +236,7 @@ Schema `SCHEMA = 13` in `storage.py` with an idempotent `_migrate()` chain.
   removes the "no undo" objection, and the zero-call-site design shrinks the
   blast radius. **Faiz's call stands, but do it carefully and locally first.**
 
-**Batch 3 — content (not started):**
-- **Videos per topic on that topic's step.** Currently day-level (`lesson.videos`,
-  1 query → ≤2 videos) all rendered into step 1. Move `resource_query` onto the
-  SECTION schema, fetch AFTER the lesson returns (sections don't exist before),
-  fan out with ThreadPoolExecutor, batch ids into ONE `videos.list`. **Cap ~2-3
-  per lesson** — a video per section is mostly redundant with the text and
-  torches the quota. Keep one day-level video so `resources_note` keeps its
-  chapter-timestamp guidance (the best feature in the lesson).
-- **Hours-based sizing.** ROOT CAUSE: `prompts.py` hardcodes **"3-6 sections"**
-  and "exactly 5 questions" regardless of hours; `est_minutes` is generated,
-  rendered, and **never read by any code**. Asking the model for a bigger number
-  doesn't make more content. Compute the structure in Python from hours
-  (sections/practice/videos) and put concrete counts in the prompt.
-  **MEASURED: a full lesson is only ~3.5-4k tokens of a 16k cap — ~4× headroom**,
-  so a 10-section 6h lesson should fit ONE call (the council's "must split into
-  parallel calls" estimate was wrong). Learning science: obey the 6 hours but
-  STRUCTURE it (4 × 60-90min blocks, hours 5-6 = retrieval not new theory) and
-  have the mentor say so once.
+**Batch 3b — content (NOT started):**
 - **Ask context.** `/api/ask` sends only `{question, day}`; the prompt sees only
   day title + topics, so "explain the try-it-now you gave me" is unanswerable.
   Send `{day, step:{kind,i}}` and pull the section from the **server-side cached
