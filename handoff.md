@@ -70,6 +70,12 @@ Study mode). Owner: **Faiz** — beginner dev, sole user, prepping for RVCE CSE
   local `.env` makes `python app.py` connect to **production** and every local
   test rewrite the real plan. Local dev = `mentoros_data.json`. Render keeps its
   own `MONGO_URI`; the deploy is unaffected.
+- **`python reset_password.py`** sets a new password for one account — the whole
+  "forgot password" story, since there is no mail server and no reset link. Lists the
+  accounts, asks which, confirms, reads the password with `getpass` (never echoed, never
+  in shell history), then does ONE `$set` of `pw_hash`. It never opens the `state`
+  collection, so a plan cannot be harmed by running it. Reads `MONGO_URI_BACKUP` like
+  `backup.py`; `--local` targets `mentoros_data/_users.json` instead of prod.
 - **`python backup.py`** dumps prod to the Desktop (read-only). Atlas M0 has NO
   automated backups and every save is a whole-document replace — run it before
   touching `storage.py`, and now and then regardless.
