@@ -5,6 +5,7 @@ Run locally:  python app.py   (then open http://localhost:5000)
 """
 import datetime
 import os
+from concurrent.futures import ThreadPoolExecutor
 
 from flask import Flask, g, jsonify, request, send_from_directory, session
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -183,11 +184,35 @@ def privacy():
     return send_from_directory("public", "privacy.html")
 
 
+def _ref_key(ref):
+    """A review item's ref as a STRING dict key.
+
+    `reviews.enqueue_quiz` stores `ref` as `[src_day, index]` — a list, because
+    it has to survive JSON on the wire. A list is unhashable, so using it
+    directly as a dict key raised TypeError and took the ENTIRE warm-up feature
+    down with it. A tuple isn't an option either: Mongo rejects non-string keys
+    and `json.dump` refuses them too. So: a string, here, in one place.
+    """
+    if isinstance(ref, (list, tuple)):
+        return ":".join(str(x) for x in ref)
+    return str(ref)
+
+
 @app.get("/api/state")
 def get_state():
     state = storage.load_state()
     # lessons can get big — the dashboard doesn't need them
     slim = {k: v for k, v in state.items() if k != "lessons"}
+    # warmup_pending is the ANSWER KEY for the warm-up currently on screen.
+    # Shipping it would hand the client the answers and defeat the whole point
+    # of grading on the server. Material text and the YouTube cache are just
+    # dead weight in a response the client now also writes to localStorage.
+    for k in ("warmup_pending", "yt_cache", "asked_questions"):
+        slim.pop(k, None)
+    if slim.get("material"):
+        m = dict(slim["material"])
+        m["chars"] = len(m.pop("text", "") or "")
+        slim["material"] = m
     # don't ship raw push subscriptions or material text to the client
     if slim.get("notifications"):
         n = dict(slim["notifications"])
@@ -493,7 +518,6 @@ def generate_all():
     much faster than the sequential per-phase loop on the free tier (total time
     ~= the slowest single phase instead of the sum). One save at the end avoids
     the concurrent-write clobber a parallel client loop would cause."""
-    from concurrent.futures import ThreadPoolExecutor
     state = storage.load_state()
     plan = state.get("plan")
     if not plan:
@@ -957,7 +981,8 @@ def warmup_start():
     # bug silently corrupted the app's model of what the student knows.
     state["warmup_pending"] = {
         "day": today,
-        "answers": {q["ref"]: {"answer": q["answer"], "topic": q["topic"]} for q in questions},
+        "answers": {_ref_key(q["ref"]): {"answer": q["answer"], "topic": q["topic"]}
+                    for q in questions},
     }
     storage.save_state(state)
     return jsonify({"questions": questions, "today": today})
@@ -978,7 +1003,7 @@ def warmup_submit():
     graded_results = []
     for r in results:
         ref = r.get("ref")
-        truth = key.get(ref)
+        truth = key.get(_ref_key(ref))
         if truth is not None and "chosen" in r:
             correct = r.get("chosen") == truth["answer"]
             topic = truth["topic"]
@@ -1413,8 +1438,13 @@ def _attach_section_videos(lesson, hours, entry, cache=None):
                 lambda s: youtube.search_videos(s["resource_query"], max_results=1,
                                                 cache=cache, guard=storage.youtube_quota_reserve),
                 wanted))
-    except Exception:
-        return   # a video is never worth failing a lesson over
+    except Exception as e:
+        # a video is never worth failing a lesson over — but LOG it. A bare
+        # `except: return` here silently swallowed a NameError for ten days,
+        # so every lesson quietly shipped with zero per-section videos while
+        # the notes recorded the feature as done.
+        app.logger.warning("section videos skipped: %s: %s", type(e).__name__, e)
+        return
     for section, vids in zip(wanted, found):
         if vids:
             section["video"] = vids[0]

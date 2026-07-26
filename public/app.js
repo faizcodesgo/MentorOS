@@ -257,7 +257,12 @@ async function api(path, opts = {}) {
     // to sign-in rather than leave them tapping a dead screen. The auth routes
     // are excluded — a wrong password is a legitimate 401 the form handles.
     if (res.status === 401 && !path.startsWith("/api/auth/")) {
-      clearLocalCache();   // never show a signed-out (or different) user a stale dashboard
+      // never show a signed-out (or different) user a stale dashboard, and
+      // never leave the previous session's views reachable via the back stack
+      state = null;
+      clearLocalCache();
+      lastShownXp = null;
+      currentView = null;
       renderAuth(true);
     }
     const err = new Error(data.error || `Request failed (${res.status})`);
@@ -282,8 +287,15 @@ function loadSnap() {
   try { return JSON.parse(localStorage.getItem(SNAP_KEY) || "null"); } catch { return null; }
 }
 
+/* Everything client-side that belongs to ONE account+plan. Must be called on
+   sign-out, on a 401, AND on any reset — a lesson cached under day 1 of the
+   old plan would otherwise be served for day 1 of a brand-new one, from
+   memory, with no network call to correct it. */
 function clearLocalCache() {
   try { localStorage.removeItem(SNAP_KEY); localStorage.removeItem("mos_resume"); } catch {}
+  lessonCache.clear();
+  prefetchTried.clear();
+  warmupInfo = null;
 }
 
 /* the ONE way to refetch full state — every fetch refreshes the snapshot */
@@ -364,8 +376,7 @@ $("btnAuthSwitch").addEventListener("click", () => {
 $("btnSignOut").addEventListener("click", async () => {
   try { await api("/api/auth/logout", { method: "POST" }); } catch {}
   state = null;
-  clearLocalCache();               // the snapshot belongs to this account only
-  lessonCache.clear();
+  clearLocalCache();               // snapshot + lesson cache belong to this account only
   lastShownXp = null;              // don't animate the next person's XP from yours
   currentView = null;              // reset the history base
   renderAuth(true);
@@ -927,6 +938,10 @@ $("wbResume").addEventListener("click", () => {
 async function resetAll(msg) {
   if (!confirm(msg)) return;
   await api("/api/reset", { method: "POST", body: JSON.stringify({ confirm: true }) });
+  // the server just wiped state.lessons, so the client is the ONLY holder of
+  // the old plan's lessons — keeping them would serve the old day 1 as the
+  // new plan's day 1, from memory, with no request to correct it
+  clearLocalCache();
   await refreshState();
   show("onboarding");
 }
@@ -939,6 +954,7 @@ $("btnAbandonGen").addEventListener("click", async () => {
   genAborted = true;   // ignore any in-flight generation result
   try {
     await api("/api/reset", { method: "POST", body: JSON.stringify({ confirm: true }) });
+    clearLocalCache();   // same reason as resetAll — don't keep the dead plan's lessons
     await refreshState();
   } catch {}
   show("onboarding");
@@ -2493,9 +2509,13 @@ $("btnNextQ").addEventListener("click", async () => {
     refreshState().catch(() => {});   // dna/streak/reviews reconcile behind
   } catch (err) {
     toast(err.message, 6000);
-    btn.disabled = false;
     btn.textContent = "See results";
   } finally {
+    // ALWAYS re-enable. It used to be re-enabled only in the catch, so after a
+    // successful checkpoint the button stayed disabled for the rest of the
+    // session — the SECOND checkpoint of the day had a dead "Next" and the
+    // only way out was quitting the run.
+    btn.disabled = false;
     quizRun = null;
   }
 });
