@@ -769,6 +769,46 @@ also rewrote the line INSIDE `refreshState` itself → infinite recursion, app
 booted to a blank page with NO console error (the rejection died inside
 boot's catch). If the app ever boots blank: check `refreshState` first.
 
+### Follow-up fixes (same day, commit after 116bf5d) — found by self-review
+
+Two regressions the first commit introduced, both now fixed and verified:
+
+1. **Mid-lesson resume never actually resumed.** `renderLesson` ends with
+   `renderStep()`, which WRITES `mos_resume`; `maybeResumeStep` then read it
+   back and saw `idx: 0`. So the Today button promised "Continue - step 4 of 9"
+   and dropped you on step 1 — worse than no feature, because it lied. Fix:
+   `openLesson` reads the resume BEFORE anything renders and passes it into
+   `renderLesson(l, resume)`, which resolves the starting index via
+   `resumeStep()` and does exactly ONE `renderStep()`. `maybeResumeStep` is
+   gone. Review mode (`opts.review`) deliberately passes `null` — reopening a
+   finished day from its recap always starts at step 1.
+2. **Diagrams could render unfitted when resuming into a section step.** A view
+   transition DEFERS the DOM swap, so anything queued right after `show()`
+   still runs against a `display:none` subtree — `getBBox()`/
+   `getComputedTextLength()` return 0 and `fitSvgText` silently skips, which is
+   exactly the label-overflow bug `4f3dc91` existed to kill. Fix: `show(view,
+   after)` now takes a callback that runs INSIDE the transition callback, once
+   the `.hidden` toggles have happened, and `openLesson` renders through it.
+   **Rule: anything that MEASURES rendered content must go through `show`'s
+   `after` callback, never straight after a `show()` call.**
+   `show()` also now snapshots `prev = currentView` and assigns
+   `currentView` BEFORE `apply()`, so callbacks see the real view while the
+   history push keeps its exact old semantics (compares against `prev`).
+   Hardened `pillChain` with a `.catch` — a single rejection would otherwise
+   swallow every reward pill for the rest of the session.
+
+**Verified after the fix:** button label and landing step agree (4/5), and
+`fitSvgText` demonstrably ran (the 22-char "Central Processing Unit" label was
+stepped 14px -> 12px to fit its 150px box; "RAM" left alone). Re-ran the full
+sweep: back-gesture ladder (sheet -> view -> view), day-complete -> checkpoint
+(3 wagers, combo counter) -> result choreography -> recap order -> Tomorrow
+card -> review mode starts at step 1. No console or server errors.
+
+**Local-testing red herring:** a hand-written mock `dna` dict without the
+`misconceptions` key 500s `/api/lesson` via `dna.summary_for_prompt`.
+`dna.build()` always emits that key, so no real state can hit it — it is a
+mock-data problem, not a product bug. Don't "harden" dna.py for it.
+
 ### Still needs the OWNER'S EYES on the live site (can't be judged headlessly)
 - Whether the View Transition crossfade feels premium or sluggish on his phone
   (durations are 0.15s out / 0.24s in — tune, don't delete).

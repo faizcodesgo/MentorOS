@@ -98,20 +98,30 @@ function animateXpChip(el, from, to, lv) {
 let currentView = null;
 let suppressHistory = false;   // set while WE are reacting to a popstate
 
-function show(view) {
+/* `after` runs the moment the view is REALLY on screen — i.e. inside the view
+   transition callback, once the .hidden toggles have happened. Anything that
+   MEASURES rendered content (fitSvgText via renderDiagrams) must go through
+   here: a view transition defers the DOM swap, so work queued right after a
+   show() call would still run against a display:none subtree and measure zero. */
+function show(view, after) {
   if (study && view !== "lesson") endStudy(false);   // leaving the lesson ends the session
 
+  const prev = currentView;
   const apply = () => {
     views.forEach((v) => $("view-" + v).classList.toggle("hidden", v !== view));
     $("askFab").classList.toggle("hidden", view !== "lesson");   // floating Ask only in a lesson
     $("askSheet").classList.add("hidden");
     window.scrollTo(0, 0);
+    // never let a callback failure abort the transition mid-swap
+    if (after) { try { after(); } catch (e) { console.error(e); } }
   };
   // View Transitions crossfade old->new as composited snapshots (Chrome TWA).
   // ONLY the DOM swap is deferred into the callback — the history push below
   // stays synchronous, so the popstate suppressHistory window is untouched.
-  const vt = document.startViewTransition && currentView !== null && view !== currentView &&
+  const vt = document.startViewTransition && prev !== null && view !== prev &&
     !matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // set BEFORE apply so `after` (and anything it calls) sees the real view
+  currentView = view;
   if (vt) {
     document.documentElement.classList.add("vt");
     const t = document.startViewTransition(apply);
@@ -120,13 +130,12 @@ function show(view) {
     apply();
   }
 
-  if (!suppressHistory && view !== currentView) {
+  if (!suppressHistory && view !== prev) {
     // replace (not push) for the very first view, so there's a base entry to
     // land on rather than an empty one that exits the app
-    if (currentView === null) history.replaceState({ v: view }, "");
+    if (prev === null) history.replaceState({ v: view }, "");
     else history.pushState({ v: view }, "");
   }
-  currentView = view;
 }
 
 function isAskOpen() { return !$("askSheet").classList.contains("hidden"); }
@@ -229,7 +238,9 @@ function rewardPill(label, amount) {
       setTimeout(done, 260);                         // fallback — never stall the chain
     }, 1350);
   });
-  pillChain = pillChain.then(run);
+  // .catch keeps one bad link from poisoning the chain — a rejected pillChain
+  // would silently swallow every reward pill for the rest of the session
+  pillChain = pillChain.then(run).catch(() => {});
   return pillChain;
 }
 
@@ -1679,11 +1690,18 @@ async function openLesson(day, opts = {}) {
   const entry = (state.plan.curriculum || []).find((d) => d.day === day) || {};
   if (entry.kind === "project") return openProject(entry);
 
+  // Read the resume position BEFORE anything renders — renderStep WRITES it,
+  // so reading it afterwards always returns step 0 (the button would promise
+  // "Continue · step 4 of 9" and then land you on step 1).
+  const resume = opts.review ? null : getResume();
+
   if (lessonCache.has(day)) {          // instant path — no overlay, no flash
-    renderLesson(lessonCache.get(day));
-    maybeResumeStep(day);
-    show("lesson");
-    maybeAutoStudy();
+    // render INSIDE the transition callback: the view is on screen by then, so
+    // section diagrams can be measured and fitted (they measure zero offscreen)
+    show("lesson", () => {
+      renderLesson(lessonCache.get(day), resume);
+      maybeAutoStudy();
+    });
     return;
   }
 
@@ -1715,10 +1733,13 @@ async function openLesson(day, opts = {}) {
   }
   try {
     const lesson = await fetchLesson(day);
-    renderLesson(lesson);
-    maybeResumeStep(day);
-    if (currentView !== "lesson") show("lesson");
-    maybeAutoStudy();
+    if (currentView === "lesson") {
+      // skeleton path — already on screen, safe to render straight away
+      renderLesson(lesson, resume);
+      maybeAutoStudy();
+    } else {
+      show("lesson", () => { renderLesson(lesson, resume); maybeAutoStudy(); });
+    }
   } catch (err) {
     toast(err.message, 6000);
     if (currentView === "lesson") { renderDashboard(); show("dashboard"); }
@@ -1730,19 +1751,20 @@ async function openLesson(day, opts = {}) {
 
 /* ---------- mid-lesson resume (Netflix's "continue watching") ----------
    The step position survives closing the app; reopening the same day lands on
-   the step you left, and the Today card says "Continue · step 4 of 9". */
+   the step you left, and the Today card says "Continue · step 4 of 9".
+   renderLesson applies it (see resumeStep) so there is exactly ONE renderStep
+   per open — a second one would both flash and clobber the saved position. */
 function getResume() {
   try { return JSON.parse(localStorage.getItem("mos_resume") || "null"); } catch { return null; }
 }
 
-function maybeResumeStep(day) {
-  const saved = getResume();
-  if (lessonReviewMode || !saved || saved.day !== day) return;
-  if (isDone(day)) return;
-  if (saved.len === lessonSteps.length && saved.idx > 0 && saved.idx < lessonSteps.length) {
-    stepIdx = saved.idx;
-    renderStep();
-  }
+/* the step to open at: the saved one if it's still valid for THIS lesson
+   (the step count changes if a lesson is regenerated), else the start */
+function resumeStep(resume, day, done) {
+  if (!resume || lessonReviewMode || done) return 0;
+  if (resume.day !== day || resume.len !== lessonSteps.length) return 0;
+  if (!(resume.idx > 0 && resume.idx < lessonSteps.length)) return 0;
+  return resume.idx;
 }
 
 /* Study mode when you're actually studying — asked ONCE, then it just starts,
@@ -1926,7 +1948,7 @@ function buildInteraction(it) {
 let lessonSteps = [];
 let stepIdx = 0;
 
-function renderLesson(l) {
+function renderLesson(l, resume) {
   currentLesson = l;
 
   // header (rendered once, fixed across steps)
@@ -1987,7 +2009,7 @@ function renderLesson(l) {
   // newest first, matching where new answers land (see the ask handler)
   $("explorations").innerHTML = [...(l.explorations || [])].reverse().map(explorationHtml).join("");
 
-  stepIdx = 0;
+  stepIdx = resumeStep(resume, l.day, done);
   renderStep();
 }
 
