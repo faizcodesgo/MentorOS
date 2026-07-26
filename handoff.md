@@ -809,6 +809,49 @@ card -> review mode starts at step 1. No console or server errors.
 `dna.build()` always emits that key, so no real state can hit it — it is a
 mock-data problem, not a product bug. Don't "harden" dna.py for it.
 
+### Follow your own phase structure (26 Jul, owner's request)
+
+The owner's 8-phase bootcamp prompt kept coming back as 4 merged phases,
+because the negotiator is built to assess rather than obey. Now: **if the goal
+text lays out its own structure, that structure is the plan.**
+
+- `prompts.explicit_phase_plan(goal, total_days)` parses headings like
+  "Phase 2 (Days 9-18 | 80h): C Programming" (also Week/Module/Unit/Part/Stage,
+  markdown bold, en-dashes, "Day 40" alone = a 1-day phase) into
+  name/days/focus. The text the student wrote UNDER a heading becomes `focus`.
+  **Deliberately strict — returns [] unless every heading parses AND the days
+  sum to exactly the total.** A half-read structure is worse than none.
+- `/api/negotiate` applies it deterministically over the model's answer.
+  **Prompt-only did NOT hold** — measured across runs the model gave C 18 days
+  instead of 10, starved a phase to 0 days, and once merged 8 phases into 7,
+  because re-weighting *feels* like honest assessment. Their day splits are the
+  spec; the model still owns verdict / mentor_message / achievable_scope /
+  dropped_scope, so it keeps their shape and still says what won't fit.
+  Phase NAMES take the model's tidier wording only when the counts align
+  (otherwise the lists have diverged and index-matching mislabels phases).
+- The negotiate prompt got a RESPECT AN EXPLICIT STRUCTURE block too (belt and
+  braces, and it covers formats the parser can't read).
+- `_sanitize_phases()` in app.py now guards both `/api/negotiate` and
+  `/api/plan/init`: **a 0-day phase used to be a hard 500** —
+  `curriculum_phase_prompt` asks for "day 40 to day 39", the model returns
+  nothing, `days[-1]` raises, and you're left with an unrecoverable plan shell.
+  Clamps every phase to >= 1 day, drops nameless/malformed ones, and shaves the
+  excess off the longest phases so the requested duration still holds.
+- **Project placement:** the final phase no longer auto-gets a capstone unless
+  it has >= 2 days. Student-authored structures typically end with a single
+  wrap-up day ("Day 40: final revision + mock assessment") and turning that into
+  a build-a-project day overrode the thing they were most explicit about.
+  Earlier phases (>= 3 days) still carry the projects. Both the sequential and
+  the parallel generation paths were changed — **keep the two in step.**
+
+**Verified against the owner's real 40-day/8-phase prompt with live Gemini:**
+returns all 8 phases at exactly [8,10,4,6,5,3,3,1], `followed_your_structure:
+true`, verdict still "ambitious" with 7 dropped-scope items. An unstructured
+goal ("learn guitar", 14 days) still gets 4 model-designed phases summing to 14.
+Parser unit-tested for markdown, Week/Module wording, wrong sums, unreadable
+headings, and sentence-length headings (a blind 40-char cut produced "mock ass";
+it now takes the first clause -> "Final revision").
+
 ### Still needs the OWNER'S EYES on the live site (can't be judged headlessly)
 - Whether the View Transition crossfade feels premium or sluggish on his phone
   (durations are 0.15s out / 0.24s in — tune, don't delete).

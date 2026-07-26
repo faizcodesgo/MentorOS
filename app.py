@@ -261,7 +261,69 @@ def negotiate():
     # so the user gets a retry instead of a half-rendered dead end
     if not isinstance(result, dict) or not isinstance(result.get("phases"), list) or not result["phases"]:
         return jsonify({"error": "Couldn't assess that goal — try adjusting it."}), 502
+    # fix 0-day/nameless phases HERE too, so the outline the student is shown and
+    # accepts is the same one that gets built
+    result["phases"] = _sanitize_phases(result["phases"], days)
+    if not result["phases"]:
+        return jsonify({"error": "Couldn't assess that goal — try adjusting it."}), 502
+    # If the student laid out their own phase structure, that structure wins.
+    # The prompt asks for this too, but the model keeps "helpfully" re-weighting
+    # the schedule or merging the last two phases, so it's applied
+    # deterministically here. The model still owns the honest part — verdict,
+    # mentor_message, achievable_scope and dropped_scope are untouched, so it
+    # can keep their shape and still tell them what won't fit inside it.
+    wanted = prompts.explicit_phase_plan(goal, days)
+    if wanted:
+        model = result["phases"]
+        # Their DAY SPLITS are the spec and always win. Names are a label, so
+        # when the model returned the same number of phases (it usually does
+        # now the prompt asks for it) keep its tidier wording — "Python
+        # Essentials" over a bare "Python" — but never when the counts differ,
+        # because then the two lists have diverged and index-matching would
+        # staple the wrong name onto the wrong phase.
+        aligned = len(model) == len(wanted)
+        for i, phase in enumerate(wanted):
+            if aligned and str(model[i].get("name", "")).strip():
+                phase["name"] = str(model[i]["name"]).strip()[:40]
+            # their own words under the heading describe the phase best; fall
+            # back to the model's line only for a bare heading with no detail
+            if phase["focus"] == phase["name"] and aligned and model[i].get("focus"):
+                phase["focus"] = str(model[i]["focus"])
+        result["phases"] = wanted
+        result["followed_your_structure"] = True
     return jsonify(result)
+
+
+def _sanitize_phases(phases, asked_days=0):
+    """Never let a malformed phase list reach the curriculum generator.
+
+    A phase with 0 days makes curriculum_phase_prompt ask for "day 40 to day 39",
+    the model returns nothing, and `days[-1]` raises — a 500 that leaves a plan
+    shell with no curriculum, which the UI can't recover from. Models emit these
+    when a student's own phase structure has more parts than their days can
+    carry (now that we follow their structure, that's a live case).
+    """
+    clean = []
+    for p in phases or []:
+        if not isinstance(p, dict) or not str(p.get("name", "")).strip():
+            continue
+        try:
+            d = int(p.get("days", 0))
+        except (TypeError, ValueError):
+            d = 0
+        q = dict(p)
+        q["days"] = max(1, d)            # every phase is worth at least a day
+        clean.append(q)
+    # clamping up can push the total past what the student asked for; take the
+    # extra back off the longest phases so their duration still holds
+    target = int(asked_days or 0)
+    if target > 0 and len(clean) <= target:
+        while sum(p["days"] for p in clean) > target:
+            biggest = max(clean, key=lambda p: p["days"])
+            if biggest["days"] <= 1:
+                break
+            biggest["days"] -= 1
+    return clean
 
 
 @app.post("/api/plan/init")
@@ -289,7 +351,9 @@ def plan_init():
     # Season model: XP earned on the previous Main Quest rolls into the career total
     state["lifetime_xp"] = state.get("lifetime_xp", 0) + state.get("xp", 0)
     state["xp"] = 0
-    phases = body["phases"]
+    phases = _sanitize_phases(body["phases"], body.get("days"))
+    if not phases:
+        return jsonify({"error": "That plan had no usable phases — try again."}), 400
     # Trust the phase breakdown for the day count, not the raw ask — the model
     # doesn't always make phase days sum to the requested total, and a mismatch
     # would strand the progress bar below 100% forever.
@@ -371,10 +435,16 @@ def generate_phase():
     # of a substantial phase, and ALWAYS the plan's final phase ("apply what you
     # learned"). But NEVER the first phase and NEVER within the first 3 days: a
     # beginner can't build something before they've learned anything.
+    # The final phase needs >= 2 days too: students who supply their own phase
+    # structure often end with a single wrap-up day ("Day 40: final revision +
+    # mock assessment"), and silently turning that into a build-a-project day
+    # overrides the one thing they were most explicit about. Earlier phases
+    # (>= 3 days) still carry the plan's projects.
     phase = plan["phases"][idx]
     is_last_phase = idx == len(plan["phases"]) - 1
     last = days[-1]
-    if idx >= 1 and last["day"] > 3 and (phase.get("days", 0) >= 3 or is_last_phase):
+    if idx >= 1 and last["day"] > 3 and (phase.get("days", 0) >= 3
+                                         or (is_last_phase and phase.get("days", 0) >= 2)):
         pid = f"p{last['day']}"
         last["kind"] = "project"
         last["project_id"] = pid
@@ -442,7 +512,9 @@ def generate_all():
         phase = phases[idx]
         last = dlist[-1]
         is_last = idx == len(phases) - 1
-        if idx >= 1 and last["day"] > 3 and (phase.get("days", 0) >= 3 or is_last):
+        # same rule as the sequential path above — keep the two in step
+        if idx >= 1 and last["day"] > 3 and (phase.get("days", 0) >= 3
+                                             or (is_last and phase.get("days", 0) >= 2)):
             pid = f"p{last['day']}"
             last["kind"] = "project"
             last["project_id"] = pid

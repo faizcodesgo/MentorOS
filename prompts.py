@@ -1,5 +1,7 @@
 """All mentor prompts live here — the mentor's personality and every AI task."""
 
+import re
+
 MENTOR_PERSONA = """You are MentorOS — a real mentor to this specific student, not a generic assistant.
 You can teach ANY subject (programming, science, history, languages, music, business, fitness, anything)
 with the same structured, rigorous approach.
@@ -134,6 +136,69 @@ def goal_label(plan):
     return (plan.get("short_title") or "").strip() or (plan.get("goal") or "")[:120]
 
 
+_PH_HEADER = re.compile(r"^(?:phase|week|module|unit|part|stage)\s*\d+", re.I)
+_PH_RANGE = re.compile(r"days?\s*(\d{1,3})\s*(?:[-–—]|to|through|until)\s*(\d{1,3})", re.I)
+_PH_SINGLE = re.compile(r"days?\s*(\d{1,3})\b", re.I)
+
+
+def _phase_name(line):
+    """"Phase 2 (Days 9-18 | 80h): C Programming" -> "C Programming"."""
+    txt = re.sub(r"^(?:phase|week|module|unit|part|stage)\s*\d+", "", line, flags=re.I)
+    txt = re.sub(r"\([^)]*\)", "", txt)          # drop the "(Days 9-18 | 80h)" bit
+    txt = txt.strip(" :–—-.\t")
+    txt = re.split(r"(?<=[a-z])\.\s", txt)[0]    # a heading that runs into prose
+    if len(txt) > 40:
+        # a heading that's really a sentence ("Final revision, mixed practice,
+        # mock assessment, and ...") — its first clause is the actual name.
+        # Never a blind 40-char cut: that produced "mock ass".
+        head = txt.split(",")[0].strip()
+        txt = head if 6 <= len(head) <= 40 else txt[:40].rsplit(" ", 1)[0].rstrip(" ,;:")
+    return txt.strip() or "Phase"
+
+
+def explicit_phase_plan(goal, total_days):
+    """The phase structure the student wrote themselves, if they wrote one.
+
+    e.g. "Phase 2 (Days 9-18 | 80h): C Programming" -> 10 days, that name.
+
+    Prompting alone does NOT hold this. The model keeps re-weighting the
+    schedule (giving C 18 days instead of the 10 asked for, starving a later
+    phase to 0, or quietly merging the last two) because re-weighting feels
+    like honest assessment. It isn't — when the student wrote the numbers
+    down, the numbers aren't the model's call. Honesty belongs in the verdict
+    and in dropped_scope, which the model still writes freely.
+
+    Deliberately strict: returns [] unless EVERY phase heading parses and the
+    day counts account for exactly the time available. A half-read structure is
+    worse than none, so anything ambiguous falls back to the model's own split.
+    """
+    lines = [l.replace("*", "").replace("#", "").replace("_", "").strip()
+             for l in str(goal or "").splitlines()]
+    out = []
+    for i, line in enumerate(lines):
+        if not _PH_HEADER.match(line):
+            continue
+        m = _PH_RANGE.search(line)
+        if m:
+            a, b = int(m.group(1)), int(m.group(2))
+            days = b - a + 1 if 1 <= a <= b <= total_days else 0
+        else:
+            m = _PH_SINGLE.search(line)
+            # "Phase 8 (Day 40 | 8h)" — a lone day number is a one-day phase
+            days = 1 if m and 1 <= int(m.group(1)) <= total_days else 0
+        # whatever they wrote under the heading IS the focus — better than
+        # anything a model would invent for a phase they specified themselves
+        detail = next((l for l in lines[i + 1:i + 4]
+                       if l and not _PH_HEADER.match(l)), "")
+        out.append({"name": _phase_name(line), "days": days,
+                    "focus": (detail or _phase_name(line))[:200]})
+    if len(out) < 2 or any(p["days"] <= 0 for p in out):
+        return []
+    if sum(p["days"] for p in out) != int(total_days):
+        return []
+    return out
+
+
 def negotiate_prompt(goal, days, hours_per_day, level_notes, material=None):
     shape = structure_for_hours(hours_per_day)
     long_day = ""
@@ -149,6 +214,13 @@ STUDENT REQUEST:
 {material_context(material)}{long_day}
 Think about what mastery of this goal actually requires, what fraction is achievable in the given time, and what a well-sequenced plan looks like.
 
+RESPECT AN EXPLICIT STRUCTURE. If their goal text already lays out its own structure — numbered phases, modules, units, a week-by-week or day-range breakdown, a syllabus with parts — then that structure IS the plan. Mirror their phases, in their order, keeping their names (tidied to a short label) and their day splits. Do NOT merge, drop, reorder or re-invent their phases because you would have organised it differently: they chose that shape deliberately, and quietly returning a different one reads as not having been listened to. When they supplied a structure, match their phase COUNT (up to 12) and ignore the 3-6 phase guidance below.
+- THEIR DAY COUNTS ARE THE SPEC. If the numbers they gave already sum to {days}, copy them EXACTLY, phase for phase. Do not re-weight them because you judge a topic to need more or less time — that judgement belongs in mentor_message and dropped_scope, NOT in silently rewriting their schedule. Only if their numbers do NOT sum to {days} may you scale them proportionally, keeping the relative weighting, and then say in ONE clause of mentor_message that you adjusted the counts to fit.
+- EVERY phase gets at least 1 day. Never emit a phase with 0 days, and never delete a phase to make the arithmetic work — if their plan is overloaded, keep all their phases and say what won't fit in dropped_scope.
+- A 1-day final wrap-up or revision phase is fine when they asked for one.
+- Being faithful to their STRUCTURE is not the same as being soft on SCOPE. Judge the verdict just as honestly, and use achievable_scope/dropped_scope to say what genuinely fits inside their structure and what doesn't. Keeping their shape while telling them the truth about what fits is the whole job.
+If their goal has no structure of its own, design the phases yourself.
+
 Respond with JSON:
 {{
   "verdict": "realistic" | "ambitious" | "unrealistic",
@@ -161,7 +233,7 @@ Respond with JSON:
     {{"name": "short phase name", "days": <integer>, "focus": "one line on what this phase achieves"}}
   ]
 }}
-Rules: phases days must sum to exactly {days}. 3-6 phases (fewer for very short plans). Avoid 1-day phases — the FIRST phase must cover foundations (aim for 3+ days) before any project, because the student knows nothing on day 1. Make the LAST phase include applying the skill (a project or real practice), not just theory."""
+Rules: phases days must sum to exactly {days} — that one is absolute either way. If they supplied their own structure, follow RESPECT AN EXPLICIT STRUCTURE above and disregard the rest of this line. Otherwise: 3-6 phases (fewer for very short plans); avoid 1-day phases; the FIRST phase must cover foundations (aim for 3+ days) before any project, because the student knows nothing on day 1; make the LAST phase include applying the skill (a project or real practice), not just theory."""
 
 
 def curriculum_phase_prompt(goal, days, hours_per_day, level_notes, phases, phase_index, prior_days_summary, material=None):
