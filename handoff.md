@@ -852,6 +852,22 @@ Parser unit-tested for markdown, Week/Module wording, wrong sums, unreadable
 headings, and sentence-length headings (a blind 40-char cut produced "mock ass";
 it now takes the first clause -> "Final revision").
 
+### Project placement respects short phases (26 Jul)
+
+`_wants_project(idx, phase, days, is_last)` now owns the rule, used by BOTH the
+sequential and parallel generation paths (keep them in step). On top of the old
+guards (never phase 0, never within the first 3 days) it adds: **the phase must
+keep >= 2 teaching days after the last day becomes a project.**
+
+Why: with student-authored phase lengths a 3-day SQL phase that also drew a
+checkpoint ended up as one teaching day + checkpoint + project — one day of new
+SQL out of the three days the student allocated. The plan still gets projects
+from the longer phases. A 1-day wrap-up phase is never converted.
+
+Unit-tested across the owner's 8 chapters plus 2- and 3-day final phases;
+re-verified end to end (40 days, projects on 18/22/28/33/36/39, day 40 stays a
+checkpoint, every project-bearing phase keeps >= 2 teaching days).
+
 ### Still needs the OWNER'S EYES on the live site (can't be judged headlessly)
 - Whether the View Transition crossfade feels premium or sluggish on his phone
   (durations are 0.15s out / 0.24s in — tune, don't delete).

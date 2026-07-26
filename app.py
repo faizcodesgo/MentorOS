@@ -294,6 +294,32 @@ def negotiate():
     return jsonify(result)
 
 
+def _wants_project(idx, phase, days, is_last):
+    """Should this phase's last day become a build-it milestone?
+
+    Never the first phase and never inside the first 3 days — a beginner can't
+    build something before they've learned anything.
+
+    And never when converting the last day would leave the phase fewer than 2
+    days of actual teaching. That rule earns its keep now that students set
+    their own phase lengths: a 3-day SQL phase that also carries a checkpoint
+    was ending up with ONE day of new content, a checkpoint, and a project.
+    Better to drop the project there and teach for two days — the plan still
+    gets its projects from the longer phases.
+    """
+    if idx < 1 or not days:
+        return False
+    if days[-1]["day"] <= 3:
+        return False
+    # the project replaces the last day, so count teaching days among the rest
+    teaching_left = len(days) - 1 - sum(1 for d in days[:-1] if d.get("is_checkpoint"))
+    if teaching_left < 2:
+        return False
+    n = phase.get("days", 0)
+    # a 1-day wrap-up phase the student asked for stays a wrap-up
+    return n >= 3 or (is_last and n >= 2)
+
+
 def _sanitize_phases(phases, asked_days=0):
     """Never let a malformed phase list reach the curriculum generator.
 
@@ -435,16 +461,12 @@ def generate_phase():
     # of a substantial phase, and ALWAYS the plan's final phase ("apply what you
     # learned"). But NEVER the first phase and NEVER within the first 3 days: a
     # beginner can't build something before they've learned anything.
-    # The final phase needs >= 2 days too: students who supply their own phase
-    # structure often end with a single wrap-up day ("Day 40: final revision +
-    # mock assessment"), and silently turning that into a build-a-project day
-    # overrides the one thing they were most explicit about. Earlier phases
-    # (>= 3 days) still carry the plan's projects.
+    # See _wants_project for the full rule (short phases keep their teaching days,
+    # and a student's 1-day wrap-up stays a wrap-up).
     phase = plan["phases"][idx]
     is_last_phase = idx == len(plan["phases"]) - 1
     last = days[-1]
-    if idx >= 1 and last["day"] > 3 and (phase.get("days", 0) >= 3
-                                         or (is_last_phase and phase.get("days", 0) >= 2)):
+    if _wants_project(idx, phase, days, is_last_phase):
         pid = f"p{last['day']}"
         last["kind"] = "project"
         last["project_id"] = pid
@@ -513,8 +535,7 @@ def generate_all():
         last = dlist[-1]
         is_last = idx == len(phases) - 1
         # same rule as the sequential path above — keep the two in step
-        if idx >= 1 and last["day"] > 3 and (phase.get("days", 0) >= 3
-                                             or (is_last and phase.get("days", 0) >= 2)):
+        if _wants_project(idx, phase, dlist, is_last):
             pid = f"p{last['day']}"
             last["kind"] = "project"
             last["project_id"] = pid
