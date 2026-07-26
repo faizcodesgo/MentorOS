@@ -868,6 +868,33 @@ Unit-tested across the owner's 8 chapters plus 2- and 3-day final phases;
 re-verified end to end (40 days, projects on 18/22/28/33/36/39, day 40 stays a
 checkpoint, every project-bearing phase keeps >= 2 teaching days).
 
+### 26 Jul: council + audit -> see `COUNCIL-2026-07-26.md`
+
+A 4-agent council (auth architect / dashboard UX / red team / auditor) ran before a
+planned redesign. **Read `COUNCIL-2026-07-26.md` before touching auth, the dashboard,
+or the fix list.** Headlines:
+
+- **Two shipped features had been dead in production since 16 July**, both hidden by
+  error handling: warm-ups 500'd on every call (a list used as a dict key), and
+  per-section videos never attached (`ThreadPoolExecutor` imported inside the wrong
+  function -> `NameError` swallowed by a bare `except`). Both fixed in `509d998`,
+  verified end to end.
+- **Highest remaining bug: concurrent-write clobber.** Whole-document `replace_one`
+  with no locking, and the new lesson prefetch widened the race from milliseconds to a
+  minute — a prefetch that started before you completed a day will save the state it
+  read and un-complete it. `save_notifications_for` is the one place that does it right.
+- **Every daily boundary is UTC**, so the streak rolls over at 05:30 IST and can break
+  after two genuinely consecutive days of study.
+- **Google sign-in is feasible** (a TWA is real Chrome, not a WebView; no APK change),
+  but the two agents split on whether to do it at all. They agree completely on HOW:
+  link `google_sub` onto the existing uid, **never re-key**, keep passwords permanently.
+- **The `default` doc is orphaned** — `LEGACY_OWNER` defaults to `"faiz"`, the real uid
+  is `"faiz ahmed"`, so the legacy claim never ran and 577 XP + 2 completed days sit at
+  schema 12, unreachable. The uid trap, fired for real.
+- **`/api/restore` is unreachable from the UI, doesn't snapshot before restoring, and
+  currently holds the ABANDONED 50-day plan** — restoring today would destroy the live
+  plan.
+
 ### Still needs the OWNER'S EYES on the live site (can't be judged headlessly)
 - Whether the View Transition crossfade feels premium or sluggish on his phone
   (durations are 0.15s out / 0.24s in — tune, don't delete).
