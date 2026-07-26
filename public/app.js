@@ -99,11 +99,26 @@ let currentView = null;
 let suppressHistory = false;   // set while WE are reacting to a popstate
 
 function show(view) {
-  views.forEach((v) => $("view-" + v).classList.toggle("hidden", v !== view));
-  $("askFab").classList.toggle("hidden", view !== "lesson");   // floating Ask only in a lesson
-  $("askSheet").classList.add("hidden");
   if (study && view !== "lesson") endStudy(false);   // leaving the lesson ends the session
-  window.scrollTo(0, 0);
+
+  const apply = () => {
+    views.forEach((v) => $("view-" + v).classList.toggle("hidden", v !== view));
+    $("askFab").classList.toggle("hidden", view !== "lesson");   // floating Ask only in a lesson
+    $("askSheet").classList.add("hidden");
+    window.scrollTo(0, 0);
+  };
+  // View Transitions crossfade old->new as composited snapshots (Chrome TWA).
+  // ONLY the DOM swap is deferred into the callback — the history push below
+  // stays synchronous, so the popstate suppressHistory window is untouched.
+  const vt = document.startViewTransition && currentView !== null && view !== currentView &&
+    !matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (vt) {
+    document.documentElement.classList.add("vt");
+    const t = document.startViewTransition(apply);
+    t.finished.finally(() => document.documentElement.classList.remove("vt"));
+  } else {
+    apply();
+  }
 
   if (!suppressHistory && view !== currentView) {
     // replace (not push) for the very first view, so there's a base entry to
@@ -145,8 +160,35 @@ window.addEventListener("popstate", (e) => {
 function toast(msg, ms = 4000) {
   const el = $("toast");
   el.textContent = msg;
-  el.classList.remove("hidden");
-  setTimeout(() => el.classList.add("hidden"), ms);
+  el.classList.remove("hidden", "out");
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => {
+    el.classList.add("out");
+    const done = () => { el.classList.add("hidden"); el.classList.remove("out"); };
+    el.addEventListener("animationend", done, { once: true });
+    setTimeout(done, 260);   // fallback if the animation never fires
+  }, ms);
+}
+
+/* one tiny haptic channel (TWA on Android) — strictly three moments: answer
+   locks in, answer was wrong, level-up. Haptics on ordinary taps is the
+   fastest route to "childish". */
+function buzz(pattern = 12) {
+  try { if (navigator.vibrate) navigator.vibrate(pattern); } catch {}
+}
+
+/* count a number upward in place (same rAF pattern as animateXpChip) */
+function countUp(el, to, prefix = "", dur = 500) {
+  const t0 = performance.now();
+  let done = false;
+  const finish = () => { if (!done) { done = true; el.textContent = `${prefix}${to}`; } };
+  (function step(t) {
+    if (done) return;
+    const p = Math.min(1, (t - t0) / dur);
+    el.textContent = `${prefix}${Math.round(to * (1 - Math.pow(1 - p, 3)))}`;
+    if (p < 1) requestAnimationFrame(step); else finish();
+  })(t0);
+  setTimeout(finish, dur + 120);
 }
 
 let loadingRotator = null;
@@ -168,15 +210,27 @@ function loadingCycle(messages) {
   }, 2800);
 }
 
-/* quiet reward pill — replaces the old full-screen victory banner */
+/* quiet reward pill — replaces the old full-screen victory banner.
+   Pills QUEUE: they share one fixed slot, so concurrent fire-and-forget calls
+   play one after another instead of stacking. Still awaitable — the promise
+   resolves when THIS pill has finished (callers in the day-complete sequence
+   rely on that). */
+let pillChain = Promise.resolve();
 function rewardPill(label, amount) {
-  return new Promise((resolve) => {
+  const run = () => new Promise((resolve) => {
     const el = document.createElement("div");
     el.className = "reward-pill";
     el.innerHTML = amount ? `${esc(label)} <span class="amt">${esc(amount)}</span>` : esc(label);
     document.body.appendChild(el);
-    setTimeout(() => { el.remove(); resolve(); }, 1500);
+    setTimeout(() => {
+      el.classList.add("out");                       // symmetric exit, no hard cut
+      const done = () => { el.remove(); resolve(); };
+      el.addEventListener("animationend", done, { once: true });
+      setTimeout(done, 260);                         // fallback — never stall the chain
+    }, 1350);
   });
+  pillChain = pillChain.then(run);
+  return pillChain;
 }
 
 async function api(path, opts = {}) {
@@ -191,12 +245,41 @@ async function api(path, opts = {}) {
     // Session gone mid-session (cleared cookies, signed out elsewhere): bounce
     // to sign-in rather than leave them tapping a dead screen. The auth routes
     // are excluded — a wrong password is a legitimate 401 the form handles.
-    if (res.status === 401 && !path.startsWith("/api/auth/")) renderAuth(true);
+    if (res.status === 401 && !path.startsWith("/api/auth/")) {
+      clearLocalCache();   // never show a signed-out (or different) user a stale dashboard
+      renderAuth(true);
+    }
     const err = new Error(data.error || `Request failed (${res.status})`);
     err.status = res.status;   // callers branch on 401 -> show the sign-in screen
     throw err;
   }
   return data;
+}
+
+/* ---------- instant cold-open (stale-while-revalidate on the STATE only) ----------
+   The last-known state dict is snapshotted to localStorage so a returning
+   launch paints the dashboard in ~50ms from disk and reconciles after the
+   fetch. This deliberately does NOT touch sw.js or cache any code — the
+   network-first no-JS-cache decision stands. */
+const SNAP_KEY = "mos_state_snap";
+
+function saveSnap() {
+  try { localStorage.setItem(SNAP_KEY, JSON.stringify(state)); } catch {}
+}
+
+function loadSnap() {
+  try { return JSON.parse(localStorage.getItem(SNAP_KEY) || "null"); } catch { return null; }
+}
+
+function clearLocalCache() {
+  try { localStorage.removeItem(SNAP_KEY); localStorage.removeItem("mos_resume"); } catch {}
+}
+
+/* the ONE way to refetch full state — every fetch refreshes the snapshot */
+async function refreshState() {
+  state = await api("/api/state");
+  saveSnap();
+  return state;
 }
 
 function esc(s) {
@@ -270,6 +353,8 @@ $("btnAuthSwitch").addEventListener("click", () => {
 $("btnSignOut").addEventListener("click", async () => {
   try { await api("/api/auth/logout", { method: "POST" }); } catch {}
   state = null;
+  clearLocalCache();               // the snapshot belongs to this account only
+  lessonCache.clear();
   lastShownXp = null;              // don't animate the next person's XP from yours
   currentView = null;              // reset the history base
   renderAuth(true);
@@ -300,8 +385,21 @@ $("authForm").addEventListener("submit", async (e) => {
 });
 
 async function boot() {
+  // Paint the last-known dashboard INSTANTLY from the local snapshot, then
+  // reconcile with the server. A returning user used to stare at the
+  // onboarding form (the wrong screen) for the whole cold fetch — the
+  // anti-Netflix moment of the app. The snapshot is cleared on 401/sign-out,
+  // so it can never show someone else's plan.
+  const snap = loadSnap();
+  const snapUsable = snap && snap.plan && (snap.plan.curriculum || []).length > 0 &&
+    snap.plan.phases_generated >= (snap.plan.phases || []).length;
+  if (snapUsable) {
+    state = snap;
+    renderDashboard();
+    show("dashboard");
+  }
   try {
-    state = await api("/api/state");
+    await refreshState();
   } catch (e) {
     // 401 isn't an error worth shouting about — it just means "sign in first"
     if (e.status === 401) {
@@ -309,14 +407,14 @@ async function boot() {
       try { me = await api("/api/auth/me"); } catch {}
       return renderAuth(me.any_accounts, me.legacy_waiting);
     }
-    toast("Can't reach the server: " + e.message);
-    return;
+    if (!snapUsable) toast("Can't reach the server: " + e.message);
+    return;   // painted from snapshot (or nothing to paint) — don't wipe it
   }
   const plan = state.plan;
   if (plan && plan.curriculum.length > 0 &&
       plan.phases_generated >= plan.phases.length) {
     renderDashboard();
-    show("dashboard");
+    if (currentView !== "dashboard") show("dashboard");
     checkPace();
   } else if (plan && (plan.phases || []).length > 0) {
     // plan exists but curriculum unfinished — resume generation
@@ -488,7 +586,7 @@ async function generatePhases() {
     // one request builds ALL phases in parallel — no slow per-phase loop
     await api("/api/plan/generate-all", { method: "POST" });
     if (genAborted) return;                                 // user hit Start over mid-build
-    state = await api("/api/state");
+    await refreshState();
     renderDashboard();
     show("dashboard");
     toast("Your plan is ready. Day 1 starts now.");
@@ -529,12 +627,22 @@ function renderDashboard() {
   // short_title means "unnamed" — say so plainly and let them name it.
   $("dashGoal").textContent = plan.short_title || "Your plan";
   $("dashGoal").title = plan.goal || "";
+  // Chapter framing: "day 3 of 8" in THIS chapter is a goal you can reach this
+  // week; "Day 12 of 50" is a sentence. The full count stays in the chip.
+  const chap = entry.kind !== "revision" ? phaseOfDay(entry.day) : null;
+  const chapLen = chap ? chap.endDay - chap.startDay + 1 : 0;
   $("dashDayTitle").textContent = allDone
     ? "Plan complete. Well done."
     : entry.kind === "revision" ? "Revision day"
     : entry.kind === "project" ? "Milestone project"
+    : chap ? `Chapter ${chap.index + 1} · ${chap.phase.name} — day ${entry.day - chap.startDay + 1} of ${chapLen}`
     : `Day ${entry.day} of ${plan.days}`;
   $("dashCount").textContent = `${doneReal}/${plan.days} days done`;
+
+  // the nearest real landmark ahead — honest anticipation, in days of work
+  const landmark = allDone ? "" : nextLandmark(ord, entry);
+  $("nextLandmark").textContent = landmark;
+  $("nextLandmark").classList.toggle("hidden", !landmark);
 
   // Topbar FIRST: LV/XP lives there, on every view. The dashboard used to print
   // a byte-identical copy 200px below it. Build the chip before animating it —
@@ -569,28 +677,73 @@ function renderDashboard() {
     : "";
   const estTxt = entry && entry.est_minutes ? ` · ${fmtTime(entry.est_minutes)} today` : "";
   $("todayReward").textContent = entry ? `+${questReward(entry)} XP${estTxt}` : "";
-  $("btnStartToday").textContent = entry && entry.kind === "revision" ? "Start revision" : "Start today";
+  // mid-lesson resume: the button says exactly where you'll land
+  const saved = getResume();
+  $("btnStartToday").textContent =
+    entry && saved && saved.day === entry.day && !isDone(entry.day) && saved.idx > 0
+      ? `Continue · step ${saved.idx + 1} of ${saved.len}`
+      : entry && entry.kind === "revision" ? "Start revision" : "Start today";
   $("btnStartToday").onclick = () => openLesson(entry.day);
 
+  /* The plan list, Netflix-shaped. A 50-day plan used to render as 40+ rows all
+     stamped "Locked" — a wall of denials. Now: finished days keep their +XP
+     receipts (trophy shelf), today is marked, the NEXT day is a visible teaser
+     ("Up next" — its title is the curiosity hook), the rest of the current
+     chapter sits quiet, and future chapters fold into one row each, expandable.
+     Everything is exactly as locked as before — this only reframes true state. */
   const currentId = entry.day;
   const currentOrder = entry.order ?? entry.day;
-  $("dayList").innerHTML = ord
-    .map((d) => {
-      const done = isDone(d.day);
-      const isToday = d.day === currentId && !done;
-      const locked = (d.order ?? d.day) > currentOrder && !done;
-      const revision = d.kind === "revision";
-      const project = d.kind === "project";
-      const cls = ["day-row", done ? "done" : "", isToday ? "today-row" : "", locked ? "locked" : "", d.is_checkpoint && !project ? "checkpoint" : "", revision ? "revision" : "", project ? "project" : ""].join(" ");
-      const stateTxt = done ? `+${questReward(d)} XP` : isToday ? "Today" : locked ? "Locked" : "";
-      const label = revision ? "Revision" : project ? "Milestone" : `Day ${d.day}`;
-      return `<button class="${cls}" data-day="${d.day}">
-        <span class="num mono">${label}</span>
-        <span class="t">${esc(d.title)}</span>
-        <span class="state mono">${stateTxt}</span>
-      </button>`;
-    })
-    .join("");
+  const curPhaseIdx = allDone ? (plan.phases || []).length - 1 : (phaseOfDay(currentId) || { index: 0 }).index;
+  let firstLockedSeen = false;
+  const rowHtml = (d) => {
+    const done = isDone(d.day);
+    const isToday = d.day === currentId && !done;
+    const locked = (d.order ?? d.day) > currentOrder && !done;
+    const upnext = locked && !firstLockedSeen;
+    if (upnext) firstLockedSeen = true;
+    const revision = d.kind === "revision";
+    const project = d.kind === "project";
+    const cls = ["day-row", done ? "done" : "", isToday ? "today-row" : "", locked ? "locked" : "",
+      upnext ? "upnext" : "", d.is_checkpoint && !project ? "checkpoint" : "",
+      revision ? "revision" : "", project ? "project" : ""].join(" ");
+    const stateTxt = done ? `+${questReward(d)} XP` : isToday ? "Today" : upnext ? "Up next" : "";
+    const label = revision ? "Revision" : project ? "Milestone" : `Day ${d.day}`;
+    return `<button class="${cls}" data-day="${d.day}">
+      <span class="num mono">${label}</span>
+      <span class="t">${esc(d.title)}</span>
+      <span class="state mono">${stateTxt}</span>
+    </button>`;
+  };
+  const parts = [];
+  const futureByPhase = new Map();   // phase index -> its days (all beyond the current chapter)
+  ord.forEach((d) => {
+    const p = phaseOfDay(d.day) || { index: 0 };
+    const locked = (d.order ?? d.day) > currentOrder && !isDone(d.day);
+    // the very next day is ALWAYS a visible teaser, even when it starts the
+    // next chapter — Netflix teases the next episode across seasons
+    if (locked && p.index > curPhaseIdx && firstLockedSeen) {
+      if (!futureByPhase.has(p.index)) futureByPhase.set(p.index, []);
+      futureByPhase.get(p.index).push(d);
+    } else {
+      parts.push(rowHtml(d));
+    }
+  });
+  [...futureByPhase.keys()].sort((a, b) => a - b).forEach((pi) => {
+    const days = futureByPhase.get(pi);
+    const phase = (plan.phases || [])[pi] || {};
+    const open = dashExpanded.has(pi);
+    parts.push(`<button class="chapter-row" data-phase="${pi}">
+      <span class="num mono">Chapter ${pi + 1}</span>
+      <span class="t">${esc(phase.name || "")}</span>
+      <span class="state mono">${days.length} day${days.length > 1 ? "s" : ""} ${open ? "▾" : "›"}</span>
+    </button>`);
+    if (open) days.forEach((d) => parts.push(rowHtml(d)));
+  });
+  $("dayList").innerHTML = parts.join("");
+
+  // warm today's lesson while the greeting is being read — "Start today" then
+  // opens like turning a page instead of a 15-60s wait
+  if (!allDone) prefetchLesson(entry);
 
   renderGreeting();
   renderWeeklyReport();
@@ -606,17 +759,48 @@ function renderDashboard() {
   const pushRelevant = installed || (state.notifications || {}).enabled;
   $("btnReminders").style.display = pushRelevant ? "" : "none";
 
-  $("dayList").querySelectorAll(".day-row").forEach((row) => {
-    row.addEventListener("click", () => {
-      if (row.classList.contains("locked")) {
-        toast("Finish the current day first.");
-        return;
-      }
-      const day = parseInt(row.dataset.day, 10);
-      if (row.classList.contains("done")) openRecap(day);  // done days open their recap
-      else openLesson(day);
-    });
-  });
+}
+
+/* which future chapters the user has expanded (session-only) */
+const dashExpanded = new Set();
+
+/* ONE delegated listener for the whole plan list — renderDashboard used to
+   attach 50 listeners on every render, in the hottest path (every back-nav). */
+$("dayList").addEventListener("click", (e) => {
+  const ch = e.target.closest(".chapter-row");
+  if (ch) {
+    const pi = parseInt(ch.dataset.phase, 10);
+    if (dashExpanded.has(pi)) dashExpanded.delete(pi); else dashExpanded.add(pi);
+    renderDashboard();
+    return;
+  }
+  const row = e.target.closest(".day-row");
+  if (!row) return;
+  if (row.classList.contains("locked")) {
+    toast("Finish the current day first.");
+    return;
+  }
+  const day = parseInt(row.dataset.day, 10);
+  if (row.classList.contains("done")) openRecap(day);  // done days open their recap
+  else openLesson(day);
+});
+
+/* The nearest genuinely-different thing ahead (milestone project / chapter
+   finale), in days of WORK — never clock time, nothing expires, no countdown. */
+function nextLandmark(ord, entry) {
+  const currentOrder = entry.order ?? entry.day;
+  const upcoming = ord.filter((d) => (d.order ?? d.day) >= currentOrder && !isDone(d.day));
+  for (let i = 0; i < upcoming.length && i <= 6; i++) {
+    const d = upcoming[i];
+    if (d.kind === "project") {
+      return i === 0 ? "" : `Milestone project · ${i} day${i > 1 ? "s" : ""} away`;
+    }
+    if (d.kind !== "revision" && isChapterEnd(d.day)) {
+      return i === 0 ? "Chapter finale today — the mock interview unlocks after"
+        : `Chapter finale · ${i} day${i > 1 ? "s" : ""} away`;
+    }
+  }
+  return "";
 }
 
 /* time-of-day + name + one continuity thread — built client-side, no AI */
@@ -661,10 +845,9 @@ function renderWeeklyReport() {
   card.classList.remove("hidden");
 }
 
-$("weeklyDismiss").addEventListener("click", async () => {
-  $("weeklyCard").classList.add("hidden");
-  try { await api("/api/weekly/seen", { method: "POST" }); state = await api("/api/state"); }
-  catch {}
+$("weeklyDismiss").addEventListener("click", () => {
+  $("weeklyCard").classList.add("hidden");   // paint first, save behind
+  api("/api/weekly/seen", { method: "POST" }).then(() => refreshState()).catch(() => {});
 });
 
 function renderSavedCard() {
@@ -710,7 +893,7 @@ async function checkPace() {
   } catch { return; }
   if (!r.behind) return;
 
-  state = await api("/api/state");
+  await refreshState();
   renderDashboard();
 
   // Honest copy. This used to claim the plan had been "re-paced" (nothing was
@@ -733,7 +916,7 @@ $("wbResume").addEventListener("click", () => {
 async function resetAll(msg) {
   if (!confirm(msg)) return;
   await api("/api/reset", { method: "POST", body: JSON.stringify({ confirm: true }) });
-  state = await api("/api/state");
+  await refreshState();
   show("onboarding");
 }
 
@@ -745,7 +928,7 @@ $("btnAbandonGen").addEventListener("click", async () => {
   genAborted = true;   // ignore any in-flight generation result
   try {
     await api("/api/reset", { method: "POST", body: JSON.stringify({ confirm: true }) });
-    state = await api("/api/state");
+    await refreshState();
   } catch {}
   show("onboarding");
 });
@@ -793,7 +976,7 @@ $("btnEnableReminders").addEventListener("click", async () => {
     if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64ToUint8(key) });
     await api("/api/push/subscribe", { method: "POST", body: JSON.stringify({ subscription: sub, ...prefs }) });
     await api("/api/push/settings", { method: "POST", body: JSON.stringify({ enabled: true, ...prefs }) });
-    state = await api("/api/state");
+    await refreshState();
     $("remStatus").textContent = "Reminders are on.";
     $("btnDisableReminders").classList.remove("hidden");
     toast("Study reminders enabled.");
@@ -807,7 +990,7 @@ $("btnEnableReminders").addEventListener("click", async () => {
 $("btnDisableReminders").addEventListener("click", async () => {
   try {
     await api("/api/push/settings", { method: "POST", body: JSON.stringify({ enabled: false }) });
-    state = await api("/api/state");
+    await refreshState();
     $("remStatus").textContent = "Reminders are off.";
     $("btnDisableReminders").classList.add("hidden");
   } catch (err) { toast(err.message); }
@@ -932,18 +1115,15 @@ function renderSkillMapCard() {
 
 $("skillMapCard").addEventListener("click", openSkills);
 
-async function openSkills() {
-  loading(true, "Opening your skill map…");
-  try {
-    const data = await api("/api/skills");
+function openSkills() {
+  // dna is already on the client — render NOW, no blackout. The fetch runs in
+  // the background purely to mark the notes seen and pick up fresher notes.
+  renderSkills(state.dna);
+  show("skills");
+  api("/api/skills").then((data) => {
     state.notes_seen = true;
-    renderSkills(data.dna);
-    show("skills");
-  } catch (err) {
-    toast(err.message);
-  } finally {
-    loading(false);
-  }
+    if (currentView === "skills") renderSkills(data.dna);
+  }).catch(() => {});
 }
 
 $("btnSkillsBack").addEventListener("click", () => {
@@ -1018,10 +1198,13 @@ let recapDay = null;
 
 async function openRecap(day, opts = {}) {
   recapDay = day;
-  loading(true, "Loading your recap…");
-  let lesson;
-  try { lesson = await api("/api/lesson/" + day); } catch { loading(false); return; }
-  loading(false);
+  // instant on cache hit (the common case: you just finished this lesson)
+  let lesson = lessonCache.get(day);
+  if (!lesson) {
+    loading(true, "Loading your recap…");
+    try { lesson = await fetchLesson(day); } catch { loading(false); return; }
+    loading(false);
+  }
 
   const entry = state.plan.curriculum.find((d) => d.day === day) || {};
   const quiz = (state.quizzes || {})[String(day)];
@@ -1077,6 +1260,24 @@ async function openRecap(day, opts = {}) {
     $("chapterBlock").classList.add("hidden");
   }
 
+  // Tomorrow's tease — only on the FRONTIER day (the most recent one done), so
+  // rereading an old recap doesn't claim next week is "tomorrow". Title + one
+  // objective + the XP waiting; no start-now button (the loop opens for
+  // tomorrow, the session closes today — spacing is the point).
+  const ordAll = orderedCurriculum();
+  const myOrder = entry.order ?? day;
+  const isFrontier = !ordAll.some((d) => (d.order ?? d.day) > myOrder && isDone(d.day));
+  const nextUp = ordAll.find((d) => (d.order ?? d.day) > myOrder && !isDone(d.day));
+  if (isFrontier && nextUp && isDone(day)) {
+    $("tmrwTitle").textContent = nextUp.kind === "project" ? `Milestone: ${nextUp.title}` : nextUp.title;
+    $("tmrwObjective").textContent = (nextUp.objectives || [])[0] || "";
+    $("tmrwReward").textContent = `+${questReward(nextUp)} XP waiting · see you tomorrow`;
+    $("tomorrowCard").classList.remove("hidden");
+    prefetchLesson(nextUp);   // by tomorrow, the lesson already exists
+  } else {
+    $("tomorrowCard").classList.add("hidden");
+  }
+
   // the segmented control always lands back on Recap when the view opens
   $("recapSeg").querySelectorAll(".seg-item").forEach((b) =>
     b.classList.toggle("active", b.dataset.mode === "recap"));
@@ -1117,14 +1318,14 @@ $("btnExplain").addEventListener("click", async () => {
       method: "POST",
       body: JSON.stringify({ day: explainConcept.day, concept: explainConcept.concept, text }),
     });
-    state = await api("/api/state");
     loading(false);
     const fb = $("explainFeedback");
     fb.className = "explain-feedback";
     fb.innerHTML =
       `<p class="ef-good">${esc(r.whats_good)}</p>` +
       (r.whats_missing ? `<p class="ef-add">${esc(r.whats_missing)}</p>` : "");
-    await rewardPill("Nice — you said it back", `+${r.xp_gained} XP`);
+    rewardPill("Nice — you said it back", `+${r.xp_gained} XP`);
+    refreshState().catch(() => {});
   } catch (err) {
     loading(false);
     $("btnExplain").disabled = false;
@@ -1176,9 +1377,9 @@ $("btnVivaNext").addEventListener("click", async () => {
       method: "POST",
       body: JSON.stringify({ chapter: vivaRun.chapter, answers: vivaRun.answers }),
     });
-    state = await api("/api/state");
     loading(false);
     renderVivaResults(r);
+    refreshState().catch(() => {});
   } catch (err) { loading(false); toast(err.message, 6000); }
 });
 
@@ -1220,11 +1421,20 @@ $("askSheet").addEventListener("click", (e) => { if (e.target === $("askSheet"))
 
 let warmupRun = null;
 
+let warmupInfo = null;   // { date, data } — one check per day, not one per render
+
 async function loadWarmup() {
   $("warmupCard").classList.add("hidden");
   $("warmupDone").classList.add("hidden");
+  // renderDashboard runs on every back-navigation; don't re-hit the server
+  const today = new Date().toDateString();
   let data;
-  try { data = await api("/api/warmup"); } catch { return; }   // cheap check, no AI
+  if (warmupInfo && warmupInfo.date === today) {
+    data = warmupInfo.data;
+  } else {
+    try { data = await api("/api/warmup"); } catch { return; }   // cheap check, no AI
+    warmupInfo = { date: today, data };
+  }
   if (data.done) {
     $("warmupDone").textContent = "Warm-up done";
     $("warmupDone").classList.remove("hidden");
@@ -1232,7 +1442,7 @@ async function loadWarmup() {
   }
   if (!data.available) return;  // nothing due yet
   $("warmupSub").textContent =
-    `${data.count} quick recall${data.count > 1 ? "s" : ""} on earlier topics · +15 XP`;
+    `Previously on your plan — ${data.count} quick recall${data.count > 1 ? "s" : ""} · +15 XP`;
   $("warmupCard").classList.remove("hidden");
   $("btnWarmup").onclick = startWarmup;
 }
@@ -1245,7 +1455,7 @@ async function startWarmup() {
   loading(false);
   if (!data.questions || !data.questions.length) { toast("No warm-up due right now."); return; }
   warmupRun = { questions: data.questions, idx: 0, results: [], picked: null };
-  document.querySelector("#view-quiz .kicker").textContent = "Warm-up · quick recall";
+  document.querySelector("#view-quiz .kicker").textContent = "Previously — quick recall";
   show("quiz");
   renderWarmupQ();
 }
@@ -1284,12 +1494,18 @@ async function finishWarmup() {
   loading(true, "Saving your warm-up…");
   try {
     const r = await api("/api/warmup/submit", { method: "POST", body: JSON.stringify({ results: warmupRun.results }) });
-    state = await api("/api/state");
+    // the response is authoritative for XP — paint now, reconcile behind
+    if (r.xp !== undefined) state.xp = r.xp;
+    if (r.streak) state.streak = r.streak;
+    warmupInfo = null;                      // the "done" state just changed
     loading(false);
     renderDashboard();
     show("dashboard");
-    loadWarmup();
-    await rewardPill(`Warm-up · ${r.score}/${r.total}`, `+${r.xp_gained} XP`);
+    rewardPill(`Warm-up · ${r.score}/${r.total}`, `+${r.xp_gained} XP`);
+    // dna/reviews changed server-side — pick them up without blocking anything
+    setTimeout(() => refreshState().then(() => {
+      if (currentView === "dashboard") renderDashboard();
+    }).catch(() => {}), 900);
   } catch (err) {
     loading(false);
     toast(err.message);
@@ -1341,9 +1557,11 @@ $("btnFocusStart").addEventListener("click", async () => {
   $("focusSheet").classList.add("hidden");
 
   // study mode studies the CURRENT lesson — make sure it's on screen first
+  // (checked via currentView: the class toggle may be a frame behind inside a
+  // view transition)
   const entry = currentEntry();
   if (entry && openDay !== entry.day) await openLesson(entry.day);
-  if ($("view-lesson").classList.contains("hidden")) return;  // no lesson to study — bail quietly
+  if (currentView !== "lesson") return;  // no lesson to study — bail quietly
 
   study = { total: mins * 60, left: mins * 60, elapsed: 0, timer: null, goal };
   $("studyGoal").textContent = goal || "";
@@ -1429,24 +1647,101 @@ let currentLesson = null;
 
 let lessonReviewMode = false;   // reopened a finished day from its recap
 
+/* ---------- client lesson cache + prefetch ----------
+   Lessons are immutable once generated (the server serves its own cached doc),
+   so an in-memory Map makes every revisit — recap, "Full session", bookmark
+   jumps, back-nav — instant, with zero staleness risk. The dashboard prefetches
+   today's lesson so "Start today" opens like turning a page even on first open
+   (the 15-60s generation runs while you read your greeting). */
+const lessonCache = new Map();
+const prefetchTried = new Set();
+
+async function fetchLesson(day) {
+  if (lessonCache.has(day)) return lessonCache.get(day);
+  const l = await api("/api/lesson/" + day);
+  lessonCache.set(day, l);
+  return l;
+}
+
+function prefetchLesson(entry) {
+  // never prefetch projects — their briefs are calibrated to CURRENT mastery
+  if (!entry || entry.kind === "project") return;
+  if (lessonCache.has(entry.day) || prefetchTried.has(entry.day)) return;
+  prefetchTried.add(entry.day);
+  api("/api/lesson/" + entry.day)
+    .then((l) => lessonCache.set(entry.day, l))
+    .catch(() => prefetchTried.delete(entry.day));
+}
+
 async function openLesson(day, opts = {}) {
   openDay = day;
   lessonReviewMode = !!opts.review;
   const entry = (state.plan.curriculum || []).find((d) => d.day === day) || {};
   if (entry.kind === "project") return openProject(entry);
-  const label = entry.kind === "revision" ? "Preparing your revision…"
-    : entry.is_checkpoint ? "Preparing your checkpoint…"
-    : "Preparing Day " + day + "…";
-  loading(true, label);
-  try {
-    const lesson = await api("/api/lesson/" + day);
-    renderLesson(lesson);
+
+  if (lessonCache.has(day)) {          // instant path — no overlay, no flash
+    renderLesson(lessonCache.get(day));
+    maybeResumeStep(day);
     show("lesson");
+    maybeAutoStudy();
+    return;
+  }
+
+  // A first open generates with AI (15-60s) -> narrated overlay, honest about
+  // the wait. A revisit is served from the server's cache in well under a
+  // second -> go to the lesson view NOW and let a skeleton hold the shape.
+  const firstOpen = !isDone(day) && !(state.quizzes || {})[String(day)];
+  if (firstOpen) {
+    loadingCycle([
+      "Reading your skill map…",
+      `Writing "${entry.title || "Day " + day}"…`,
+      "Building the practice set…",
+      "Picking videos worth your time…",
+    ]);
+  } else {
+    $("lessonHead").innerHTML =
+      '<div class="skel" style="height:13px;width:90px"></div>' +
+      '<div class="skel" style="height:30px;width:70%"></div>';
+    $("stepCount").textContent = "";
+    $("stepBarFill").style.width = "0%";
+    $("stepContent").innerHTML =
+      '<div class="skel" style="height:22px;width:55%"></div>' +
+      '<div class="skel" style="height:15px;width:96%"></div>'.repeat(3) +
+      '<div class="skel" style="height:120px"></div>';
+    $("stepNav").style.visibility = "hidden";
+    $("completeCard").style.display = "none";
+    $("bossCard").classList.add("hidden");
+    show("lesson");
+  }
+  try {
+    const lesson = await fetchLesson(day);
+    renderLesson(lesson);
+    maybeResumeStep(day);
+    if (currentView !== "lesson") show("lesson");
     maybeAutoStudy();
   } catch (err) {
     toast(err.message, 6000);
+    if (currentView === "lesson") { renderDashboard(); show("dashboard"); }
   } finally {
     loading(false);
+    $("stepNav").style.visibility = "";
+  }
+}
+
+/* ---------- mid-lesson resume (Netflix's "continue watching") ----------
+   The step position survives closing the app; reopening the same day lands on
+   the step you left, and the Today card says "Continue · step 4 of 9". */
+function getResume() {
+  try { return JSON.parse(localStorage.getItem("mos_resume") || "null"); } catch { return null; }
+}
+
+function maybeResumeStep(day) {
+  const saved = getResume();
+  if (lessonReviewMode || !saved || saved.day !== day) return;
+  if (isDone(day)) return;
+  if (saved.len === lessonSteps.length && saved.idx > 0 && saved.idx < lessonSteps.length) {
+    stepIdx = saved.idx;
+    renderStep();
   }
 }
 
@@ -1485,7 +1780,7 @@ $("btnStudyOptNo") && $("btnStudyOptNo").addEventListener("click", async () => {
    the same visible bar and one-tap End. The full "commit an intent + pick a
    length" sheet is still there behind the Study mode button for when you want it. */
 function startAutoStudy() {
-  if (study || $("view-lesson").classList.contains("hidden")) return;
+  if (study || currentView !== "lesson") return;
   study = { total: 0, left: -1, elapsed: 0, timer: null, goal: "", openEnded: true };
   $("studyGoal").textContent = "";
   $("studyDone").classList.add("hidden");
@@ -1773,11 +2068,19 @@ function renderStep() {
 
   const cont = $("stepContent");
   cont.innerHTML = step.html;
+  // forward slides from the right, Back from the left (stepDir set by the nav)
+  cont.style.setProperty("--step-dx", stepDir * 12 + "px");
   cont.classList.remove("step-in"); void cont.offsetWidth; cont.classList.add("step-in");
+  stepDir = 1;
 
   // progress
   $("stepBarFill").style.width = `${((stepIdx + 1) / lessonSteps.length) * 100}%`;
   $("stepCount").textContent = `${stepIdx + 1} / ${lessonSteps.length}`;
+
+  // remember the spot — reopening this day resumes here, not at step 1
+  if (!lessonReviewMode && !done) {
+    try { localStorage.setItem("mos_resume", JSON.stringify({ day: l.day, idx: stepIdx, len: lessonSteps.length })); } catch {}
+  }
 
   // nav
   $("btnStepBack").style.visibility = stepIdx === 0 ? "hidden" : "visible";
@@ -1836,8 +2139,9 @@ function renderStep() {
   window.scrollTo(0, 0);
 }
 
-$("btnStepNext").addEventListener("click", () => { if (stepIdx < lessonSteps.length - 1) { stepIdx++; renderStep(); } });
-$("btnStepBack").addEventListener("click", () => { if (stepIdx > 0) { stepIdx--; renderStep(); } });
+let stepDir = 1;
+$("btnStepNext").addEventListener("click", () => { if (stepIdx < lessonSteps.length - 1) { stepDir = 1; stepIdx++; renderStep(); } });
+$("btnStepBack").addEventListener("click", () => { if (stepIdx > 0) { stepDir = -1; stepIdx--; renderStep(); } });
 
 /* ---------- projects (build-it milestones) ---------- */
 
@@ -1890,11 +2194,12 @@ $("btnProjSubmit").addEventListener("click", async () => {
   try {
     const r = await api("/api/project/" + currentProject.project_id + "/submit", {
       method: "POST", body: JSON.stringify({ content, type: "submit" }) });
-    state = await api("/api/state");
+    if (r.xp !== undefined) state.xp = r.xp;
     loading(false);
     $("projSubmitCard").style.display = "none";
     renderProjectReview(r.review);
-    if (r.xp_gained) await rewardPill("Milestone built", `+${r.xp_gained} XP`);
+    if (r.xp_gained) rewardPill("Milestone built", `+${r.xp_gained} XP`);
+    refreshState().catch(() => {});
   } catch (err) {
     loading(false); $("btnProjSubmit").disabled = false; toast(err.message, 6000);
   }
@@ -1930,8 +2235,21 @@ function explorationHtml(x) {
 $("btnAsk").addEventListener("click", async () => {
   const question = $("askInput").value.trim();
   if (!question) { toast("Type your question first."); return; }
-  $("btnAsk").disabled = true;
-  loadingCycle(["Working on your answer…"]);
+  // The full-screen loader used to lock you OUT of the lesson for the whole
+  // 15-60s answer. Now the question posts inline with a placeholder answer —
+  // keep reading, close the sheet, come back; the answer lands in place.
+  const pendingId = "pend" + Date.now();
+  $("explorations").insertAdjacentHTML("afterbegin",
+    `<div class="exploration" id="${pendingId}">
+      <p class="exp-q"><span class="mono">You asked</span> ${esc(question)}</p>
+      <div class="exp-a">
+        <div class="skel" style="height:14px;width:92%"></div>
+        <div class="skel" style="height:14px;width:70%"></div>
+      </div>
+    </div>`);
+  $("askInput").value = "";
+  $("explorations").scrollTop = 0;
+  const askedDay = openDay;
   try {
     // Tell the server WHICH part of the lesson is on screen, so "explain that
     // try-it-now you gave me" has something to resolve "that" against. We send
@@ -1940,19 +2258,21 @@ $("btnAsk").addEventListener("click", async () => {
     const step = lessonSteps[stepIdx] || {};
     const item = await api("/api/ask", {
       method: "POST",
-      body: JSON.stringify({ question, day: openDay, step_kind: step.kind, section: step.i }),
+      body: JSON.stringify({ question, day: askedDay, step_kind: step.kind, section: step.i }),
     });
-    // newest FIRST — it sits directly under the composer, so the answer you
-    // just asked for is the one you're looking at, with no scrolling
-    $("explorations").insertAdjacentHTML("afterbegin", explorationHtml(item));
-    $("askInput").value = "";
-    renderDiagrams($("explorations"));
-    $("explorations").scrollTop = 0;
+    const node = $(pendingId);
+    if (node) {
+      node.outerHTML = explorationHtml(item);
+      renderDiagrams($("explorations"));
+    }
+    // keep the client cache's copy of this lesson in step with the server's
+    const cached = lessonCache.get(askedDay);
+    if (cached) (cached.explorations = cached.explorations || []).push(item);
   } catch (err) {
-    toast(err.message, 6000);
-  } finally {
-    $("btnAsk").disabled = false;
-    loading(false);
+    const node = $(pendingId);
+    if (node) node.remove();
+    $("askInput").value = question;   // hand the question back for a retry
+    toast("Couldn't get an answer: " + err.message, 6000);
   }
 });
 
@@ -1965,8 +2285,16 @@ $("btnBack").addEventListener("click", () => {
 
 $("btnComplete").addEventListener("click", async () => {
   try {
+    const prevStreak = (state.streak || {}).count || 0;
     const r = await api(`/api/day/${openDay}/complete`, { method: "POST" });
-    state = await api("/api/state");
+    // patch what the response tells us; the full refetch happens in background
+    state.xp = r.xp !== undefined ? r.xp : state.xp;
+    if (r.streak) state.streak = r.streak;
+    (state.progress[String(openDay)] = state.progress[String(openDay)] || {}).completed = true;
+    warmupInfo = null;   // "what's due" just moved
+    try { localStorage.removeItem("mos_resume"); } catch {}
+    refreshState().catch(() => {});
+
     const lesson = currentLesson;
     const quizWaiting = lesson && lesson.quiz && lesson.quiz.length &&
       !(state.quizzes || {})[String(openDay)];
@@ -1978,12 +2306,21 @@ $("btnComplete").addEventListener("click", async () => {
       renderBossCard(lesson, true);
     }
 
+    // pills queue and never block navigation — the recap opens UNDER them
     if (r.xp_gained > 0) {
       const oldLv = levelFromXp(r.xp - r.xp_gained);
       const newLv = levelFromXp(r.xp);
-      await rewardPill("Day complete", `+${r.xp_gained} XP`);
+      rewardPill("Day complete", `+${r.xp_gained} XP`);
+      const s = r.streak || {};
+      if (s.count > prevStreak && s.count >= 2) {
+        rewardPill(`${s.count} days running`, "");
+        if (s.count === s.best && prevStreak + 1 === s.count && s.count >= 3) {
+          rewardPill("New personal best", "");
+        }
+      }
       if (newLv > oldLv) {
-        await rewardPill(`Level ${newLv} · ${rankLabel(newLv)}`, "");
+        buzz([10, 40, 14]);
+        rewardPill(`Level ${newLv} · ${rankLabel(newLv)}`, "");
       }
     }
     if (quizWaiting) {
@@ -2066,6 +2403,7 @@ function revealAnswer(confidence) {
   const { lesson, idx, picked } = quizRun;
   const q = lesson.quiz[idx];
   const correct = picked === q.answer;
+  buzz(correct ? 12 : 25);   // the wager locking in — a lever, not a link
   $("wagerRow").classList.add("hidden");
 
   const opts = $("quizOptions").querySelectorAll(".opt");
@@ -2124,8 +2462,13 @@ $("btnNextQ").addEventListener("click", async () => {
       method: "POST",
       body: JSON.stringify({ answers: quizRun.answers }),
     });
-    state = await api("/api/state");
+    // The response IS the truth (server already committed) — paint the result
+    // immediately instead of waiting a second round-trip for derived fields.
+    state.xp = r.xp !== undefined ? r.xp : state.xp;
+    (state.quizzes = state.quizzes || {})[String(finishedDay)] =
+      { score: r.score, total: r.total, xp_earned: r.xp_gained };
     renderResult(finishedDay, r);
+    refreshState().catch(() => {});   // dna/streak/reviews reconcile behind
   } catch (err) {
     toast(err.message, 6000);
     btn.disabled = false;
@@ -2153,7 +2496,8 @@ function renderResult(day, r) {
   $("resultBreakdown").innerHTML = rows
     .map(([k, v]) => `<div class="ledger-row"><span>${esc(k)}</span><span class="tnum">+${v}</span></div>`)
     .join("");
-  $("resultTotal").textContent = `+${r.xp_gained}`;
+  // three beats: rows land (CSS stagger) -> the total rolls up -> meter fills
+  countUp($("resultTotal"), r.xp_gained, "+", 500);
 
   // level meter — where this run left you
   const lv = levelFromXp(r.xp);
@@ -2161,9 +2505,10 @@ function renderResult(day, r) {
   $("resultLvFrom").textContent = `LV ${lv}`;
   $("resultLvTo").textContent = `LV ${lv + 1}`;
   $("resultLvXp").textContent = `${r.xp - floor} / ${ceil - floor} XP`;
-  requestAnimationFrame(() => {
+  $("resultLvFill").style.width = "0%";
+  setTimeout(() => {
     $("resultLvFill").style.width = `${((r.xp - floor) / (ceil - floor)) * 100}%`;
-  });
+  }, 450);
 
   $("resultMastered").innerHTML = (r.mastered || []).length
     ? `<p class="label">Mastered</p>` +
@@ -2203,7 +2548,7 @@ function renderResult(day, r) {
   // level-up is the one thing that still deserves a moment of its own, and it
   // lands ON this screen instead of blocking the road to it
   const oldLv = levelFromXp(r.xp - r.xp_gained);
-  if (lv > oldLv) rewardPill(`Level ${lv} · ${rankLabel(lv)}`, "");
+  if (lv > oldLv) { buzz([10, 40, 14]); rewardPill(`Level ${lv} · ${rankLabel(lv)}`, ""); }
 }
 
 let resultDay = null;

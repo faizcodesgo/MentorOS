@@ -26,7 +26,10 @@
   <main id="app">
 
     <!-- ============ ONBOARDING ============ -->
-    <section id="view-onboarding" class="view">
+    <!-- hidden by default like every other view: a RETURNING user used to see
+         this form flash for the whole boot fetch and think their plan was gone.
+         boot() decides the first visible view. -->
+    <section id="view-onboarding" class="view hidden">
       <div class="hero">
         <p class="mono kicker">Learn anything, day by day</p>
         <h1>What do you want to learn?</h1>
@@ -202,6 +205,7 @@
           <span class="ps-xp mono" id="xpToNext"></span>
           <div class="xp-track"><div class="xp-fill" id="xpFill"></div></div>
         </div>
+        <p class="ps-landmark mono hidden" id="nextLandmark"></p>
       </div>
 
       <!-- Today is the whole point of the screen, so it comes before anything
@@ -377,12 +381,12 @@
         <p class="mono kicker" id="recapKicker">Day recap</p>
         <h1 id="recapTitle"></h1>
       </div>
+      <!-- Peak-end order: what you covered -> say it back (retrieval effort
+           mid-arc) -> the reward beat -> tomorrow's tease. The session ends on
+           anticipation, not a Back button. -->
       <div class="card recap-card">
         <p class="label">What you covered</p>
         <p id="recapSummary" class="recap-summary"></p>
-        <div id="recapStats" class="recap-stats"></div>
-        <p class="label" id="recapCarryLabel" style="margin-top:16px">Keep sharp</p>
-        <p id="recapCarry" class="recap-carry"></p>
       </div>
 
       <div class="card explain-card" id="explainCard">
@@ -391,6 +395,23 @@
         <textarea id="explainInput" rows="2" placeholder="One or two sentences, in your own words…"></textarea>
         <div id="explainFeedback" class="explain-feedback hidden"></div>
         <button class="btn ghost small" id="btnExplain">Check it</button>
+      </div>
+
+      <div class="card">
+        <p class="label">Today's take</p>
+        <div id="recapStats" class="recap-stats"></div>
+        <p class="label" id="recapCarryLabel" style="margin-top:16px">Keep sharp</p>
+        <p id="recapCarry" class="recap-carry"></p>
+      </div>
+
+      <!-- next-episode tease: title + first objective + the XP waiting. No
+           "start it now" button, deliberately — open the loop for TOMORROW,
+           close the session. -->
+      <div class="card hidden" id="tomorrowCard">
+        <p class="label">Tomorrow</p>
+        <h3 id="tmrwTitle"></h3>
+        <p class="sub" id="tmrwObjective"></p>
+        <p class="reward mono" id="tmrwReward"></p>
       </div>
     </section>
 

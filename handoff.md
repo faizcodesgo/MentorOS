@@ -1,6 +1,6 @@
 # MentorOS — Handoff
 
-_Last updated: 16 July 2026 (later session — recovery + Batch 4 start). Paste
+_Last updated: 26 July 2026 (the "Netflix-smooth" session — see §13). Paste
 this into a new chat AND use it as the new-machine setup guide. Read
 `mentor-app-project.md` + `mentoros-council-findings-jul16.md` in the memory
 folder alongside it._
@@ -671,3 +671,108 @@ because one Gemini call can't emit more than ~12 sections + 12 practice before t
 - Two 3-lens LLM councils were run this session (video/visuals design; then video-share
   + correctness audit). Audit found NO high-severity bugs; the 3 actionable low/med
   items were fixed in `7668130`.
+
+---
+
+## 13. Session log — 26 July 2026: the "Netflix-smooth" pass
+
+**Context:** owner asked for smoother, more "addictive" UI/UX (Netflix as the
+reference), features frozen. Also: `app.py` had vanished from the working tree
+AGAIN (same as §12.1) — restored from git via `git show HEAD:app.py > app.py`,
+nothing lost. Four-agent council ran first (motion craft / engagement
+psychology / perceived performance / red team); everything below is the
+intersection of their proposals that survived the red team.
+
+### Shipped (one commit, frontend-only — `app.py` untouched except line endings)
+
+**Feel layer (style.css + small JS):**
+- Native tap layer: `-webkit-tap-highlight-color: transparent` +
+  `touch-action: manipulation` + `user-select: none` on all controls; presses
+  land instantly (0.05s) and release eases back.
+- `overscroll-behavior-y: contain` — pull-to-refresh can no longer reload the
+  app mid-quiz.
+- Easing tokens `--ease-out` (quintic) + `--ease-pop` (overshoot, REWARDS ONLY)
+  in `:root`; progress/XP/step bars now surge-and-settle (0.45-0.55s).
+- View Transitions API in `show()` — old view crossfades to new under a PINNED
+  topbar (`view-transition-name: topbar`). CRITICAL: only the DOM swap is
+  inside `startViewTransition`; the history push stays synchronous, so the
+  `suppressHistory` popstate window is untouched. `html.vt` suppresses the
+  legacy `viewIn` during a transition. Skipped under reduced-motion.
+- Direction-aware lesson steps: Next slides from the right, Back from the left
+  (`--step-dx`, `stepDir`).
+- Toast + reward pill got exit animations. `rewardPill` now QUEUES (pillChain)
+  so concurrent pills play in sequence — still awaitable, same ~1.5s each.
+- Checkpoint result choreography: score/ledger rows stagger in, total counts
+  up (`countUp`), level meter fills at +450ms. Haptics (`buzz`) at exactly
+  three moments: wager reveal (12ms / 25ms wrong), level-up (10-40-14).
+- Ask FAB scales in via `@starting-style`; hover lifts (day rows, options)
+  gated behind `@media (hover: hover)`.
+
+**Perceived speed (app.js):**
+- **Instant cold-open:** full state snapshotted to `localStorage`
+  (`mos_state_snap`) on every `/api/state` fetch (all refetches go through
+  `refreshState()` — DO NOT add raw `state = await api("/api/state")` lines
+  back). `boot()` paints the dashboard from the snapshot in ~50ms and
+  reconciles after. Snapshot cleared on sign-out AND on any 401 (`api()`), so
+  user B can never see user A's dashboard. `#view-onboarding` is now hidden by
+  default — the returning-user "wrong screen flash" is gone. sw.js untouched:
+  this caches DATA, never code.
+- **Lesson cache + prefetch:** in-memory `lessonCache` Map (lessons are
+  immutable server-side); `renderDashboard` prefetches today's lesson, the
+  frontier recap prefetches tomorrow's. "Start today" is usually instant now.
+  Projects are NEVER prefetched (mastery-calibrated at open). Revisit-opens
+  show an in-place skeleton (`.skel`, opacity pulse only); true first-opens
+  keep the narrated overlay (now content-specific lines).
+- **No more double round-trips:** quiz submit / day complete / warm-up /
+  explain / viva / project paint from the MUTATION RESPONSE (server-authoritative
+  fields: `r.xp`, `r.streak`, `r.score`…) and reconcile with a background
+  `refreshState()`. Nothing paints un-acked numbers — this is NOT optimistic XP.
+- **Ask is non-blocking:** the question posts inline into `#explorations` with
+  a skeleton answer block; you can keep reading the lesson while Gemini
+  thinks. On error the question is handed back into the composer.
+- Skills view opens synchronously from `state.dna` (background fetch just
+  marks notes seen). Warm-up availability check cached per day (`warmupInfo`).
+  Day list uses ONE delegated listener (was 50 per render).
+
+**Netflix framing (engagement council, all-honest reframes):**
+- **The locked-days wall is gone:** done days keep +XP receipts, today is
+  marked, the next day is an "Up next" teaser (crosses chapter boundaries),
+  the rest of the current chapter sits quiet, future chapters collapse into
+  one expandable `chapter-row` each ("Chapter 3 · C Control Flow — 3 days").
+  Nothing unlocked that wasn't; locked taps still toast.
+- Plan strip: "Chapter 2 · Pointers — day 3 of 8" (goal-gradient framing; the
+  /50 total stays in the count chip) + `#nextLandmark` line ("Milestone
+  project · 2 days away" — days of WORK, never clock time).
+- Recap reordered for peak-end: covered → say it back → today's take →
+  **Tomorrow card** (`#tomorrowCard`: next day's title + first objective +
+  "+150 XP waiting"). Frontier-day recaps only; NO start-now button by design
+  (spacing is the point — the council explicitly rejected autoplay).
+- **Mid-lesson resume:** step position in `localStorage` (`mos_resume`);
+  Today button becomes "Continue · step 4 of 9"; cleared on completion.
+- Streak celebration at the moment it's earned: "N days running" (+ "New
+  personal best") pills after day-complete, from `r.streak` — rewards-only,
+  break copy unchanged. Warm-up reframed "Previously on your plan".
+
+### Verified (headless, mock user `tester`/`testpass123` local only)
+Full flow driven in the dev preview via DOM checks: dashboard shape, chapter
+expand/collapse, instant lesson open from cache, step direction, diagrams
+non-blank after reveal (fitSvgText intact), complete → pill queue → checkpoint
+(3 wagers, correct payouts 18/12/16) → result choreography → recap order →
+Tomorrow card → back-gesture invariants (sheet closes first, views walk back,
+no phantom entries) → cold reload paints dashboard instantly. PAYOFF three-way
+sync confirmed untouched. No server errors. Mock data lives in gitignored
+`mentoros_data/` (delete `tester.json` + `_users.json` to reset local dev).
+
+### Gotcha found this session
+A `replace_all` of `state = await api("/api/state")` → `await refreshState()`
+also rewrote the line INSIDE `refreshState` itself → infinite recursion, app
+booted to a blank page with NO console error (the rejection died inside
+boot's catch). If the app ever boots blank: check `refreshState` first.
+
+### Still needs the OWNER'S EYES on the live site (can't be judged headlessly)
+- Whether the View Transition crossfade feels premium or sluggish on his phone
+  (durations are 0.15s out / 0.24s in — tune, don't delete).
+- Skeleton flash risk on fast connections (150ms+ fetches only by design).
+- Whether the pill queue after a big day (day + streak + level) feels like a
+  celebration or a parade (cut the streak pill first if it's too much).
+- Haptic strength on his device.
