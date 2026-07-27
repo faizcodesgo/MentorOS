@@ -110,7 +110,7 @@ function show(view, after) {
   const apply = () => {
     views.forEach((v) => $("view-" + v).classList.toggle("hidden", v !== view));
     $("askFab").classList.toggle("hidden", view !== "lesson");   // floating Ask only in a lesson
-    $("askSheet").classList.add("hidden");
+    hideOverlay();   // changing view closes whatever overlay was open
     window.scrollTo(0, 0);
     // never let a callback failure abort the transition mid-swap
     if (after) { try { after(); } catch (e) { console.error(e); } }
@@ -138,14 +138,44 @@ function show(view, after) {
   }
 }
 
-function isAskOpen() { return !$("askSheet").classList.contains("hidden"); }
-function hideAsk() { $("askSheet").classList.add("hidden"); }
+/* ---------- overlays ----------
+   Every sheet and modal goes through here. Before this, ONLY #askSheet pushed a
+   history entry and the popstate handler hardcoded its name — so pressing back
+   with the reminders, focus, study-options or welcome-back overlay open
+   navigated the view UNDERNEATH while the overlay stayed on screen. Adding a
+   seventh overlay on top of that would have inherited the same bug, which is
+   why this lands before the account sheet rather than after it. */
+let openOverlay = null;
 
-/* Close the sheet THROUGH history, so the ✕ and the back gesture take the same
-   path and can't leave a stale entry behind either way. */
-function closeAsk() {
-  if (history.state && history.state.overlay === "ask") history.back();
-  else hideAsk();
+function hideOverlay() {
+  if (!openOverlay) return;
+  $(openOverlay).classList.add("hidden");
+  openOverlay = null;
+}
+
+function openSheet(id) {
+  if (openOverlay === id) return;
+  hideOverlay();
+  $(id).classList.remove("hidden");
+  openOverlay = id;
+  // its own history entry, so the back gesture closes the SHEET, not the app
+  history.pushState({ v: currentView, overlay: id }, "");
+}
+
+/* Close THROUGH history, so the ✕, the scrim tap and the back gesture all take
+   the same path and none of them can leave a stale entry behind. */
+function closeSheet() {
+  if (history.state && history.state.overlay) history.back();
+  else hideOverlay();
+}
+
+/* Dismiss WITHOUT a history round-trip, for handlers that immediately navigate
+   somewhere else. history.back() is async — backing out and pushing a new view
+   in the same tick races, and the loser is the history stack. */
+function dismissSheet() {
+  if (!openOverlay) return;
+  hideOverlay();
+  if (history.state && history.state.overlay) history.replaceState({ v: currentView }, "");
 }
 
 /* Views that only make sense while an in-memory run object is alive. The runs
@@ -162,9 +192,9 @@ const RUN_EXPIRED = {
 
 window.addEventListener("popstate", (e) => {
   const st = e.state || {};
-  // an open overlay always eats the first back press
-  if (isAskOpen() && st.overlay !== "ask") {
-    hideAsk();
+  // an open overlay always eats the first back press — any of them, not just Ask
+  if (openOverlay && st.overlay !== openOverlay) {
+    hideOverlay();
     if (!st.v || st.v === currentView) return;
   }
   if (st.v && st.v !== currentView) {
@@ -979,11 +1009,11 @@ async function checkPace() {
     `It's been ${d} day${d === 1 ? "" : "s"}. Nothing's lost — your plan, your XP and every ` +
     `lesson are exactly where you left them. Pick up from the next day whenever you're ready.`;
   $("wbRewards").innerHTML = "";
-  $("welcomeBack").classList.remove("hidden");
+  openSheet("welcomeBack");
 }
 
 $("wbResume").addEventListener("click", () => {
-  $("welcomeBack").classList.add("hidden");
+  dismissSheet();   // we navigate straight into a lesson, so no history round-trip
   const entry = currentEntry();
   if (entry) openLesson(entry.day);
 });
@@ -1031,9 +1061,9 @@ $("btnReminders").addEventListener("click", () => {
   $("remStatus").textContent = n.enabled ? "Reminders are on." : "";
   $("btnEnableReminders").textContent = n.enabled ? "Update reminders" : "Enable reminders";
   $("btnDisableReminders").classList.toggle("hidden", !n.enabled);
-  $("remindersSheet").classList.remove("hidden");
+  openSheet("remindersSheet");
 });
-$("remindersClose").addEventListener("click", () => $("remindersSheet").classList.add("hidden"));
+$("remindersClose").addEventListener("click", () => closeSheet());
 
 $("btnEnableReminders").addEventListener("click", async () => {
   const btn = $("btnEnableReminders");
@@ -1489,13 +1519,11 @@ $("btnVivaDone").addEventListener("click", () => { vivaRun = null; renderDashboa
 
 /* floating ask button → bottom sheet */
 $("askFab").addEventListener("click", () => {
-  $("askSheet").classList.remove("hidden");
-  // give the sheet its own history entry so the back gesture closes IT, not the app
-  history.pushState({ v: currentView, overlay: "ask" }, "");
+  openSheet("askSheet");
   $("askInput").focus();
 });
-$("askClose").addEventListener("click", () => closeAsk());
-$("askSheet").addEventListener("click", (e) => { if (e.target === $("askSheet")) closeAsk(); });
+$("askClose").addEventListener("click", () => closeSheet());
+$("askSheet").addEventListener("click", (e) => { if (e.target === $("askSheet")) closeSheet(); });
 
 /* ---------- morning warm-up (spaced review) ---------- */
 
@@ -1604,9 +1632,9 @@ $("btnFocus") && $("btnFocus").addEventListener("click", () => {
   const entry = currentEntry();
   $("focusQuestName").textContent = entry ? entry.title : "Today's lesson";
   $("focusIntent").value = "";
-  $("focusSheet").classList.remove("hidden");
+  openSheet("focusSheet");
 });
-$("btnFocusCancel").addEventListener("click", () => $("focusSheet").classList.add("hidden"));
+$("btnFocusCancel").addEventListener("click", () => closeSheet());
 document.querySelectorAll(".dur-chip").forEach((c) => c.addEventListener("click", () => {
   document.querySelectorAll(".dur-chip").forEach((x) => x.classList.remove("selected"));
   c.classList.add("selected");
@@ -1634,7 +1662,7 @@ function startStudyTick() {
 $("btnFocusStart").addEventListener("click", async () => {
   const mins = parseInt(document.querySelector(".dur-chip.selected").dataset.min, 10);
   const goal = $("focusIntent").value.trim();
-  $("focusSheet").classList.add("hidden");
+  dismissSheet();   // a study session starts immediately after
 
   // study mode studies the CURRENT lesson — make sure it's on screen first
   // (checked via currentView: the class toggle may be a frame behind inside a
@@ -1855,15 +1883,15 @@ async function setStudyPref(on) {
 }
 
 function askStudyOptIn() {
-  $("studyOptTitle") && ($("studyOptSheet").classList.remove("hidden"));
+  $("studyOptTitle") && openSheet("studyOptSheet");
 }
 $("btnStudyOptYes") && $("btnStudyOptYes").addEventListener("click", async () => {
-  $("studyOptSheet").classList.add("hidden");
+  dismissSheet();   // a study session starts immediately after
   await setStudyPref(true);
   startAutoStudy();
 });
 $("btnStudyOptNo") && $("btnStudyOptNo").addEventListener("click", async () => {
-  $("studyOptSheet").classList.add("hidden");
+  closeSheet();
   await setStudyPref(false);
 });
 
