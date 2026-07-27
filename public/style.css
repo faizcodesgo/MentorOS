@@ -43,12 +43,20 @@
   /* 8px spacing scale */
   --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 32px; --s7: 48px;
 
-  /* type scale (headings h1-h3 are the display steps) */
-  --text-xs: 0.75rem;
-  --text-sm: 0.85rem;
-  --text-md: 0.95rem;
-  --text-lg: 1.1rem;
-  --text-xl: 1.5rem;
+  /* Type scale (headings h1-h3 are the display steps).
+     Only the READING size moves. I tried opening the whole scale — sm to 14px
+     and md to 16px — and it pushed "Start today" 35px below the fold at
+     360x640, breaking a locked invariant. Measuring the baseline showed why
+     that was so easy to do: the button already sat at exactly 640px on a 640px
+     fold, i.e. zero headroom. So the chrome steps stay where they were, the
+     grey-wash problem is fixed by CONTRAST instead (see --faint above, 3.55 ->
+     4.63:1), and the extra size goes where the hours actually get spent. */
+  --text-xs: 0.75rem;    /* 12px — micro labels only */
+  --text-sm: 0.85rem;    /* 13.6px — captions, meta */
+  --text-md: 0.95rem;    /* 15.2px — secondary body, chrome */
+  --text-lg: 1.125rem;   /* 18px — THE reading size, and now the ONLY size used
+                            for prose inside a lesson section */
+  --text-xl: 1.5rem;     /* 24px */
 
   /* radius scale — 10px was doing almost every job, and 10px is the most
      default radius there is. Three steps that read Android-native, not web-card. */
@@ -100,8 +108,14 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-h1, h2 { font-family: "Space Grotesk", "Inter", system-ui, sans-serif; letter-spacing: -0.02em; }
-h3, .brand { font-family: "Inter", system-ui, sans-serif; }
+/* Archivo is the display face. Space Grotesk was a real choice in July, but it
+   has become the default startup-template grotesque; Archivo is a cut made for
+   high-performance print — squared terminals, tighter apertures than Inter.
+   .brand moves onto it too: the wordmark was rendering in Inter, so the one
+   place identity actually has to live wasn't set in the identity face. */
+h1, h2, h3, .brand { font-family: "Archivo", "Inter", system-ui, sans-serif; }
+h1, h2 { letter-spacing: -0.02em; }
+h3, .brand { letter-spacing: -0.01em; }
 
 /* numbers/stats: same family, tabular figures (no separate mono typeface) */
 /* Figures that must not jitter as they change (XP counting up, scores, timers).
@@ -148,7 +162,10 @@ h3, .brand { font-family: "Inter", system-ui, sans-serif; }
    gesture inset for the same reason the button does */
 #app {
   max-width: 720px; margin: 0 auto;
-  padding: var(--s6) var(--s4) calc(80px + env(safe-area-inset-bottom));
+  /* top step down from --s6: "Start today" had exactly ZERO px of headroom
+     above the fold at 360x640, so any content variation (a longer title, a
+     fourth objective) already pushed it under. This buys back a little. */
+  padding: var(--s5) var(--s4) calc(80px + env(safe-area-inset-bottom));
 }
 .view.hidden, .hidden { display: none !important; }
 
@@ -386,7 +403,8 @@ input:focus, textarea:focus { outline: none; border-color: var(--brand); box-sha
 .lesson-section h3 { font-size: var(--text-lg); margin-bottom: var(--s3); }
 .analogy {
   background: var(--panel-2); border: 1px dashed var(--line); border-radius: var(--r2);
-  padding: var(--s3) var(--s4); font-size: var(--text-md); margin-bottom: var(--s3);
+  padding: var(--s3) var(--s4); font-size: var(--text-lg); line-height: 1.7;
+  margin-bottom: var(--s3);
 }
 .analogy::before { content: "Analogy"; font-size: var(--text-xs); font-weight: 600; color: var(--brand); display: block; margin-bottom: var(--s1); }
 /* Real paragraphs now (fmtProse emits <p>), so no pre-line. 16px at 1.7 line
@@ -400,24 +418,32 @@ input:focus, textarea:focus { outline: none; border-color: var(--brand); box-sha
 .lesson-intro p:last-child { margin-bottom: 0; }
 .probe {
   border-left: 2px solid var(--brand); padding: var(--s1) 0 var(--s1) var(--s3); margin-bottom: var(--s3);
-  color: var(--muted); font-style: italic; font-size: var(--text-md); max-width: 65ch;
+  color: var(--muted); font-style: italic; font-size: var(--text-lg); line-height: 1.7;
+  max-width: 65ch;
 }
 .probe::before { content: "Think first — "; font-style: normal; font-weight: 600; color: var(--brand); }
 .worked {
   background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--r2);
   padding: var(--s3) var(--s4); margin-bottom: var(--s3);
 }
-.worked-body { line-height: 1.7; font-size: var(--text-md); margin-top: var(--s2); max-width: 62ch; }
+/* One reading size for every prose block inside a lesson section. A section
+   used to make the eye re-tune across four sizes in seven blocks — texture for
+   20 minutes, fatigue over a 4-hour day. --text-md/--text-sm are for chrome now. */
+.worked-body { line-height: 1.7; font-size: var(--text-lg); margin-top: var(--s2); max-width: 62ch; }
 .worked-body p { margin: 0 0 var(--s3); }
 .worked-body p:last-child { margin-bottom: 0; }
 code {
   font-family: "IBM Plex Mono", monospace; font-size: 0.88em;
-  background: var(--panel-2); border-radius: var(--r1); padding: 1px 5px; color: #b8c2ff;
+  /* was #b8c2ff — a periwinkle that survived every "one accent" pass and was
+     the app's de facto second hue. The panel fill already marks code as code,
+     and blue is reserved for things you can act on. */
+  background: var(--panel-2); border-radius: var(--r1); padding: 1px 5px; color: var(--ink);
 }
 .keypoints { margin: 0 0 var(--s3) 20px; max-width: 65ch; }
 .keypoints li { padding: 2px 0; }
 .tryit {
-  background: var(--brand-soft); border-radius: var(--r2); padding: var(--s3) var(--s4); font-size: var(--text-md); max-width: 65ch;
+  background: var(--brand-soft); border-radius: var(--r2); padding: var(--s3) var(--s4);
+  font-size: var(--text-lg); line-height: 1.7; max-width: 65ch;
 }
 .tryit::before { content: "Try it now"; font-size: var(--text-xs); font-weight: 600; color: var(--brand); display: block; margin-bottom: var(--s1); }
 /* commit-then-reveal: an attempt (even a guess) unlocks the answer */
@@ -430,8 +456,8 @@ code {
 .tryit-input:disabled { opacity: 0.6; }
 .tryit-solution {
   flex-basis: 100%; margin-top: var(--s2); padding-top: var(--s3);
-  border-top: 1px solid rgba(79, 140, 255, 0.25);
-  font-size: var(--text-sm); line-height: 1.6; color: var(--ink); white-space: pre-line;
+  border-top: 1px solid rgba(74, 158, 255, 0.25);   /* tracks --brand */
+  font-size: var(--text-md); line-height: 1.65; color: var(--ink); white-space: pre-line;
 }
 .plain-list { margin: var(--s2) 0 var(--s2) 20px; max-width: 65ch; }
 .plain-list li { padding: 3px 0; }
@@ -828,7 +854,7 @@ body.study-mode #app { padding-top: calc(60px + env(safe-area-inset-top)); }
   background: var(--bg); border: 1px solid var(--line); border-radius: var(--r2);
   padding: var(--s3) var(--s4); margin-bottom: var(--s3); overflow-x: auto;
 }
-.interaction-code code { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: var(--text-sm); color: #b8c2ff; }
+.interaction-code code { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: var(--text-sm); color: var(--ink); }
 .interaction-opts { display: flex; flex-direction: column; gap: var(--s2); }
 .iopt {
   text-align: left; font: inherit; color: var(--ink); cursor: pointer;
@@ -1119,7 +1145,7 @@ body.study-mode #app { padding-top: calc(60px + env(safe-area-inset-top)); }
 
 /* ---------- checkpoint result ---------- */
 .result-score {
-  font-family: "Space Grotesk", Inter, system-ui, sans-serif;
+  font-family: "Archivo", Inter, system-ui, sans-serif;
   font-size: 2.75rem; font-weight: 700; line-height: 1.05;
   letter-spacing: -0.03em; margin: var(--s2) 0 var(--s1);
 }
