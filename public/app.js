@@ -1970,10 +1970,36 @@ function resetSvgFit(svg) {
   }
 }
 
+/* Lessons generated before ab6f509 have the old, off-system palette baked into
+   their cached SVG — including #8b5cf6, the purple the 3 Jul premium pass is
+   recorded as deleting but only ever removed from the CSS. Fixing prompts.py
+   only affects NEW lessons; a lesson already in Mongo would keep drawing in
+   pre-redesign colours forever, on a plate that has since moved.
+
+   Idempotent by construction: no new value is also an old key, so re-running it
+   on an already-migrated diagram is a no-op. Case-insensitive because the model
+   is not consistent about hex case.
+
+   Delete this once no pre-redesign lesson can still be cached anywhere. */
+const DIAGRAM_PALETTE_MIGRATION = {
+  "#4f8cff": "#4a9eff",   // pre-redesign blue  -> --brand
+  "#8b5cf6": "#5580ad",   // purple secondary   -> --brand-dim (NOT a second hue)
+  "#facc15": "#ffc94a",   // a different gold   -> --gold
+  "#22c55e": "#46c26a",   //                    -> --good
+  "#e6edf3": "#f0f4fa",   // a different ink    -> --ink
+  "#8b949e": "#a7b1c2",   //                    -> --muted
+  "#1c2330": "#1a2231",   // box fills          -> --panel
+  "#283042": "#2a3548",   // box strokes        -> --panel-3
+};
+const DIAGRAM_HEX_RE = new RegExp(Object.keys(DIAGRAM_PALETTE_MIGRATION).join("|"), "gi");
+function migrateDiagramPalette(code) {
+  return code.replace(DIAGRAM_HEX_RE, (hex) => DIAGRAM_PALETTE_MIGRATION[hex.toLowerCase()]);
+}
+
 function renderDiagrams(root) {
   // SVG-only — the prompts forbid mermaid, so nothing else ever renders
   for (const h of (root || document).querySelectorAll(".diagram[data-code]")) {
-    const clean = sanitizeSvg(h.dataset.code);
+    const clean = sanitizeSvg(migrateDiagramPalette(h.dataset.code));
     if (clean) h.innerHTML = clean; else h.remove();
     h.removeAttribute("data-code");
     // must run AFTER insertion — text can only be measured once it's in the DOM
