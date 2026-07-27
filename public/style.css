@@ -1,21 +1,44 @@
 /* MentorOS — premium, restrained. Dark by default, one blue accent. */
 
 :root {
-  --bg: #0b0e14;             /* near-black, richer than github-dark */
-  --panel: #12161f;          /* raised surface */
-  --panel-2: #171c27;        /* inset / secondary */
-  --ink: #eaeef5;            /* high-contrast body text */
-  --muted: #9aa4b2;
-  --faint: #626b7a;
-  --line: #212734;           /* hairline borders */
-  --brand: #4f8cff;          /* THE one accent */
-  --brand-dark: #3b76e8;
-  --brand-bright: #6b9eff;   /* hover state — lighter, text stays dark */
-  --brand-soft: rgba(79, 140, 255, 0.12);
-  --gold: #f5c542;           /* XP numbers + mastery only */
-  --good: #3fb950;
-  --warn: #d29922;
-  --bad: #f85149;
+  /* SURFACES — hierarchy comes from luminance, not from outlines.
+     The old ramp's steps were under 1% apart, so nothing could be seen without
+     a border; that's why 38 rules drew one, and why sixteen different
+     components all ended up looking like the same box. These steps are real. */
+  --bg: #080a0f;             /* deeper than before — gives the ramp room to breathe */
+  --panel: #101520;          /* standard card */
+  --panel-2: #18202d;        /* inset: inputs, code, options, diagram plate */
+  --panel-3: #222c3d;        /* THE primary surface — one per view, no more */
+
+  --ink: #f0f4fa;            /* high-contrast body text */
+  --muted: #a7b1c2;          /* 7.7:1 on --bg */
+  /* was #626b7a = 3.55:1, which FAILED WCAG AA — and it is the colour of
+     .label, i.e. every form label in the app, at 12px */
+  --faint: #707b8d;          /* 4.6:1 — passes */
+
+  --line: rgba(255, 255, 255, 0.07);   /* a hairline, not a drawn border */
+  /* the inset top-highlight: how a dark surface reads as physically raised
+     WITHOUT an outline. Folded into the shadow tokens below, so every existing
+     .card/.btn picks it up without a single selector changing. */
+  --lift: rgba(255, 255, 255, 0.05);
+
+  --brand: #4a9eff;          /* THE one accent — 7.2:1 */
+  --brand-dark: #3b7fd4;
+  --brand-bright: #7fb8ff;   /* hover state — lighter, text stays dark */
+  --brand-soft: rgba(74, 158, 255, 0.12);
+  /* A LUMINANCE STEP OF THE SAME BLUE — deliberately not a second accent.
+     .skill-band.weak and .skill-band.developing were both var(--brand), so the
+     skill map could not tell "shaky" from "getting there" at all.
+     It has to clear 4.5:1 in its own right: .skill-band.weak is 12px TEXT, not
+     just a bar fill. The first value I tried (#3d6490) looked right and measured
+     3.23:1 — it would have traded one AA failure for another. */
+  --brand-dim: #5580ad;      /* 4.79:1, and clearly dimmer than --brand's 7.19 */
+
+  --gold: #ffc94a;           /* XP + mastery only — brighter, because it is now
+                                allowed to appear at a size you can actually see */
+  --good: #46c26a;
+  --warn: #e2a33a;
+  --bad: #ff5f57;
 
   /* 8px spacing scale */
   --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 32px; --s7: 48px;
@@ -27,16 +50,21 @@
   --text-lg: 1.1rem;
   --text-xl: 1.5rem;
 
-  /* radius scale */
-  --r1: 6px;
-  --r2: 10px;
-  --r3: 16px;
+  /* radius scale — 10px was doing almost every job, and 10px is the most
+     default radius there is. Three steps that read Android-native, not web-card. */
+  --r1: 8px;
+  --r2: 14px;
+  --r3: 22px;
   --r-full: 999px;
 
-  /* elevation scale */
-  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-2: 0 4px 14px rgba(0, 0, 0, 0.35);
-  --shadow-3: 0 12px 32px rgba(0, 0, 0, 0.5);
+  /* elevation scale. --shadow-1 used to be a sub-1% luminance change on --panel
+     — literally invisible — so the app got its depth from outlines instead.
+     Each step now leads with the inset highlight, which is the part that
+     actually reads as "raised" on a dark surface. All three are STATIC; nothing
+     animates a box-shadow. */
+  --shadow-1: 0 1px 0 var(--lift) inset, 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-2: 0 1px 0 var(--lift) inset, 0 8px 24px -14px rgba(0, 0, 0, 0.85);
+  --shadow-3: 0 1px 0 var(--lift) inset, 0 20px 48px -20px rgba(0, 0, 0, 0.9);
 
   /* motion: decisive arrival with a soft tail for movement; the slight
      overshoot is reserved for reward moments only — never navigation */
@@ -97,7 +125,7 @@ h3, .brand { font-family: "Inter", system-ui, sans-serif; }
      otherwise sit under the notch */
   padding-top: calc(var(--s4) + env(safe-area-inset-top));
   border-bottom: 1px solid var(--line);
-  background: #0f141b;   /* solid — blur-on-scroll is the #1 cause of mobile jank */
+  background: var(--panel);   /* solid — blur-on-scroll is the #1 cause of mobile jank */
   position: sticky; top: 0; z-index: 10;
 }
 .brand {
@@ -573,7 +601,7 @@ html.vt .view:not(.hidden) { animation: none; }
 /* study mode — a slim timer bar over the live lesson (replaces the blank takeover) */
 .study-bar {
   position: fixed; top: 0; left: 0; right: 0; z-index: 60;
-  background: #0f141b; border-bottom: 1px solid var(--line); box-shadow: var(--shadow-2);
+  background: var(--panel); border-bottom: 1px solid var(--line); box-shadow: var(--shadow-2);
   /* study mode HIDES .topbar and this takes its place — so it inherits the
      topbar's job of clearing the notch. Without this the timer sat under the
      cutout on the installed app. */
@@ -715,10 +743,14 @@ body.study-mode #app { padding-top: calc(60px + env(safe-area-inset-top)); }
   margin-left: var(--s2); vertical-align: middle; }
 
 .sdot { width: 11px; height: 11px; border-radius: 50%; display: inline-block; }
+/* Four states, four appearances. "weak" and "developing" used to be the same
+   blue everywhere except this dot's fill, so the bar and the word below it
+   carried no information at all. The distinction is a luminance step of the one
+   accent — not a second colour. */
 .sdot.mastered { background: var(--gold); }
 .sdot.developing { background: var(--brand); }
-.sdot.weak { background: transparent; border: 2px solid var(--brand); }
-.sdot.new { background: transparent; border: 2px solid var(--line); }
+.sdot.weak { background: transparent; border: 2px solid var(--brand-dim); }
+.sdot.new { background: transparent; border: 2px solid var(--faint); }
 
 /* ---------- greeting ---------- */
 .greeting { color: var(--ink); margin-bottom: var(--s2); }
@@ -846,13 +878,13 @@ body.study-mode #app { padding-top: calc(60px + env(safe-area-inset-top)); }
 .skill-band { font-size: var(--text-xs); }
 .skill-band.mastered { color: var(--gold); }
 .skill-band.developing { color: var(--brand); }
-.skill-band.weak { color: var(--brand); }
+.skill-band.weak { color: var(--brand-dim); }
 .skill-band.new { color: var(--muted); }
 .skill-bar { height: 5px; background: var(--line); border-radius: var(--r-full); margin: var(--s2) 0 var(--s2); overflow: hidden; }
 .skill-fill { height: 100%; border-radius: var(--r-full); transition: width 0.5s ease; }
 .skill-fill.mastered { background: var(--gold); }
 .skill-fill.developing { background: var(--brand); }
-.skill-fill.weak { background: var(--brand); }
+.skill-fill.weak { background: var(--brand-dim); }
 .skill-fill.new { background: var(--muted); }
 .skill-meta { font-size: var(--text-xs); color: var(--muted); }
 
