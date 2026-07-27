@@ -148,6 +148,18 @@ function closeAsk() {
   else hideAsk();
 }
 
+/* Views that only make sense while an in-memory run object is alive. The runs
+   are cleared the moment they finish, but their history entries outlive them —
+   so backing out of the result screen used to land on the last checkpoint
+   question, with a live "See results" button and quizRun already null. The next
+   tap did `quizRun.idx++` and threw onto a dead screen whose only exit was
+   another back press. Landing on an expired run now falls through to the
+   dashboard, and rewrites the entry so a second back press can't return to it. */
+const RUN_EXPIRED = {
+  quiz: () => !quizRun && !warmupRun,
+  viva: () => !vivaRun,
+};
+
 window.addEventListener("popstate", (e) => {
   const st = e.state || {};
   // an open overlay always eats the first back press
@@ -156,6 +168,13 @@ window.addEventListener("popstate", (e) => {
     if (!st.v || st.v === currentView) return;
   }
   if (st.v && st.v !== currentView) {
+    const expired = RUN_EXPIRED[st.v];
+    if (expired && expired()) {
+      history.replaceState({ v: "dashboard" }, "");
+      suppressHistory = true;
+      try { renderDashboard(); show("dashboard"); } finally { suppressHistory = false; }
+      return;
+    }
     suppressHistory = true;
     try {
       if (st.v === "dashboard") renderDashboard();
@@ -1884,6 +1903,12 @@ function fitSvgText(svg) {
     const limit = (host ? host.width : (svg.viewBox.baseVal.width || 600)) - 12;
     if (limit <= 0 || len <= limit) continue;
 
+    // remember the author's original size before we touch it, so a re-fit once
+    // the real webfont lands starts clean instead of compounding a wrong one
+    if (!t.hasAttribute("data-fit0")) {
+      t.setAttribute("data-fit0", t.getAttribute("font-size") || "");
+    }
+
     // step the font down before resorting to squeezing
     let size = parseFloat(getComputedStyle(t).fontSize) || 14;
     while (size > 9 && len > limit) {
@@ -1898,6 +1923,19 @@ function fitSvgText(svg) {
   }
 }
 
+/* Undo a fit so the labels can be measured again from scratch. Needed because a
+   fit can only ever SHRINK text — if the first measurement was wrong it never
+   recovers on its own. */
+function resetSvgFit(svg) {
+  for (const t of svg.querySelectorAll("text[data-fit0]")) {
+    const orig = t.getAttribute("data-fit0");
+    if (orig) t.setAttribute("font-size", orig); else t.removeAttribute("font-size");
+    t.removeAttribute("textLength");
+    t.removeAttribute("lengthAdjust");
+    t.removeAttribute("data-fit0");
+  }
+}
+
 function renderDiagrams(root) {
   // SVG-only — the prompts forbid mermaid, so nothing else ever renders
   for (const h of (root || document).querySelectorAll(".diagram[data-code]")) {
@@ -1906,7 +1944,16 @@ function renderDiagrams(root) {
     h.removeAttribute("data-code");
     // must run AFTER insertion — text can only be measured once it's in the DOM
     const svg = h.querySelector && h.querySelector("svg");
-    if (svg) { try { fitSvgText(svg); } catch {} }
+    if (!svg) continue;
+    const fit = () => { try { fitSvgText(svg); } catch {} };
+    fit();
+    /* SVG <text> inherits Inter from body, and Inter is loaded with
+       `display=swap`. Measure before it lands and every label is fitted to
+       system-ui metrics, then the swap reflows them — which is the exact
+       overflow bug fitSvgText exists to prevent. Re-fit once the font is real. */
+    if (document.fonts && document.fonts.status !== "loaded") {
+      document.fonts.ready.then(() => { resetSvgFit(svg); fit(); }).catch(() => {});
+    }
   }
 }
 

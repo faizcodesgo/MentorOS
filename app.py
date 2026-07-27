@@ -577,6 +577,45 @@ def generate_all():
     return jsonify({"done": True, "phases_generated": len(phases), "total_phases": len(phases)})
 
 
+def _day_unlocked(state, day):
+    """Is this day open yet? The server-side mirror of the client's `locked` rule.
+
+    Until this existed, the entire 40-day sequence was enforced by ONE CSS class
+    name (`.locked`, checked in app.js at the click handler). Nothing here
+    validated anything: a crafted POST — or a redesign that renamed the class —
+    could open day 40 on day 1, burn 15-60s of Gemini quota generating it, and
+    bank the XP. Ordering damage like that is silent and unrecoverable.
+
+    The rule, kept byte-for-byte in step with app.js `rowHtml`:
+    a day is open if it's already completed, or if it sits at or before the
+    frontier (the first day not yet done). `order` is the display sequence and
+    `day` is the stable id, so revision days inserted mid-plan sort correctly.
+    """
+    plan = state.get("plan") or {}
+    curriculum = plan.get("curriculum") or []
+    if not curriculum:
+        return True
+
+    progress = state.get("progress") or {}
+
+    def _done(entry):
+        return bool(progress.get(str(entry.get("day")), {}).get("completed"))
+
+    def _seq(entry):
+        return entry.get("order", entry.get("day"))
+
+    ordered = sorted(curriculum, key=_seq)
+    entry = next((d for d in ordered if d.get("day") == day), None)
+    if entry is None:
+        return True          # not in the plan at all — the caller 404s instead
+    if _done(entry):
+        return True          # revisiting your own finished day is always fine
+
+    # all done -> the last entry is the frontier, so nothing is locked
+    frontier = next((d for d in ordered if not _done(d)), ordered[-1])
+    return _seq(entry) <= _seq(frontier)
+
+
 @app.get("/api/lesson/<int:day>")
 def get_lesson(day):
     state = storage.load_state()
@@ -584,13 +623,17 @@ def get_lesson(day):
     if not plan:
         return jsonify({"error": "No plan yet."}), 400
 
-    cached = state["lessons"].get(str(day))
-    if cached:
-        return jsonify(cached)
-
     entry = next((d for d in plan["curriculum"] if d["day"] == day), None)
     if not entry:
         return jsonify({"error": f"Day {day} is not in the curriculum."}), 404
+    # gate BEFORE the cache read: a locked day must not be readable even if a
+    # lesson for it happens to already exist
+    if not _day_unlocked(state, day):
+        return jsonify({"error": "Finish the days before this one first."}), 403
+
+    cached = state["lessons"].get(str(day))
+    if cached:
+        return jsonify(cached)
 
     profile = state["profile"]
     done_count = sum(1 for p in state["progress"].values() if p.get("completed"))
@@ -1117,6 +1160,10 @@ def ask():
 def complete_day(day):
     state = storage.load_state()
     already_done = state["progress"].get(str(day), {}).get("completed", False)
+    # same gate as /api/lesson — this endpoint validated NOTHING, so it was the
+    # cheaper way to skip the whole plan: no generation, just XP and a tick
+    if not already_done and not _day_unlocked(state, day):
+        return jsonify({"error": "Finish the days before this one first."}), 403
     state["progress"][str(day)] = {
         "completed": True,
         "completed_at": datetime.datetime.now().isoformat(),

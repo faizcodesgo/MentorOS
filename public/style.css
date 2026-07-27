@@ -116,7 +116,12 @@ h3, .brand { font-family: "Inter", system-ui, sans-serif; }
 .topbar-right .streak-chip { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
 /* ---------- layout ---------- */
-#app { max-width: 720px; margin: 0 auto; padding: var(--s6) var(--s4) 80px; }
+/* the bottom padding clears the floating Ask button — it has to grow by the
+   gesture inset for the same reason the button does */
+#app {
+  max-width: 720px; margin: 0 auto;
+  padding: var(--s6) var(--s4) calc(80px + env(safe-area-inset-bottom));
+}
 .view.hidden, .hidden { display: none !important; }
 
 .hero { margin: var(--s6) 0 var(--s5); }
@@ -569,6 +574,10 @@ html.vt .view:not(.hidden) { animation: none; }
 .study-bar {
   position: fixed; top: 0; left: 0; right: 0; z-index: 60;
   background: #0f141b; border-bottom: 1px solid var(--line); box-shadow: var(--shadow-2);
+  /* study mode HIDES .topbar and this takes its place — so it inherits the
+     topbar's job of clearing the notch. Without this the timer sat under the
+     cutout on the installed app. */
+  padding-top: env(safe-area-inset-top);
 }
 .study-bar-row {
   display: flex; align-items: center; gap: var(--s3);
@@ -590,7 +599,9 @@ html.vt .view:not(.hidden) { animation: none; }
 .study-done span { flex: 1; }
 body.timer-hidden .study-time { visibility: hidden; }
 body.study-mode .topbar { display: none; }
-body.study-mode #app { padding-top: 60px; }
+/* 60px is hand-matched to .study-bar's rendered height — keep them in step,
+   and grow it by the same inset the bar now carries */
+body.study-mode #app { padding-top: calc(60px + env(safe-area-inset-top)); }
 
 /* ---------- project milestone ---------- */
 .day-row.project { border-color: var(--brand); border-left: 3px solid var(--brand); }
@@ -968,7 +979,9 @@ body.study-mode #app { padding-top: 60px; }
 
 /* ---------- floating ask button + sheet ---------- */
 .ask-fab {
-  position: fixed; right: 18px; bottom: 20px; z-index: 45;
+  /* every other fixed layer accounts for the gesture bar; this one didn't, so
+     on gesture-nav Android the Ask button sat inside the swipe strip */
+  position: fixed; right: 18px; bottom: calc(20px + env(safe-area-inset-bottom)); z-index: 45;
   display: flex; align-items: center; gap: var(--s2);
   background: var(--brand); color: #08111f; border: none; border-radius: var(--r-full);
   padding: var(--s3) var(--s4); font: inherit; font-weight: 600; cursor: pointer;
