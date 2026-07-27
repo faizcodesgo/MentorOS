@@ -209,6 +209,31 @@ button.card:active, .day-row:active, .class-card:active, .skillmap-card:active, 
   /* press lands instantly, release eases back — how physical buttons behave */
   transition-duration: 0.05s;
 }
+
+/* ---------- tap ripple ---------- */
+/* The other half of the press physics: things already scale down on :active, but
+   nothing marks WHERE you touched. This is the most recognisably native-Android
+   feedback there is, and it costs one transform + one opacity.
+
+   LEAF CONTROLS ONLY. A ripple host needs overflow:hidden, and overflow:hidden
+   CLIPS NEGATIVE MARGINS — .bookmark-btn and .weekly-x both use those to absorb
+   a 44px touch target without growing visually. Making any CONTAINER of theirs a
+   ripple host silently shrinks the tap area back to what b4a2e93 already fixed.
+   So: never .card, never .lesson-section, never .thin-row. */
+.btn, .day-row, .opt, .iopt, .class-card,
+.wager-chip, .dur-chip, .seg-item, .skillmap-card {
+  position: relative;
+  overflow: hidden;
+}
+.ripple {
+  position: absolute; border-radius: 50%; pointer-events: none;
+  background: currentColor; opacity: 0.26;
+  transform: scale(0);
+  animation: rippleOut 450ms var(--ease-out) forwards;
+}
+@keyframes rippleOut {
+  to { transform: scale(1); opacity: 0; }
+}
 .form-card label { display: block; margin-bottom: var(--s4); }
 /* small section labels — quiet, sentence case */
 .label {

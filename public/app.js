@@ -185,6 +185,40 @@ window.addEventListener("popstate", (e) => {
   }
 });
 
+/* Tap ripple. ONE delegated listener, not one per element: renderStep,
+   renderDashboard and friends rebuild this markup via innerHTML constantly, so
+   per-element listeners would leak and then die with their nodes. The span is
+   transient by the same token — an innerHTML rewrite disposes of it for us.
+
+   pointerdown, not click: feedback has to land on touch, and click only fires
+   on release. The host list must stay in step with the CSS selector — see the
+   negative-margin warning there before adding anything to it. */
+const RIPPLE_HOSTS = ".btn, .day-row, .opt, .iopt, .class-card, .wager-chip, .dur-chip, .seg-item, .skillmap-card";
+document.addEventListener("pointerdown", (e) => {
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const host = e.target.closest && e.target.closest(RIPPLE_HOSTS);
+  // a disabled .opt is one whose wager is already committed — a ripple there
+  // would say the tap did something
+  if (!host || host.disabled) return;
+  if (host.querySelector(":scope > .ripple")) return;   // rapid double-tap
+  const box = host.getBoundingClientRect();
+  const size = Math.max(box.width, box.height) * 2;
+  const span = document.createElement("span");
+  span.className = "ripple";
+  span.style.width = span.style.height = size + "px";
+  span.style.left = e.clientX - box.left - size / 2 + "px";
+  span.style.top = e.clientY - box.top - size / 2 + "px";
+  /* animationend is the fast path, but it does not fire if the animation never
+     runs — a throttled/background tab, or a reduced-motion override that clamps
+     it. Without a fallback the span survives, and the double-tap guard above
+     then blocks that element from EVER rippling again. toast() and rewardPill()
+     already hedge the same way. */
+  const drop = () => span.remove();
+  span.addEventListener("animationend", drop, { once: true });
+  setTimeout(drop, 700);
+  host.appendChild(span);
+}, { passive: true });
+
 function toast(msg, ms = 4000) {
   const el = $("toast");
   el.textContent = msg;
