@@ -181,16 +181,17 @@ def build(css):
         "The signature asset, on its own surface",
         """<div class="card lesson-section"><div class="section-head"><h3>Process states</h3></div>
 <div class="diagram"><svg viewBox="0 0 320 120" width="100%" xmlns="http://www.w3.org/2000/svg">
-<rect x="8" y="40" width="86" height="40" rx="6" fill="#1c2330" stroke="#283042"></rect>
-<text x="51" y="64" font-size="12" text-anchor="middle" fill="#e6edf3">Ready</text>
-<rect x="117" y="40" width="86" height="40" rx="6" fill="#1c2330" stroke="#283042"></rect>
-<text x="160" y="64" font-size="12" text-anchor="middle" fill="#e6edf3">Running</text>
-<rect x="226" y="40" width="86" height="40" rx="6" fill="#1c2330" stroke="#283042"></rect>
-<text x="269" y="64" font-size="12" text-anchor="middle" fill="#e6edf3">Blocked</text>
-<path d="M94 60 L117 60" stroke="#4f8cff" stroke-width="2"></path>
-<path d="M203 60 L226 60" stroke="#4f8cff" stroke-width="2"></path>
+<rect x="8" y="40" width="86" height="40" rx="8" fill="#1a2231" stroke="#2a3548"></rect>
+<text x="51" y="64" font-size="12" text-anchor="middle" fill="#f0f4fa" font-family="Inter, sans-serif">Ready</text>
+<rect x="117" y="40" width="86" height="40" rx="8" fill="#1a2231" stroke="#2a3548"></rect>
+<text x="160" y="64" font-size="12" text-anchor="middle" fill="#f0f4fa" font-family="Inter, sans-serif">Running</text>
+<rect x="226" y="40" width="86" height="40" rx="8" fill="#1a2231" stroke="#2a3548"></rect>
+<text x="269" y="64" font-size="12" text-anchor="middle" fill="#f0f4fa" font-family="Inter, sans-serif">Blocked</text>
+<path d="M94 60 L117 60" stroke="#4a9eff" stroke-width="2"></path>
+<path d="M203 60 L226 60" stroke="#4a9eff" stroke-width="2"></path>
+<text x="160" y="100" font-size="11" text-anchor="middle" fill="#a7b1c2" font-family="Inter, sans-serif">scheduler dispatch</text>
 </svg></div></div>
-<p class="sub" style="font-size:13px">Diagram SVG is authored by the model against a palette hard-coded in prompts.py — still off-system, including a purple the audit thought it had deleted. Bringing it onto tokens is outstanding work.</p>""")
+<p class="sub" style="font-size:13px">The palette in prompts.py now matches these tokens — box fills sit a step below the plate, and the old purple secondary is gone. Diagram text stays on Inter and is never styled from the stylesheet: a CSS font-size would override the presentation attribute fitSvgText writes and defeat the whole label-fitting mechanism.</p>""")
 
     # ---------- Checkpoint ----------
     add("checkpoint-options.html", "Checkpoint", "Options",
