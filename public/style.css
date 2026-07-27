@@ -5,10 +5,13 @@
      The old ramp's steps were under 1% apart, so nothing could be seen without
      a border; that's why 38 rules drew one, and why sixteen different
      components all ended up looking like the same box. These steps are real. */
+  /* Measured, not eyeballed. With borders gone the fill step IS the edge, so
+     each one has to be perceptible: under ~1.10 contrast a card reads as flat.
+     The first ramp I tried put bg->card at 1.084 and the cards vanished. */
   --bg: #080a0f;             /* deeper than before — gives the ramp room to breathe */
-  --panel: #101520;          /* standard card */
-  --panel-2: #18202d;        /* inset: inputs, code, options, diagram plate */
-  --panel-3: #222c3d;        /* THE primary surface — one per view, no more */
+  --panel: #1a2231;          /* standard card — 1.24 from --bg */
+  --panel-2: #232d3f;        /* plates on a card: options, chips, diagram — 1.19 from --panel */
+  --panel-3: #2a3548;        /* THE primary surface — one per view, no more */
 
   --ink: #f0f4fa;            /* high-contrast body text */
   --muted: #a7b1c2;          /* 7.7:1 on --bg */
@@ -17,6 +20,10 @@
   --faint: #707b8d;          /* 4.6:1 — passes */
 
   --line: rgba(255, 255, 255, 0.07);   /* a hairline, not a drawn border */
+  /* The only borders left that must actually be SEEN: an input's edge and a
+     ghost button's outline. Those two are affordances — you have to know where
+     to tap — so they get a stronger step than a divider does. */
+  --line-strong: rgba(255, 255, 255, 0.15);
   /* the inset top-highlight: how a dark surface reads as physically raised
      WITHOUT an outline. Folded into the shadow tokens below, so every existing
      .card/.btn picks it up without a single selector changing. */
@@ -180,9 +187,14 @@ h3 { font-size: var(--text-lg); line-height: 1.3; }
 .sub { color: var(--muted); max-width: 65ch; }
 
 /* ---------- cards & form ---------- */
+/* A surface is defined by its FILL, not its outline. The border stays declared
+   but transparent: .card-primary, hover and every state rule below set
+   `border-color`, so removing the border outright would silently kill them —
+   and keeping the 1px reserved means no box shifts by a pixel. Depth comes from
+   the fill step plus --shadow-1's inset highlight. */
 .card {
   background: var(--panel);
-  border: 1px solid var(--line);
+  border: 1px solid transparent;
   border-radius: var(--r2);
   padding: var(--s5);
   margin: var(--s4) 0;
@@ -201,12 +213,15 @@ button.card:active, .day-row:active, .class-card:active, .skillmap-card:active, 
 /* small section labels — quiet, sentence case */
 .label {
   display: block; font-size: var(--text-xs); letter-spacing: 0.01em;
-  color: var(--faint); font-weight: 600; margin-bottom: var(--s2);
+  /* --muted, not --faint. These labels sit on cards, not on --bg, and a tone
+     picked to pass against the background fails against every surface above it
+     — 2.6:1 on the primary card. --muted clears 4.5:1 on all four. */
+  color: var(--muted); font-weight: 600; margin-bottom: var(--s2);
 }
 .label em { font-style: normal; color: var(--faint); font-weight: 400; }
 input, textarea {
   width: 100%; padding: var(--s3) var(--s4);
-  border: 1px solid var(--line); border-radius: var(--r2);
+  border: 1px solid var(--line-strong); border-radius: var(--r2);
   font: inherit; background: var(--bg); color: var(--ink);
   transition: border-color 0.15s ease;
 }
@@ -218,7 +233,7 @@ input:focus, textarea:focus { outline: none; border-color: var(--brand); box-sha
 /* ---------- class picker ---------- */
 .class-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s2); margin-bottom: var(--s4); }
 .class-card {
-  background: var(--bg); border: 1px solid var(--line); border-radius: var(--r2);
+  background: var(--panel-2); border: 1px solid transparent; border-radius: var(--r2);
   padding: var(--s4); cursor: pointer; text-align: left; font: inherit; color: var(--ink);
   transition: border-color 0.15s ease, background 0.15s ease;
 }
@@ -243,7 +258,7 @@ input:focus, textarea:focus { outline: none; border-color: var(--brand); box-sha
 }
 .btn.primary { background: var(--brand); color: #08111f; }
 .btn.primary:hover { background: var(--brand-bright); }   /* lighter, no text inversion */
-.btn.ghost { background: transparent; border-color: var(--line); color: var(--muted); }
+.btn.ghost { background: transparent; border-color: var(--line-strong); color: var(--muted); }
 .btn.ghost:hover { border-color: var(--faint); color: var(--ink); }
 .btn.danger { color: var(--bad); }
 /* 44px is the minimum comfortable touch target. .btn.small is every back link
@@ -291,7 +306,9 @@ input:focus, textarea:focus { outline: none; border-color: var(--brand); box-sha
    plan / how close to the next level — merged into one block above the Today card.
    The day title used to be an <h1> competing with the Today card's heading; here
    it's a quiet label, so the Today card clearly wins the eye. */
-.plan-strip { margin: var(--s4) 0; }
+/* tighter than --s4: this sits directly above the Today card, and the fold at
+   360x640 is the constraint the whole dashboard is arranged around */
+.plan-strip { margin: var(--s3) 0; }
 .plan-strip-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s3); margin-bottom: var(--s2); }
 .ps-day { font-size: var(--text-md); font-weight: 600; color: var(--ink); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ps-count { font-size: var(--text-sm); color: var(--muted); white-space: nowrap; flex: none; }
@@ -339,7 +356,7 @@ input:focus, textarea:focus { outline: none; border-color: var(--brand); box-sha
 .day-list { display: flex; flex-direction: column; gap: var(--s2); }
 .day-row {
   display: flex; align-items: center; gap: var(--s3);
-  background: var(--panel); border: 1px solid var(--line); border-radius: var(--r2);
+  background: var(--panel); border: 1px solid transparent; border-radius: var(--r2);
   padding: var(--s3) var(--s4); cursor: pointer; text-align: left; font: inherit; width: 100%; color: var(--ink);
 }
 .day-row { transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.2s ease; }
@@ -463,14 +480,17 @@ code {
 .plain-list li { padding: 3px 0; }
 .resource-link {
   display: inline-block; margin: var(--s1) var(--s2) var(--s1) 0; padding: var(--s2) var(--s3);
-  border: 1px solid var(--line); border-radius: var(--r2); font-size: var(--text-sm);
-  color: var(--brand); text-decoration: none; background: var(--panel);
+  border: 1px solid transparent; border-radius: var(--r2); font-size: var(--text-sm);
+  color: var(--brand); text-decoration: none; background: var(--panel-2);
 }
 .resource-link:hover { border-color: var(--brand); }
 .resource-link .channel { color: var(--muted); font-size: 0.8em; }
 .diagram {
-  background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--r2);
-  padding: var(--s4); margin-bottom: var(--s3); overflow-x: auto; text-align: center;
+  /* the diagram is the most characteristic thing the app makes and it was
+     wearing the same box as a stat chip. It gets its own plate now: no outline,
+     a step lighter than the section around it, more room. */
+  background: var(--panel-2); border: none; border-radius: var(--r2);
+  padding: var(--s5) var(--s4); margin-bottom: var(--s4); overflow-x: auto; text-align: center;
 }
 .diagram svg { max-width: 100%; height: auto; }
 /* curious-question box */
@@ -926,27 +946,29 @@ body.study-mode #app { padding-top: calc(60px + env(safe-area-inset-top)); }
 .quiz-options { display: flex; flex-direction: column; gap: var(--s3); }
 .opt {
   text-align: left; font: inherit; color: var(--ink); cursor: pointer;
-  background: var(--bg); border: 1px solid var(--line); border-radius: var(--r2);
+  background: var(--panel-2); border: 1px solid transparent; border-radius: var(--r2);
   padding: var(--s3) var(--s4); transition: border-color 0.15s ease, transform 0.15s ease;
 }
 @media (hover: hover) {
   .opt:hover:not(:disabled) { border-color: var(--brand); transform: translateY(-1px); }
 }
 .opt:disabled { cursor: default; }
-.opt.picked { border-color: var(--brand); background: rgba(79, 140, 255, 0.08); }
-.opt.correct { border-color: var(--good); background: rgba(63, 185, 80, 0.12); animation: revealCorrect 0.32s var(--ease-pop); }
+/* state washes track the tokens — these were still mixed from the old palette
+   (.wrong was #ef4444, which was never --bad) */
+.opt.picked { border-color: var(--brand); background: rgba(74, 158, 255, 0.10); }
+.opt.correct { border-color: var(--good); background: rgba(70, 194, 106, 0.14); animation: revealCorrect 0.32s var(--ease-pop); }
 @keyframes revealCorrect {
   0% { transform: scale(1); }
   45% { transform: scale(1.015); }
   100% { transform: scale(1); }
 }
-.opt.wrong { border-color: var(--bad); background: rgba(239, 68, 68, 0.08); }
+.opt.wrong { border-color: var(--bad); background: rgba(255, 95, 87, 0.10); }
 
 .wager-row { margin-top: var(--s4); }
 .wager-chips { display: flex; gap: var(--s3); flex-wrap: wrap; }
 .wager-chip {
   font: inherit; font-size: var(--text-sm); font-weight: 600;
-  color: var(--ink); background: var(--bg); border: 1px solid var(--line);
+  color: var(--ink); background: var(--panel-2); border: 1px solid transparent;
   border-radius: var(--r2); padding: var(--s2) var(--s4); cursor: pointer;
   transition: border-color 0.15s ease;
   /* committing a confidence is REQUIRED to answer, so it has to be a real
@@ -1152,8 +1174,8 @@ body.study-mode #app { padding-top: calc(60px + env(safe-area-inset-top)); }
 /* ONE primary card per view: lighter surface + brighter hairline + real
    elevation. Hierarchy from size/contrast/elevation — not from another colour. */
 .card-primary {
-  background: var(--panel-2);
-  border-color: #2e3646;
+  background: var(--panel-3);   /* the one lifted surface per view */
+  border-color: transparent;    /* was #2e3646 — off-token, and the fill does it now */
   border-radius: var(--r3);
   box-shadow: var(--shadow-2);
 }
