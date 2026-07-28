@@ -310,6 +310,20 @@ function toast(msg, ms = 4000) {
   }, ms);
 }
 
+/* THE Aug-1 tuning surface, gathered in one place. These are the numbers the
+   open feel questions (O3 pill parade, O4 haptic strength, O5 skeleton flash)
+   are about — tune HERE, one line each, nothing else moves. The CSS twins are
+   --vt-out/--vt-in in :root. */
+const MOTION = {
+  PILL_HOLD_MS: 1350,        // how long a reward pill holds before its exit
+  SKELETON_DELAY_MS: 180,    // a response faster than this shows NO skeleton
+  HAPTIC: {
+    lock: 12,                // wager locks in
+    wrong: 25,               // answer was wrong
+    levelup: [10, 40, 14],
+  },
+};
+
 /* one tiny haptic channel (TWA on Android) — strictly three moments: answer
    locks in, answer was wrong, level-up. Haptics on ordinary taps is the
    fastest route to "childish". */
@@ -367,7 +381,7 @@ function rewardPill(label, amount) {
       const done = () => { el.remove(); resolve(); };
       el.addEventListener("animationend", done, { once: true });
       setTimeout(done, 260);                         // fallback — never stall the chain
-    }, 1350);
+    }, MOTION.PILL_HOLD_MS);
   });
   // .catch keeps one bad link from poisoning the chain — a rejected pillChain
   // would silently swallow every reward pill for the rest of the session
@@ -2028,19 +2042,29 @@ async function openLesson(day, opts = {}) {
       "Picking videos worth your time…",
     ]);
   } else {
-    $("lessonHead").innerHTML =
-      '<div class="skel" style="height:13px;width:90px"></div>' +
-      '<div class="skel" style="height:30px;width:70%"></div>';
+    /* Flash guard (open question O5, now closed the objective way): a
+       server-cached revisit usually answers in well under 200ms, and a
+       skeleton that exists for two frames reads as a glitch, not progress.
+       Clear the stale content NOW, but paint the skeleton only once the wait
+       is actually noticeable. */
+    $("lessonHead").innerHTML = "";
+    $("stepContent").innerHTML = "";
     $("stepCount").textContent = "";
+    $("stepLabel").innerHTML = "";
     $("stepBarFill").style.width = "0%";
-    $("stepContent").innerHTML =
-      '<div class="skel" style="height:22px;width:55%"></div>' +
-      '<div class="skel" style="height:15px;width:96%"></div>'.repeat(3) +
-      '<div class="skel" style="height:120px"></div>';
     $("stepNav").style.visibility = "hidden";
     $("completeCard").style.display = "none";
     $("bossCard").classList.add("hidden");
     show("lesson");
+    skeletonTimer = setTimeout(() => {
+      $("lessonHead").innerHTML =
+        '<div class="skel" style="height:13px;width:90px"></div>' +
+        '<div class="skel" style="height:30px;width:70%"></div>';
+      $("stepContent").innerHTML =
+        '<div class="skel" style="height:22px;width:55%"></div>' +
+        '<div class="skel" style="height:15px;width:96%"></div>'.repeat(3) +
+        '<div class="skel" style="height:120px"></div>';
+    }, MOTION.SKELETON_DELAY_MS);
   }
   try {
     const lesson = await fetchLesson(day);
@@ -2055,10 +2079,12 @@ async function openLesson(day, opts = {}) {
     toast(err.message, 6000);
     if (currentView === "lesson") { renderDashboard(); show("dashboard"); }
   } finally {
+    clearTimeout(skeletonTimer);   // response landed — a queued skeleton must not paint over it
     loading(false);
     $("stepNav").style.visibility = "";
   }
 }
+let skeletonTimer = null;
 
 /* ---------- mid-lesson resume (Netflix's "continue watching") ----------
    The step position survives closing the app; reopening the same day lands on
@@ -2758,7 +2784,7 @@ $("btnComplete").addEventListener("click", async () => {
         }
       }
       if (newLv > oldLv) {
-        buzz([10, 40, 14]);
+        buzz(MOTION.HAPTIC.levelup);
         rewardPill(`Level ${newLv} · ${rankLabel(newLv)}`, "");
       }
     }
@@ -2842,7 +2868,7 @@ function revealAnswer(confidence) {
   const { lesson, idx, picked } = quizRun;
   const q = lesson.quiz[idx];
   const correct = picked === q.answer;
-  buzz(correct ? 12 : 25);   // the wager locking in — a lever, not a link
+  buzz(correct ? MOTION.HAPTIC.lock : MOTION.HAPTIC.wrong);   // the wager locking in — a lever, not a link
   $("wagerRow").classList.add("hidden");
 
   const opts = $("quizOptions").querySelectorAll(".opt");
@@ -2997,7 +3023,7 @@ function renderResult(day, r) {
   // level-up is the one thing that still deserves a moment of its own, and it
   // lands ON this screen instead of blocking the road to it
   const oldLv = levelFromXp(r.xp - r.xp_gained);
-  if (lv > oldLv) { buzz([10, 40, 14]); rewardPill(`Level ${lv} · ${rankLabel(lv)}`, ""); }
+  if (lv > oldLv) { buzz(MOTION.HAPTIC.levelup); rewardPill(`Level ${lv} · ${rankLabel(lv)}`, ""); }
 }
 
 /* The review, rebuilt LATER from stored data (lesson.quiz + the graded answers

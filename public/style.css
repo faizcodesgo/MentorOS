@@ -85,6 +85,9 @@
      overshoot is reserved for reward moments only — never navigation */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-pop: cubic-bezier(0.34, 1.35, 0.64, 1);
+  /* view-transition durations — the one-line knobs for the Aug-1 feel pass (O2) */
+  --vt-out: 0.15s;
+  --vt-in: 0.24s;
 
   font-size: 16px;
 }
@@ -572,8 +575,10 @@ code {
    legacy per-view entrance so nothing double-animates. */
 html.vt .view:not(.hidden) { animation: none; }
 .topbar { view-transition-name: topbar; }
-::view-transition-old(root) { animation: vtOut 0.15s ease both; }
-::view-transition-new(root) { animation: vtIn 0.24s var(--ease-out) both; }
+/* THE Aug-1 tuning surface (open question O2: premium or sluggish on the real
+   phone?). Tune the two tokens in :root — nothing else here should change. */
+::view-transition-old(root) { animation: vtOut var(--vt-out) ease both; }
+::view-transition-new(root) { animation: vtIn var(--vt-in) var(--ease-out) both; }
 @keyframes vtOut { to { opacity: 0; } }
 @keyframes vtIn { from { opacity: 0; transform: translateY(8px); } }
 
