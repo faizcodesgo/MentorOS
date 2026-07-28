@@ -342,43 +342,52 @@
     <!-- "See results" used to lead nowhere: the score flashed for 1.5s in a
          pill and you were auto-redirected into a lesson recap you never asked
          for. This is the results screen it always promised. -->
-    <section id="view-result" class="view hidden">
-      <button class="btn ghost small" id="btnResultBack">&larr; Back to dashboard</button>
-      <p class="mono kicker">Checkpoint · Day <span id="resultDay"></span></p>
-      <p class="result-score tnum" id="resultScore"></p>
-      <p class="sub" id="resultLine"></p>
-
-      <div class="card card-primary result-ledger">
-        <p class="label">XP earned</p>
-        <div id="resultBreakdown"></div>
-        <div class="ledger-total">
-          <span>Total</span><span class="tnum" id="resultTotal"></span>
-        </div>
-      </div>
-
-      <div class="level-meter">
-        <div class="level-meter-head">
-          <span class="mono" id="resultLvFrom"></span>
-          <span class="mono muted" id="resultLvXp"></span>
-          <span class="mono" id="resultLvTo"></span>
-        </div>
-        <div class="progress-track"><div class="progress-fill" id="resultLvFill"></div></div>
-      </div>
-
-      <div id="resultMastered"></div>
-      <div id="resultRevision" class="card hidden"></div>
-
-      <p class="label list-label">Review</p>
-      <div id="resultReview" class="result-review"></div>
-
-      <div class="actions">
-        <button class="btn primary" id="btnResultRecap">See day recap</button>
-      </div>
-    </section>
+    <!-- #view-result is GONE — merged into the recap as its Checkpoint segment.
+         The per-question review used to be reachable exactly once, ever. -->
 
     <!-- ============ DAY / CHAPTER RECAP ============ -->
     <section id="view-recap" class="view hidden">
       <button class="btn ghost small" id="btnRecapBack">&larr; Back to dashboard</button>
+      <!-- A finished day has THREE views: the short recap, its checkpoint, and
+           the lesson itself. One segmented control says that plainly. It sits
+           ABOVE the chapter block — on the one day it mattered most (chapter
+           end) it used to be buried under 300px of celebration. -->
+      <div class="seg" id="recapSeg" role="tablist">
+        <button class="seg-item active" data-mode="recap" role="tab">Recap</button>
+        <button class="seg-item hidden" data-mode="quiz" role="tab">Checkpoint</button>
+        <button class="seg-item" data-mode="lesson" role="tab">Full session</button>
+      </div>
+
+      <div id="recapQuizPane" class="hidden">
+        <p class="mono kicker">Checkpoint · Day <span id="resultDay"></span></p>
+        <p class="result-score tnum" id="resultScore"></p>
+        <p class="sub" id="resultLine"></p>
+
+        <div class="card card-primary result-ledger" id="resultLedger">
+          <p class="label">XP earned</p>
+          <div id="resultBreakdown"></div>
+          <div class="ledger-total">
+            <span>Total</span><span class="tnum" id="resultTotal"></span>
+          </div>
+        </div>
+
+        <div class="level-meter" id="resultMeter">
+          <div class="level-meter-head">
+            <span class="mono" id="resultLvFrom"></span>
+            <span class="mono muted" id="resultLvXp"></span>
+            <span class="mono" id="resultLvTo"></span>
+          </div>
+          <div class="progress-track"><div class="progress-fill" id="resultLvFill"></div></div>
+        </div>
+
+        <div id="resultMastered"></div>
+        <div id="resultRevision" class="card hidden"></div>
+
+        <p class="label list-label">Review</p>
+        <div id="resultReview" class="result-review"></div>
+      </div>
+
+      <div id="recapMainPane">
       <div id="chapterBlock" class="chapter-block hidden">
         <p class="mono kicker">Chapter complete</p>
         <h1 id="chapterTitle"></h1>
@@ -386,14 +395,6 @@
         <div id="chapterSolid" class="recap-chips"></div>
         <p id="chapterNext" class="chapter-next"></p>
         <button class="btn primary small" id="btnStartViva" style="margin-top:14px">Try the mock interview</button>
-      </div>
-      <!-- A finished day has two views: the short recap and the lesson itself.
-           A segmented control says that plainly — they're two views of ONE day,
-           not a main screen and a hidden escape hatch. Sits at the top so it's
-           actually found; a link at the bottom would be under 600px of content. -->
-      <div class="seg" id="recapSeg" role="tablist">
-        <button class="seg-item active" data-mode="recap" role="tab">Recap</button>
-        <button class="seg-item" data-mode="lesson" role="tab">Full session</button>
       </div>
       <div class="recap-head">
         <p class="mono kicker" id="recapKicker">Day recap</p>
@@ -431,6 +432,7 @@
         <p class="sub" id="tmrwObjective"></p>
         <p class="reward mono" id="tmrwReward"></p>
       </div>
+      </div><!-- /recapMainPane -->
     </section>
 
     <!-- ============ MOCK INTERVIEW (VIVA) ============ -->

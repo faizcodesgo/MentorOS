@@ -1,7 +1,8 @@
 /* MentorOS frontend — plain JS, no framework. */
 
 const $ = (id) => document.getElementById(id);
-const views = ["auth", "onboarding", "negotiate", "generating", "dashboard", "lesson", "quiz", "result", "skills", "recap", "viva", "project", "plan"];
+// "result" is gone — the checkpoint result is the recap's Checkpoint segment now
+const views = ["auth", "onboarding", "negotiate", "generating", "dashboard", "lesson", "quiz", "skills", "recap", "viva", "project", "plan"];
 
 let state = null;          // slim server state (plan + progress + profile + xp)
 let negotiation = null;    // last /api/negotiate result
@@ -212,8 +213,10 @@ window.addEventListener("popstate", (e) => {
     if (!st.v || st.v === currentView) return;
   }
   if (st.v && st.v !== currentView) {
+    // an entry for a view that no longer exists (e.g. "result" from a session
+    // that spanned a deploy) must not reach show() — treat it like a dead run
     const expired = RUN_EXPIRED[st.v];
-    if (expired && expired()) {
+    if (!views.includes(st.v) || (expired && expired())) {
       history.replaceState({ v: "dashboard" }, "");
       suppressHistory = true;
       try { renderDashboard(); show("dashboard"); } finally { suppressHistory = false; }
@@ -1568,11 +1571,24 @@ async function openRecap(day, opts = {}) {
     $("tomorrowCard").classList.add("hidden");
   }
 
-  // the segmented control always lands back on Recap when the view opens
+  // Checkpoint segment exists only when this day HAS a checkpoint record;
+  // land on it when asked (fresh submit), on Recap otherwise
+  recapLesson = lesson;
+  $("recapSeg").querySelector('[data-mode="quiz"]').classList.toggle("hidden", !quiz);
+  const landing = opts.seg === "quiz" && quiz ? "quiz" : "recap";
+  // the reward pane (ledger, level meter) exists exactly ONCE: on the landing
+  // that immediately follows the submit. Every later visit — even to the same
+  // day in the same session — rebuilds the sober stored view.
+  const freshLanding = landing === "quiz" && freshResultDay === day;
+  if (landing === "quiz" && !freshLanding) renderStoredResult(day, lesson);
+  if (!freshLanding) freshResultDay = null;
   $("recapSeg").querySelectorAll(".seg-item").forEach((b) =>
-    b.classList.toggle("active", b.dataset.mode === "recap"));
+    b.classList.toggle("active", b.dataset.mode === landing));
+  $("recapQuizPane").classList.toggle("hidden", landing !== "quiz");
+  $("recapMainPane").classList.toggle("hidden", landing === "quiz");
   show("recap");
 }
+let recapLesson = null;
 
 $("btnRecapBack").addEventListener("click", () => { renderDashboard(); show("dashboard"); });
 
@@ -1582,7 +1598,15 @@ $("btnRecapBack").addEventListener("click", () => { renderDashboard(); show("das
 $("recapSeg").addEventListener("click", (e) => {
   const btn = e.target.closest(".seg-item");
   if (!btn || btn.classList.contains("active")) return;
-  if (btn.dataset.mode === "lesson") openLesson(recapDay, { review: true });
+  const mode = btn.dataset.mode;
+  if (mode === "lesson") { openLesson(recapDay, { review: true }); return; }
+  $("recapSeg").querySelectorAll(".seg-item").forEach((b) => b.classList.toggle("active", b === btn));
+  const quizMode = mode === "quiz";
+  // a fresh submit already rendered the pane (ledger and all); anything else
+  // rebuilds the review from stored data
+  if (quizMode && freshResultDay !== recapDay) renderStoredResult(recapDay, recapLesson);
+  $("recapQuizPane").classList.toggle("hidden", !quizMode);
+  $("recapMainPane").classList.toggle("hidden", quizMode);
 });
 
 /* The checkpoint was the only view with no exit. Answers are only POSTed at the
@@ -2883,6 +2907,9 @@ $("btnNextQ").addEventListener("click", async () => {
     (state.quizzes = state.quizzes || {})[String(finishedDay)] =
       { score: r.score, total: r.total, xp_earned: r.xp_gained };
     renderResult(finishedDay, r);
+    // land on the recap's Checkpoint segment: the reward beat first (peak),
+    // one tap left to the recap (end) — and the review stays reachable forever
+    openRecap(finishedDay, { chapterEnd: isChapterEnd(finishedDay), seg: "quiz" });
     refreshState().catch(() => {});   // dna/streak/reviews reconcile behind
   } catch (err) {
     toast(err.message, 6000);
@@ -2962,19 +2989,53 @@ function renderResult(day, r) {
     </details>`;
   }).join("");
 
-  resultDay = day;
-  show("result");
+  // fresh render: the reward parts are earned RIGHT NOW, so they show
+  $("resultLedger").classList.remove("hidden");
+  $("resultMeter").classList.remove("hidden");
+  freshResultDay = day;   // openRecap lands on this pane without re-rendering it
+
   // level-up is the one thing that still deserves a moment of its own, and it
   // lands ON this screen instead of blocking the road to it
   const oldLv = levelFromXp(r.xp - r.xp_gained);
   if (lv > oldLv) { buzz([10, 40, 14]); rewardPill(`Level ${lv} · ${rankLabel(lv)}`, ""); }
 }
 
-let resultDay = null;
-$("btnResultBack").addEventListener("click", () => { renderDashboard(); show("dashboard"); });
-$("btnResultRecap").addEventListener("click", () => {
-  openRecap(resultDay, { chapterEnd: isChapterEnd(resultDay) });
-});
+/* The review, rebuilt LATER from stored data (lesson.quiz + the graded answers
+   the server keeps). The XP ledger and level meter stay hidden here: that
+   reward was earned once and shown once — re-animating it weeks later would be
+   a lie, and the numbers aren't stored client-side anyway. */
+let freshResultDay = null;
+function renderStoredResult(day, lesson) {
+  const rec = (state.quizzes || {})[String(day)] || {};
+  $("resultDay").textContent = day;
+  $("resultScore").textContent = `${rec.score ?? "–"}/${rec.total ?? "–"}`;
+  $("resultLine").textContent = "How it went, question by question.";
+  $("resultLedger").classList.add("hidden");
+  $("resultMeter").classList.add("hidden");
+  $("resultMastered").innerHTML = "";
+  $("resultRevision").classList.add("hidden");
+  const qs = (lesson && lesson.quiz) || [];
+  const ans = rec.answers || [];
+  $("resultReview").innerHTML = qs.length && ans.length
+    ? qs.map((q, i) => {
+        const a = ans[i] || {};
+        const yours = a.chosen >= 0 && q.options && q.options[a.chosen] !== undefined ? q.options[a.chosen] : "—";
+        return `<details class="rev-item${a.correct ? "" : " wrong"}"${a.correct ? "" : " open"}>
+          <summary>
+            <span class="rev-n mono">Q${i + 1}</span>
+            <span class="rev-q">${fmt(q.q || q.question || "")}</span>
+            <span class="rev-mark ${a.correct ? "ok" : "no"}">${a.correct ? "Correct" : "Missed"}</span>
+          </summary>
+          <div class="rev-body">
+            ${a.correct ? "" : `<p class="rev-line"><span class="label">You said</span> ${fmt(yours)}</p>`}
+            <p class="rev-line"><span class="label">Answer</span> ${fmt((q.options || [])[q.answer] ?? "")}</p>
+            ${q.why ? `<p class="rev-why">${fmt(q.why)}</p>` : ""}
+            ${a.hint_used ? `<p class="rev-note">You used the hint here — it'll come back in a warm-up.</p>` : ""}
+          </div>
+        </details>`;
+      }).join("")
+    : `<p class="sub">The question-by-question breakdown isn't available for this one.</p>`;
+}
 
 /* register the service worker on load so the offline fallback + push work in
    the installed app (the reminders flow also registers it — register is
