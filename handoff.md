@@ -803,6 +803,170 @@ Two regressions the first commit introduced, both now fixed and verified:
    Hardened `pillChain` with a `.catch` — a single rejection would otherwise
    swallow every reward pill for the rest of the session.
 
+## 14. Session log — 27–28 July 2026: the full redesign, built
+
+Production still suspended throughout (returns ~1 Aug), so EVERYTHING below is
+verified locally by computed style + behavior checks and **nothing has been seen
+on a real screen**. Sixteen commits, `c03ac05` → `1ce8609`, all pushed to `main`
+and queued for the Aug-1 auto-deploy. Two council docs drove the work: read
+`COUNCIL-2026-07-27-REDESIGN.md` (four-agent redesign council: design direction /
+UX-IA / mobile red team / continuity audit — includes the DOM contract §5, the
+do-not-break list §7, and 10 locally-runnable checks §11) and `RESOURCES-SPEC.md`
+(five-agent council on the Scout/Monitor resource feature — specced, NOT built,
+gated on the Aug-1 verify).
+
+### Owner decisions this session (binding)
+Bugs before design · skill-map fix within ONE accent (no rank ramp — one-accent
+rule upheld a third time) · **Archivo replaces Space Grotesk** (deliberate owner
+call, overturning the 1445e95 lock) · resource-led days are WRAPPED (intro →
+segment → checkpoint, never raw) · Monitor runs on checkpoint submit ·
+resources spec-now-build-after-Aug-1 · interaction phases: ripple now, verdict
+reveal + level ring + Skills rebuild gated (see `REDESIGN-PHASES.md`).
+
+### The commits, in order
+- **`c03ac05` bugs.** `_day_unlocked()` in app.py — the `.locked` CSS class was
+  the ONLY thing sequencing the 40-day plan (`/api/lesson` checked existence
+  only; `/api/day/complete` checked NOTHING); both endpoints now 403 on locked
+  days, gate placed BEFORE the cache read, frontier prefetch unaffected (13/13
+  unit cases incl. float-order revision days). `RUN_EXPIRED` popstate guard —
+  back from the result screen landed on a dead quiz whose next tap threw
+  `quizRun.idx++` on null. Three safe-area misses (`#app` bottom, `.ask-fab`
+  bottom, `.study-bar` TOP — it replaces the topbar in study mode and sat under
+  the notch). `fitSvgText` font race: labels measured before Inter lands are
+  fitted to system-ui metrics and can only ever SHRINK — `resetSvgFit()` +
+  `document.fonts.ready` re-fit.
+- **`44b675b` slice 1 — tokens.** Surface ramp with MEASURED steps (first
+  attempt was 1.084 bg→card = invisible mush, exactly what the red team
+  predicted; shipped at 1.24/1.19/1.29). `--line` became a translucent hairline;
+  elevation leads with an inset top-highlight INSIDE `--shadow-1/2/3` so every
+  card picked it up with zero selector changes; radii 8/14/22; `--faint`
+  4.63:1 on `--bg`; `--brand-dim #5580ad` fixes `.skill-fill.weak ===
+  .skill-fill.developing` (a real information bug) within one accent. GOTCHA
+  CAUGHT: the council's proposed surface tokens were named `--s1/--s2/--s3`,
+  which are ALREADY the spacing scale used 30× — blind adoption would have
+  rewritten every gap in the app.
+- **`ff0dbe7` slice 2 — type.** Archivo across h1–h3/`.brand`/`.result-score`
+  (the wordmark had been rendering in INTER); Plex Mono 3 weights → 1; ONE
+  reading size (18px/1.7) for every prose block in a lesson section (was four
+  sizes across seven blocks). Tried opening the whole scale and REVERTED it:
+  it pushed "Start today" 35px under the fold at 360×640, and the baseline
+  measurement showed the button sat at exactly 640/640 — zero headroom.
+  `code` drops periwinkle `#b8c2ff` (the de-facto second hue); `theme-color`
+  now tracks `--bg`.
+- **`32e6577` slice 3 — surfaces.** Borders → TRANSPARENT, never removed:
+  `.card-primary`/hover/`.selected`/`.picked`/`.correct`/`.wrong` all express
+  through `border-color`, so removal would have killed every state silently.
+  Full-box `--line` borders 26 → 17 (council target ~4; the rest left
+  deliberately, not swept blind). `--line-strong` for the two borders that must
+  be SEEN (input edge, ghost button). SECOND MEASUREMENT CATCH: slice 1 had
+  fixed `--faint` against `--bg`, but `.label` renders on CARDS — 2.55:1 on the
+  primary card, WORSE than the original bug; labels now use `--muted`.
+  **Rule: measure a colour against the surface it actually sits on.**
+- **`c44c67d` tap ripple + `REDESIGN-PHASES.md`.** One delegated `pointerdown`
+  listener (markup is rebuilt by `innerHTML` constantly — per-element listeners
+  die), LEAF CONTROLS ONLY: `overflow:hidden` clips negative margins, so making
+  `.card`/`.thin-row` ripple hosts would silently shrink `.bookmark-btn`/
+  `.weekly-x`'s 44px targets (the b4a2e93 fix). LEAK CAUGHT: `animationend` was
+  the only cleanup and doesn't fire in throttled tabs — the double-tap guard
+  then blocked that element from EVER rippling again; timeout fallback added
+  (same hedge as `toast`). The phases doc also records ~45 Magic UI components
+  REJECTED with reasons (shimmer = background-position animation = the d4685e1
+  lag class; particles = the starfield again; blur = banned backdrop-filter).
+- **`7961d95` design gallery.** `tools/build_design_gallery.py` generates 13
+  component cards that INLINE the real `style.css` and read token values from
+  it at build time (a gallery restating values would drift). Pushed via
+  DesignSync to claude.ai/design project **"MentorOS"**
+  (`25306ffa-4dbe-47f1-9cff-a5941ba0265c`) — the ONLY way the owner can SEE the
+  redesign before Aug 1, since pixel screenshots time out in this environment.
+- **`ab6f509` + `bdb5397` diagram palette.** `prompts.py` VISUAL_RULES had
+  drifted off-system on EVERY colour — including `#8b5cf6` PURPLE, which the
+  3-Jul premium pass only ever deleted from the CSS; it shipped in every
+  diagram since. All eight hexes now map to tokens (secondary = `--brand-dim`,
+  a tone not a hue; prompt says "never purple, never teal" and names the plate
+  colour so fills read against it). `migrateDiagramPalette()` remaps the old
+  hexes at render time for already-cached lessons — idempotent, case-
+  insensitive, inside `renderDiagrams` (the only path to a rendered diagram).
+  **DELETE IT after the Aug-1 plan restart regenerates everything.**
+- **`48ff970` overlay history primitive.** Only `#askSheet` ever pushed a
+  history entry; back with reminders/focus/study-opt/welcome-back open
+  navigated the view UNDERNEATH while the overlay stayed. `openSheet`/
+  `closeSheet`/`dismissSheet` now route all overlays; `dismissSheet` exists
+  because `history.back()` is async and racing it against a fresh `pushState`
+  corrupts the stack (welcome-back resume, focus start, study opt-in take it).
+- **`36ed318` `RESOURCES-SPEC.md`.** See the spec itself — key verified facts:
+  grounding free tier is **500 RPD** (the famous 1,500 is PAID Tier 1 — two
+  council seats misread it), grounding+JSON-mode = 400 on the 2.5 family (Scout
+  is a 2-call shape), groundingMetadata URIs are EXPIRING Google redirects.
+  Critic caught the gap every specialist missed: the owner's real plan is
+  created ~1 Aug BEFORE the feature ships → backfill rule. Also: the
+  "1-revision-per-5-days cap" cited in planning does NOT exist in code.
+- **`7258391` slice 4 — account sheet.** Topbar initial-avatar (SIBLING of
+  `#topbarStatus`, never a child — renderDashboard owns that innerHTML;
+  `flex:none` so the chips shrink, not the avatar) opens an account sheet;
+  `.dash-footer` DELETED (its "Start over" moved position depending on whether
+  reminders showed). `confirmSheet()` replaces all SIX `window.confirm`/
+  `prompt` call sites (origin-prefixed Chrome dialogs); sign-out is now
+  CONFIRMED (with no in-app password reset it was the more dangerous button and
+  the unconfirmed one). `allDone` finally reaches the Today card — it used to
+  show "Plan complete" above a live "Start today" reopening the finished last
+  lesson. GHOST-ENTRY CAUGHT: opening the confirm OVER the sheet stacked two
+  overlay entries; `openSheet` now REPLACES the current overlay entry when one
+  is already up — one overlay on screen, one entry, always.
+- **`5efee0c` slice 6a — lesson orientation.** The step bar is STICKY and
+  NAMED ("Block 4 of 5 · Section 8 of 12 — Process State Transitions", counted
+  over sections; breaks/practice/summary get words) and taps open a step-index
+  sheet (jump to any step; goes through `renderStep`, so diagrams still fit on
+  reveal). Closes M6: every bookmark stored a `sectionIndex` the saved-row then
+  DISCARDED; `openLesson(day, {sec})` resolves it inside `renderLesson` after
+  resume — still exactly one `renderStep` per open. Verified round-trip lands
+  byte-identical on the bookmarked section.
+- **`b2856e9` slice 6b.** The full day list + saved sections move to Your plan
+  behind an All days / Saved seg; the dashboard keeps a 3-row window (last
+  done · today · up next) + "All N days ›". The delegated day-row handler
+  (including the `.locked` click guard) now serves both lists.
+- **`7640750` slice 6c — result→recap merge.** `#view-result` DELETED (13
+  views → 12); the result is the recap's Checkpoint segment (Recap |
+  Checkpoint | Full session, seg moved ABOVE the chapter block). Fresh submit
+  lands ON the Checkpoint pane with the full reveal (ids and animations
+  unchanged); every later visit rebuilds a sober stored view from
+  `lesson.quiz` + the server's graded answers with ledger/meter HIDDEN — the
+  reward pane exists exactly ONCE (a fresh-flag staleness bug was caught when a
+  same-session revisit re-showed the ledger). popstate now redirects entries
+  naming views that no longer exist ("result" from a session spanning the
+  deploy). The review — the app's most useful artifact — was previously
+  reachable exactly once, ever.
+- **`1ce8609` slice 5 — motion.** The skeleton flash (O5) fixed the objective
+  way: revisit path clears content immediately but paints the skeleton only
+  after 180ms of ACTUAL waiting (`finally` cancels it; proven with an instant
+  stubbed response = zero skeleton, 600ms delay = skeleton). O2/O3/O4 (VT
+  feel, pill parade, haptic strength) deliberately left UNtuned — they need
+  the owner's hand on the real phone; every knob is now one line:
+  `--vt-out`/`--vt-in` in `:root`, `MOTION` constant in app.js.
+
+### The session's meta-pattern — verification caught nine bugs reading missed
+Mush ramp (1.084) · `--faint` fixed against the wrong surface · a broken CSS
+comment that would have killed the parse for every later token · the ripple
+leak · the ghost history entry · the fresh-result staleness · a stale
+`#stepLabel` on the loading path · plus two errors that were MINE, not the
+app's: a test script fired `openLesson(NaN)` (server 404'd it correctly) and an
+exploratory fetch triggered a real ~12s Gemini generation for day 1 on the free
+tier. **Nothing shipped on "it rendered" — every claim has a measured check
+behind it, and the checks in COUNCIL §11 are re-runnable in the dev preview.**
+
+### For the Aug-1 session (in order)
+1. Verify the deploy: `/healthz` 200, `app.js` contains `RIPPLE_HOSTS` (absent
+   = old build). **17 commits land at once — ~3× the council's "6 is the
+   maximum sensible batch"; walk one lesson, one checkpoint, the account
+   sheet, a bookmark jump on the real phone before ANY new work.**
+2. Fix the UptimeRobot schedule (or the suspension recurs ~31 Aug) — then the
+   plan restart, then notifications activation (see the memory/summary docs).
+3. Feel pass: O2 VT durations, O3 pill parade, O4 haptics — one-line knobs.
+   Test the TWA `?t=` deep-link into the YouTube app (blocks resource slice 4).
+4. After the plan restart regenerates all lessons: DELETE
+   `DIAGRAM_PALETTE_MIGRATION` from app.js.
+5. Then, and only then: build `RESOURCES-SPEC.md` slices 1–6 in order (probe
+   first), resource UI after the redesign is confirmed good on-device.
+
 **Verified after the fix:** button label and landing step agree (4/5), and
 `fitSvgText` demonstrably ran (the 22-char "Central Processing Unit" label was
 stepped 14px -> 12px to fit its 150px box; "RAM" left alone). Re-ran the full

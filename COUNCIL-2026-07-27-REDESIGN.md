@@ -495,3 +495,64 @@ Standing, still unanswered (some since 5 Jul):
 
 **Settled — do not re-raise:** the app logo (done, `6b66a6b`); Google sign-in (dropped
 26 Jul); app-blocking (physically impossible in a TWA, asked and answered three times).
+
+---
+
+# POSTSCRIPT — 28 Jul 2026: BUILT. Status of everything above.
+
+The council ran 27 Jul; by 28 Jul **every slice was built, verified locally, and pushed**
+(16 commits, `c03ac05` → `1ce8609`; the narrative session log is `handoff.md` §14).
+Production stayed suspended throughout — **nothing has been seen on a real screen**, and
+the §11 checks are what stands between these commits and the owner's phone on ~1 Aug.
+
+## How the owner answered §12
+
+- **Q1 typeface → Archivo.** A deliberate owner decision overturning the Space Grotesk
+  lock — recorded as such, not as drift. The wordmark is finally set in the display face.
+- **Q2 skill colours → fix within one accent.** `--brand-dim #5580ad`, a luminance step
+  of the same blue. The one-accent rule survives its third challenge. (First value tried
+  measured 3.23:1 — that band is 12px TEXT; shipped at 4.79:1.)
+- **Q3 stripes** — the four `solid var(--line)` stripes died with the border pass; the
+  blue ones await his eye on-device (still open).
+- **Q4 XP meter placement** — NOT moved; §6's "don't reorder above the Today card" held.
+  Revisit only if his on-device pass says the plan strip feels crowded.
+- Sequencing: he chose **bugs first**, then slices; slice 5's taste questions
+  (O2/O3/O4) stay deliberately untuned — every knob is now a one-line token
+  (`--vt-out`/`--vt-in`, `MOTION` in app.js).
+
+## Where reality diverged from this document
+
+1. **§0 is fixed** — `_day_unlocked()` gates both endpoints server-side (403), gate
+   before the cache read, prefetch unaffected.
+2. **Slice 1's proposed token names were a trap this doc set.** The design agent's
+   `--s1/--s2/--s3` surface tokens collide with the EXISTING spacing scale (30 uses).
+   Distinct names used. A council can hand you a loaded gun politely.
+3. **The ramp bet fired exactly as §2-A warned.** First fill ramp measured 1.084 bg→card
+   — invisible. Shipped only after measuring: 1.24 / 1.19 / 1.29.
+4. **§1's own contrast fix was wrong once.** `--faint` at 4.63:1 was measured against
+   `--bg`, but `.label` sits on CARDS (2.55:1 there). Labels now use `--muted`. Rule:
+   measure against the surface the colour actually sits on.
+5. **Borders: 26 → 17, not → 4.** The rest are sheets/badges/dividers left deliberately;
+   sweeping them blind is how §9's regressions happened. Revisit after the device pass.
+6. **§4's crash is doubly dead** — the `RUN_EXPIRED` guard (c03ac05) AND the result
+   view's deletion (6c) removed the entry at the source. popstate also redirects entries
+   naming views that no longer exist.
+7. **§5 (DOM contract) proved its worth nine times** — the verification passes caught
+   nine real bugs reading missed (ramp mush, wrong-surface contrast, a CSS parse
+   near-miss, the ripple leak, the ghost overlay entry, the fresh-result staleness, a
+   stale step label, plus two tester-side errors). Keep running §11 after every change.
+8. **Slice 6 shipped as three commits** (6a sticky step bar + step index + M6 bookmark
+   fix; 6b day list → plan view; 6c result → recap Checkpoint segment). One merge, zero
+   removals, exactly as §4 recommended.
+9. **Beyond this doc's scope, same session:** tap ripple + `REDESIGN-PHASES.md` (and ~45
+   Magic UI rejections recorded); the claude.ai/design "MentorOS" gallery generated FROM
+   `style.css` (`tools/build_design_gallery.py`) — the only pre-deploy way to SEE any of
+   this; the diagram palette fix + runtime migration (`ab6f509`/`bdb5397` — delete
+   `DIAGRAM_PALETTE_MIGRATION` after the Aug-1 plan restart); `RESOURCES-SPEC.md`.
+
+## §8 doc hygiene — status
+
+`AUDIT.md` now carries the SUPERSEDED banner (done alongside this postscript).
+`DESIGN-DECISIONS.md` and the `mentor-app-plan.md` §11/§13 historical markers remain
+**undone** — the owner chose bugs-first; do them before any session that reads those docs
+as instructions.

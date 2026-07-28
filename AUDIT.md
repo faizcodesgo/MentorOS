@@ -1,4 +1,16 @@
-# MentorOS — Professional Audit (flag-only, 4 October 2026)
+# MentorOS — Professional Audit (flag-only, 4 July 2026 — the "October" in earlier headers was a typo; this is one of the OLDEST docs here, not the newest)
+
+> ## ⚠️ SUPERSEDED IN PART — READ BEFORE TREATING ANY LINE BELOW AS AN INSTRUCTION
+> **Batch D over-cut four features and ALL FOUR were restored the next day at Faiz's
+> request (commit `5f34644`, 5 Jul):** the **All-Rounder/"Balanced" class** (back as the
+> DEFAULT selection), **explain-it-back** (back as one light recap line), the **visible
+> combo counter** ("Sure and correct · +N XP · N in a row" — this has now been removed
+> and restored TWICE; do not quiet it a third time), and the **career chip** (back,
+> conditional). The status line below claiming "the UI no longer advertises" combo is
+> **FALSE as of 5 Jul.** The rule that came out of it: *declutter duplicates and chrome;
+> THIN distinct things, never delete them.*
+> Batches A/B/C remain accurately described. Design decisions after 27 Jul live in
+> `COUNCIL-2026-07-27-REDESIGN.md` (§7 do-not-break) and `handoff.md` §14.
 
 > **DECISION (Faiz): VOICE = (A) confident mentor. EXECUTE THE ENTIRE AUDIT — all batches A/B/C/D + the voice rename.**
 > **STATUS: EXECUTED IN FULL — 4 July 2026.** Batch A (commits `2150bfc`, `9801ce8`), Batch B voice+copy (`df80cb0`), Batch C visual system (`0b6ac67`), Batch D de-clutter + dead code (final commit). Notes: weekly report was THINNED to a one-line dismissible row (not cut); study-reminders button now shows only in the installed PWA or when reminders are already on; combo/crit XP math still runs server-side but the UI no longer advertises it. The multi-user architecture item remains open (deliberately — single-user for now).
