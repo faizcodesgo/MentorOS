@@ -237,7 +237,7 @@ window.addEventListener("popstate", (e) => {
    pointerdown, not click: feedback has to land on touch, and click only fires
    on release. The host list must stay in step with the CSS selector — see the
    negative-margin warning there before adding anything to it. */
-const RIPPLE_HOSTS = ".btn, .day-row, .opt, .iopt, .class-card, .wager-chip, .dur-chip, .seg-item, .skillmap-card, .avatar-btn, .account-row";
+const RIPPLE_HOSTS = ".btn, .day-row, .opt, .iopt, .class-card, .wager-chip, .dur-chip, .seg-item, .skillmap-card, .avatar-btn, .account-row, .step-index-row";
 document.addEventListener("pointerdown", (e) => {
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   const host = e.target.closest && e.target.closest(RIPPLE_HOSTS);
@@ -1038,10 +1038,15 @@ function renderSavedCard() {
   const card = $("savedCard");
   if (!marks.length) { card.classList.add("hidden"); return; }
   card.classList.remove("hidden");
-  $("savedList").innerHTML = marks.map((m) =>
-    `<button class="saved-row" data-day="${m.day}"><span class="saved-h">${esc(m.heading)}</span><span class="saved-day mono">Day ${m.day}</span></button>`).join("");
+  $("savedList").innerHTML = marks.map((m, i) =>
+    `<button class="saved-row" data-day="${m.day}" data-mark="${i}"><span class="saved-h">${esc(m.heading)}</span><span class="saved-day mono">Day ${m.day}</span></button>`).join("");
   $("savedList").querySelectorAll(".saved-row").forEach((row) => {
-    row.addEventListener("click", () => openLesson(parseInt(row.dataset.day, 10)));
+    row.addEventListener("click", () => {
+      // sectionIndex was stored on every bookmark and then DISCARDED here — the
+      // row promised a section and delivered the top of the lesson (M6)
+      const m = (state.bookmarks || [])[parseInt(row.dataset.mark, 10)] || {};
+      openLesson(parseInt(row.dataset.day, 10), { sec: m.sectionIndex });
+    });
   });
 }
 
@@ -1930,7 +1935,7 @@ async function openLesson(day, opts = {}) {
     // render INSIDE the transition callback: the view is on screen by then, so
     // section diagrams can be measured and fitted (they measure zero offscreen)
     show("lesson", () => {
-      renderLesson(lessonCache.get(day), resume);
+      renderLesson(lessonCache.get(day), resume, opts.sec);
       maybeAutoStudy();
     });
     return;
@@ -1966,10 +1971,10 @@ async function openLesson(day, opts = {}) {
     const lesson = await fetchLesson(day);
     if (currentView === "lesson") {
       // skeleton path — already on screen, safe to render straight away
-      renderLesson(lesson, resume);
+      renderLesson(lesson, resume, opts.sec);
       maybeAutoStudy();
     } else {
-      show("lesson", () => { renderLesson(lesson, resume); maybeAutoStudy(); });
+      show("lesson", () => { renderLesson(lesson, resume, opts.sec); maybeAutoStudy(); });
     }
   } catch (err) {
     toast(err.message, 6000);
@@ -2233,7 +2238,7 @@ function buildInteraction(it) {
 let lessonSteps = [];
 let stepIdx = 0;
 
-function renderLesson(l, resume) {
+function renderLesson(l, resume, jumpSec) {
   currentLesson = l;
 
   // header (rendered once, fixed across steps)
@@ -2295,6 +2300,12 @@ function renderLesson(l, resume) {
   $("explorations").innerHTML = [...(l.explorations || [])].reverse().map(explorationHtml).join("");
 
   stepIdx = resumeStep(resume, l.day, done);
+  // a bookmark jump beats resume: you asked for THAT section, land on it —
+  // resolved here so there is still exactly ONE renderStep per open
+  if (jumpSec != null) {
+    const j = lessonSteps.findIndex((st) => st.kind === "section" && st.i === jumpSec);
+    if (j >= 0) stepIdx = j;
+  }
   renderStep();
 }
 
@@ -2380,9 +2391,21 @@ function renderStep() {
   cont.classList.remove("step-in"); void cont.offsetWidth; cont.classList.add("step-in");
   stepDir = 1;
 
-  // progress
+  // progress — named in units the student thinks in ("section 5 of 12", not
+  // "step 7 of 19": the raw denominator counts breaks, practice and summary)
   $("stepBarFill").style.width = `${((stepIdx + 1) / lessonSteps.length) * 100}%`;
   $("stepCount").textContent = `${stepIdx + 1} / ${lessonSteps.length}`;
+  const sections = lessonSteps.filter((st) => st.kind === "section");
+  const blocks = Math.max(1, ...sections.map((st) => st.s.block || 1));
+  let label;
+  if (step.kind === "section") {
+    const n = sections.indexOf(step) + 1;
+    const pre = blocks > 1 ? `Block ${step.s.block || 1} of ${blocks} · ` : "";
+    label = `${pre}Section ${n} of ${sections.length} — <b>${esc(step.s.heading)}</b>`;
+  } else {
+    label = { intro: "Intro", break: "Break", practice: "Practice + homework", summary: "Summary" }[step.kind] || "";
+  }
+  $("stepLabel").innerHTML = label;
 
   // remember the spot — reopening this day resumes here, not at step 1
   if (!lessonReviewMode && !done) {
@@ -2449,6 +2472,40 @@ function renderStep() {
 let stepDir = 1;
 $("btnStepNext").addEventListener("click", () => { if (stepIdx < lessonSteps.length - 1) { stepDir = 1; stepIdx++; renderStep(); } });
 $("btnStepBack").addEventListener("click", () => { if (stepIdx > 0) { stepDir = -1; stepIdx--; renderStep(); } });
+
+/* ---------- step index (tap the sticky bar) ----------
+   One sheet answers "where am I", "take me back to that diagram in section 3",
+   and — via openLesson's `sec` option — where a saved bookmark actually lands. */
+function openStepIndex() {
+  if (!lessonSteps.length) return;
+  $("stepIndexList").innerHTML = lessonSteps.map((st, i) => {
+    const name = st.kind === "section" ? st.s.heading
+      : { intro: "Intro", break: "Break", practice: "Practice + homework", summary: "Summary" }[st.kind] || "";
+    const starred = st.kind === "section" && (state.bookmarks || [])
+      .some((m) => m.day === currentLesson.day && m.sectionIndex === st.i);
+    const cls = ["step-index-row", i === stepIdx ? "current" : "", i < stepIdx ? "visited" : ""].join(" ");
+    return `<button class="${cls}" data-step="${i}">
+      <span class="si-name">${esc(name)}</span>
+      ${starred ? `<span class="si-star">★</span>` : ""}
+      ${i === stepIdx ? `<span class="si-now mono">Now</span>` : ""}
+    </button>`;
+  }).join("");
+  openSheet("stepIndexSheet");
+}
+$("stepProgress").addEventListener("click", openStepIndex);
+$("stepProgress").addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openStepIndex(); } });
+$("stepIndexClose").addEventListener("click", () => closeSheet());
+$("stepIndexSheet").addEventListener("click", (e) => {
+  if (e.target === $("stepIndexSheet")) { closeSheet(); return; }
+  const row = e.target.closest(".step-index-row");
+  if (!row) return;
+  const to = parseInt(row.dataset.step, 10);
+  dismissSheet();                    // jumping now — no history round-trip
+  if (to === stepIdx || !(to >= 0 && to < lessonSteps.length)) return;
+  stepDir = to > stepIdx ? 1 : -1;
+  stepIdx = to;
+  renderStep();                      // same path as Next/Back — diagrams fit on reveal
+});
 
 /* ---------- projects (build-it milestones) ---------- */
 

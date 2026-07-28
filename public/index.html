@@ -462,9 +462,15 @@
     <section id="view-lesson" class="view hidden">
       <button class="btn ghost small" id="btnBack">&larr; Back to plan</button>
       <div id="lessonHead"></div>
-      <div class="step-progress">
+      <!-- Sticky orientation: on a 19-step day the header scrolls away on the
+           first swipe and "7 / 19" answers nothing. This names where you are in
+           units you think in, sticks to the top, and taps open a step index. -->
+      <div class="step-progress" id="stepProgress" role="button" tabindex="0" aria-label="Lesson overview — tap to jump">
+        <div class="step-meta">
+          <span class="step-label" id="stepLabel"></span>
+          <span class="step-count mono" id="stepCount"></span>
+        </div>
         <div class="step-bar"><div class="step-bar-fill" id="stepBarFill"></div></div>
-        <span class="step-count mono" id="stepCount"></span>
       </div>
       <div id="stepContent"></div>
       <div class="step-nav" id="stepNav">
@@ -675,6 +681,18 @@
         <!-- reserved slot: account deletion (Play policy, Apr 2024) — needs a
              backend path first; do not ship a control that does nothing -->
       </div>
+    </div>
+  </div>
+
+  <!-- Step index — every step of the open lesson, tap to jump. This is also
+       what finishes bookmarks: a saved section can finally land ON its section. -->
+  <div id="stepIndexSheet" class="sheet-scrim hidden">
+    <div class="sheet">
+      <div class="sheet-head">
+        <p class="label">This lesson</p>
+        <button class="sheet-x" id="stepIndexClose" aria-label="Close">✕</button>
+      </div>
+      <div id="stepIndexList"></div>
     </div>
   </div>
 
