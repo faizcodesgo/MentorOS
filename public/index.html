@@ -258,10 +258,8 @@
         <span class="skillmap-arrow">›</span>
       </button>
 
-      <div class="saved-block hidden" id="savedCard">
-        <p class="label mono">Saved sections</p>
-        <div id="savedList"></div>
-      </div>
+      <!-- saved sections moved to Your plan (a Saved filter there) — this was
+           an unbounded list on the hub, and the hub answers one question -->
 
       <p class="label mono list-label">Your plan</p>
       <div id="dayList" class="day-list"></div>
@@ -326,6 +324,18 @@
         <summary id="planGoalSummary">Show the full text</summary>
         <pre class="plan-goal-raw" id="planGoalRaw"></pre>
       </details>
+
+      <!-- the full day list lives HERE now — it's a browsing surface, and
+           browsing belongs one tap from the hub, not on it -->
+      <div class="seg" id="planSeg">
+        <button class="seg-item active" data-mode="days">All days</button>
+        <button class="seg-item" data-mode="saved">Saved</button>
+      </div>
+      <div id="planDayList" class="day-list"></div>
+      <div id="savedWrap" class="saved-block hidden">
+        <div id="savedList"></div>
+        <p class="sub hidden" id="savedEmpty">Star a section inside a lesson and it lands here.</p>
+      </div>
     </section>
 
     <!-- ============ CHECKPOINT RESULT ============ -->

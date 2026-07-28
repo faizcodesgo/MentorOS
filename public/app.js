@@ -868,12 +868,50 @@ function renderDashboard() {
     $("btnStartToday").onclick = () => openLesson(entry.day);
   }
 
-  /* The plan list, Netflix-shaped. A 50-day plan used to render as 40+ rows all
-     stamped "Locked" — a wall of denials. Now: finished days keep their +XP
-     receipts (trophy shelf), today is marked, the NEXT day is a visible teaser
-     ("Up next" — its title is the curiosity hook), the rest of the current
-     chapter sits quiet, and future chapters fold into one row each, expandable.
-     Everything is exactly as locked as before — this only reframes true state. */
+  /* The dashboard keeps a 3-row WINDOW of the plan — last done (receipt), today,
+     up next (teaser) — plus one "All N days" row into Your plan, where the full
+     Netflix-shaped list now lives. Two unbounded lists used to grow on the hub. */
+  $("dayList").innerHTML = dayListParts(true).join("") +
+    `<button class="chapter-row" id="rowAllDays">
+      <span class="num mono">Your plan</span>
+      <span class="t"></span>
+      <span class="state mono">All ${plan.days} days ›</span>
+    </button>`;
+
+  // warm today's lesson while the greeting is being read — "Start today" then
+  // opens like turning a page instead of a 15-60s wait
+  if (!allDone) prefetchLesson(entry);
+
+  renderGreeting();
+  renderWeeklyReport();
+  renderSkillMapCard();
+  loadWarmup();
+
+  // reminders entry only where it can actually work (installed app) or is
+  // already on — a desktop-browser tab doesn't need the button. Match any
+  // installed display mode so the TWA on Android reliably shows it.
+  const installed = ["standalone", "fullscreen", "minimal-ui"]
+    .some((m) => window.matchMedia(`(display-mode: ${m})`).matches) || navigator.standalone === true;
+  const pushRelevant = installed || (state.notifications || {}).enabled;
+  $("btnReminders").style.display = pushRelevant ? "" : "none";
+
+}
+
+/* which future chapters the user has expanded (session-only) */
+const dashExpanded = new Set();
+
+/* The plan list, Netflix-shaped — ONE builder for both surfaces. A 50-day plan
+   used to render as 40+ rows all stamped "Locked", a wall of denials. Finished
+   days keep their +XP receipts (trophy shelf), today is marked, the NEXT day is
+   a visible teaser ("Up next" — its title is the curiosity hook), and future
+   chapters fold into one row each, expandable. Everything is exactly as locked
+   as before — this only reframes true state.
+   `windowed` returns just [last done, today, up next] for the dashboard. */
+function dayListParts(windowed) {
+  const plan = state.plan;
+  const ord = orderedCurriculum();
+  const allDone = ord.every((d) => isDone(d.day));
+  const entry = currentEntry();
   const currentId = entry.day;
   const currentOrder = entry.order ?? entry.day;
   const curPhaseIdx = allDone ? (plan.phases || []).length - 1 : (phaseOfDay(currentId) || { index: 0 }).index;
@@ -897,6 +935,17 @@ function renderDashboard() {
       <span class="state mono">${stateTxt}</span>
     </button>`;
   };
+
+  if (windowed) {
+    const doneDays = ord.filter((d) => isDone(d.day));
+    const lastDone = doneDays[doneDays.length - 1];
+    const next = ord.find((d) => (d.order ?? d.day) > currentOrder && !isDone(d.day));
+    return [lastDone, allDone ? null : entry, next]
+      .filter(Boolean)
+      .filter((d, i, a) => a.findIndex((x) => x.day === d.day) === i)
+      .map(rowHtml);
+  }
+
   const parts = [];
   const futureByPhase = new Map();   // phase index -> its days (all beyond the current chapter)
   ord.forEach((d) => {
@@ -922,39 +971,22 @@ function renderDashboard() {
     </button>`);
     if (open) days.forEach((d) => parts.push(rowHtml(d)));
   });
-  $("dayList").innerHTML = parts.join("");
-
-  // warm today's lesson while the greeting is being read — "Start today" then
-  // opens like turning a page instead of a 15-60s wait
-  if (!allDone) prefetchLesson(entry);
-
-  renderGreeting();
-  renderWeeklyReport();
-  renderSkillMapCard();
-  renderSavedCard();
-  loadWarmup();
-
-  // reminders entry only where it can actually work (installed app) or is
-  // already on — a desktop-browser tab doesn't need the button. Match any
-  // installed display mode so the TWA on Android reliably shows it.
-  const installed = ["standalone", "fullscreen", "minimal-ui"]
-    .some((m) => window.matchMedia(`(display-mode: ${m})`).matches) || navigator.standalone === true;
-  const pushRelevant = installed || (state.notifications || {}).enabled;
-  $("btnReminders").style.display = pushRelevant ? "" : "none";
-
+  return parts;
 }
-
-/* which future chapters the user has expanded (session-only) */
-const dashExpanded = new Set();
 
 /* ONE delegated listener for the whole plan list — renderDashboard used to
    attach 50 listeners on every render, in the hottest path (every back-nav). */
-$("dayList").addEventListener("click", (e) => {
+/* ONE delegated handler shape for both list surfaces — renderDashboard used to
+   attach 50 listeners on every render, in the hottest path (every back-nav).
+   `rerender` is whichever view hosts the list, so a chapter toggle repaints the
+   list the user is actually looking at. */
+function handleDayListClick(e, rerender) {
+  if (e.target.closest("#rowAllDays")) { renderPlan(); show("plan"); return; }
   const ch = e.target.closest(".chapter-row");
   if (ch) {
     const pi = parseInt(ch.dataset.phase, 10);
     if (dashExpanded.has(pi)) dashExpanded.delete(pi); else dashExpanded.add(pi);
-    renderDashboard();
+    rerender();
     return;
   }
   const row = e.target.closest(".day-row");
@@ -966,7 +998,9 @@ $("dayList").addEventListener("click", (e) => {
   const day = parseInt(row.dataset.day, 10);
   if (row.classList.contains("done")) openRecap(day);  // done days open their recap
   else openLesson(day);
-});
+}
+$("dayList").addEventListener("click", (e) => handleDayListClick(e, renderDashboard));
+$("planDayList").addEventListener("click", (e) => handleDayListClick(e, renderPlan));
 
 /* The nearest genuinely-different thing ahead (milestone project / chapter
    finale), in days of WORK — never clock time, nothing expires, no countdown. */
@@ -1035,9 +1069,8 @@ $("weeklyDismiss").addEventListener("click", () => {
 
 function renderSavedCard() {
   const marks = state.bookmarks || [];
-  const card = $("savedCard");
-  if (!marks.length) { card.classList.add("hidden"); return; }
-  card.classList.remove("hidden");
+  // lives in Your plan's "Saved" filter now — empty gets an invitation, not a void
+  $("savedEmpty").classList.toggle("hidden", !!marks.length);
   $("savedList").innerHTML = marks.map((m, i) =>
     `<button class="saved-row" data-day="${m.day}" data-mark="${i}"><span class="saved-h">${esc(m.heading)}</span><span class="saved-day mono">Day ${m.day}</span></button>`).join("");
   $("savedList").querySelectorAll(".saved-row").forEach((row) => {
@@ -1257,6 +1290,13 @@ function renderPlan() {
   const raw = plan.goal || "";
   $("planGoalSummary").textContent = `Show the full text you gave me (${raw.length.toLocaleString()} characters)`;
   $("planGoalRaw").textContent = raw;
+
+  // the full day list — and the view always reopens on it, not on Saved
+  $("planDayList").innerHTML = dayListParts(false).join("");
+  $("planSeg").querySelectorAll(".seg-item").forEach((b) =>
+    b.classList.toggle("active", b.dataset.mode === "days"));
+  $("planDayList").classList.remove("hidden");
+  $("savedWrap").classList.add("hidden");
 }
 
 /* Long goals are WELCOME — pasting a syllabus produces a better plan, not a
@@ -1308,6 +1348,17 @@ $("rowPlan").addEventListener("click", () => {
   if (state && state.plan && state.plan.curriculum) { renderPlan(); show("plan"); }
 });
 $("btnPlanBack").addEventListener("click", () => { renderDashboard(); show("dashboard"); });
+
+/* All days ⇄ Saved — same guard pattern as the recap seg */
+$("planSeg").addEventListener("click", (e) => {
+  const btn = e.target.closest(".seg-item");
+  if (!btn || btn.classList.contains("active")) return;
+  $("planSeg").querySelectorAll(".seg-item").forEach((b) => b.classList.toggle("active", b === btn));
+  const saved = btn.dataset.mode === "saved";
+  $("planDayList").classList.toggle("hidden", saved);
+  $("savedWrap").classList.toggle("hidden", !saved);
+  if (saved) renderSavedCard();
+});
 
 /* Name it yourself. A pasted syllabus can't be auto-titled — its first words are
    often the subjects you asked to skip — and five of your words beat a model's
