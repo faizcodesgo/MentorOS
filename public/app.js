@@ -111,6 +111,8 @@ function show(view, after) {
     views.forEach((v) => $("view-" + v).classList.toggle("hidden", v !== view));
     $("askFab").classList.toggle("hidden", view !== "lesson");   // floating Ask only in a lesson
     hideOverlay();   // changing view closes whatever overlay was open
+    // the avatar exists only while signed in; renderDashboard un-hides it
+    if (view === "auth") $("btnAccount").classList.add("hidden");
     window.scrollTo(0, 0);
     // never let a callback failure abort the transition mid-swap
     if (after) { try { after(); } catch (e) { console.error(e); } }
@@ -146,20 +148,32 @@ function show(view, after) {
    seventh overlay on top of that would have inherited the same bug, which is
    why this lands before the account sheet rather than after it. */
 let openOverlay = null;
+let confirmPending = null;   // resolver for the in-app confirm, if one is open
 
 function hideOverlay() {
   if (!openOverlay) return;
   $(openOverlay).classList.add("hidden");
+  // any way the confirm closes without OK — cancel, scrim, back gesture, a view
+  // change — resolves as a "no". OK clears confirmPending before closing.
+  if (openOverlay === "confirmModal" && confirmPending) {
+    const r = confirmPending; confirmPending = null; r(false);
+  }
   openOverlay = null;
 }
 
 function openSheet(id) {
   if (openOverlay === id) return;
+  // Opening overlay B while overlay A is up (account sheet → sign-out confirm)
+  // must REPLACE A's history entry, not stack on top of it — otherwise A's entry
+  // survives A being hidden, and after the confirm closes, one back press gets
+  // silently eaten by a ghost entry. One overlay on screen = one overlay entry.
+  const replacing = !!openOverlay && !!(history.state && history.state.overlay);
   hideOverlay();
   $(id).classList.remove("hidden");
   openOverlay = id;
   // its own history entry, so the back gesture closes the SHEET, not the app
-  history.pushState({ v: currentView, overlay: id }, "");
+  if (replacing) history.replaceState({ v: currentView, overlay: id }, "");
+  else history.pushState({ v: currentView, overlay: id }, "");
 }
 
 /* Close THROUGH history, so the ✕, the scrim tap and the back gesture all take
@@ -223,7 +237,7 @@ window.addEventListener("popstate", (e) => {
    pointerdown, not click: feedback has to land on touch, and click only fires
    on release. The host list must stay in step with the CSS selector — see the
    negative-margin warning there before adding anything to it. */
-const RIPPLE_HOSTS = ".btn, .day-row, .opt, .iopt, .class-card, .wager-chip, .dur-chip, .seg-item, .skillmap-card";
+const RIPPLE_HOSTS = ".btn, .day-row, .opt, .iopt, .class-card, .wager-chip, .dur-chip, .seg-item, .skillmap-card, .avatar-btn, .account-row";
 document.addEventListener("pointerdown", (e) => {
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   const host = e.target.closest && e.target.closest(RIPPLE_HOSTS);
@@ -248,6 +262,37 @@ document.addEventListener("pointerdown", (e) => {
   setTimeout(drop, 700);
   host.appendChild(span);
 }, { passive: true });
+
+/* In-app confirm/prompt. window.confirm and window.prompt render as Chrome
+   dialogs prefixed with the origin — there were SIX of them. This returns a
+   promise: `true`/`false` for a confirm, the typed string/`false` when `input`
+   is given. The hardware back button cancels it like any other overlay. */
+function confirmSheet({ title, body = "", okLabel = "Confirm", destructive = false, input = null }) {
+  return new Promise((resolve) => {
+    $("confirmTitle").textContent = title;
+    $("confirmBody").textContent = body;
+    $("confirmBody").classList.toggle("hidden", !body);
+    const inp = $("confirmInput");
+    inp.classList.toggle("hidden", input === null);
+    if (input !== null) { inp.value = input; }
+    $("confirmOk").textContent = okLabel;
+    // destructive confirms are deliberately chosen, so the colour is honest here
+    $("confirmOk").className = "btn " + (destructive ? "ghost danger" : "primary");
+    confirmPending = resolve;
+    openSheet("confirmModal");
+    if (input !== null) inp.focus();
+  });
+}
+$("confirmOk").addEventListener("click", () => {
+  const r = confirmPending;
+  confirmPending = null;                       // BEFORE closing — OK is not a cancel
+  const inp = $("confirmInput");
+  const val = inp.classList.contains("hidden") ? true : inp.value.trim();
+  // handlers usually navigate right after — no history round-trip (see dismissSheet)
+  dismissSheet();
+  if (r) r(val);
+});
+$("confirmCancel").addEventListener("click", () => closeSheet());
 
 function toast(msg, ms = 4000) {
   const el = $("toast");
@@ -457,6 +502,14 @@ $("btnAuthSwitch").addEventListener("click", () => {
 });
 
 $("btnSignOut").addEventListener("click", async () => {
+  // Confirmed now, and "Start over" isn't: with no in-app password reset this
+  // was arguably the MORE dangerous of the two buttons, and it asked nothing.
+  const ok = await confirmSheet({
+    title: "Sign out?",
+    body: "Your plan stays on your account. You'll need your name and password to get back in.",
+    okLabel: "Sign out",
+  });
+  if (!ok) return;
   try { await api("/api/auth/logout", { method: "POST" }); } catch {}
   state = null;
   clearLocalCache();               // snapshot + lesson cache belong to this account only
@@ -776,19 +829,44 @@ function renderDashboard() {
   $("xpToNext").textContent = `${Math.max(0, lvCeil - xp)} XP to LV ${lv + 1}`;
   $("xpFill").style.width = `${Math.min(100, Math.max(0, ((xp - lvFloor) / span) * 100))}%`;
 
-  $("todayTitle").textContent = entry ? entry.title : "";
-  $("todayObjectives").innerHTML = entry
-    ? (entry.objectives || []).map((o) => `<li>${esc(o)}</li>`).join("")
-    : "";
-  const estTxt = entry && entry.est_minutes ? ` · ${fmtTime(entry.est_minutes)} today` : "";
-  $("todayReward").textContent = entry ? `+${questReward(entry)} XP${estTxt}` : "";
-  // mid-lesson resume: the button says exactly where you'll land
-  const saved = getResume();
-  $("btnStartToday").textContent =
-    entry && saved && saved.day === entry.day && !isDone(entry.day) && saved.idx > 0
-      ? `Continue · step ${saved.idx + 1} of ${saved.len}`
-      : entry && entry.kind === "revision" ? "Start revision" : "Start today";
-  $("btnStartToday").onclick = () => openLesson(entry.day);
+  // the avatar rides every dashboard render; letter from the profile name
+  $("btnAccount").classList.remove("hidden");
+  $("avatarLetter").textContent =
+    (((state.profile && state.profile.name) || "").trim()[0] || "?").toUpperCase();
+
+  if (allDone) {
+    /* The screen used to contradict itself here: "Plan complete. Well done."
+       with a live "Start today" directly beneath it that reopened the finished
+       last lesson in non-review mode, promising XP already earned. This card is
+       the trophy — and the POSITIVE route to a new plan, which is what most
+       people reaching for "Start over" actually wanted. */
+    const s = state.streak || {};
+    $("todayTitle").textContent = "Plan complete";
+    $("todayObjectives").innerHTML = "";
+    $("todayReward").textContent =
+      `${doneReal}/${plan.days} days · ${xp} XP` +
+      (s.best > 1 ? ` · best streak ${s.best}` : "") +
+      ((plan.phases || []).length > 1 ? ` · ${plan.phases.length} chapters` : "");
+    $("btnStartToday").textContent = "Start a new plan";
+    $("btnStartToday").onclick = () => resetAll();
+    $("btnReviewPlan").classList.remove("hidden");
+    $("btnReviewPlan").onclick = () => { renderPlan(); show("plan"); };
+  } else {
+    $("btnReviewPlan").classList.add("hidden");
+    $("todayTitle").textContent = entry ? entry.title : "";
+    $("todayObjectives").innerHTML = entry
+      ? (entry.objectives || []).map((o) => `<li>${esc(o)}</li>`).join("")
+      : "";
+    const estTxt = entry && entry.est_minutes ? ` · ${fmtTime(entry.est_minutes)} today` : "";
+    $("todayReward").textContent = entry ? `+${questReward(entry)} XP${estTxt}` : "";
+    // mid-lesson resume: the button says exactly where you'll land
+    const saved = getResume();
+    $("btnStartToday").textContent =
+      entry && saved && saved.day === entry.day && !isDone(entry.day) && saved.idx > 0
+        ? `Continue · step ${saved.idx + 1} of ${saved.len}`
+        : entry && entry.kind === "revision" ? "Start revision" : "Start today";
+    $("btnStartToday").onclick = () => openLesson(entry.day);
+  }
 
   /* The plan list, Netflix-shaped. A 50-day plan used to render as 40+ rows all
      stamped "Locked" — a wall of denials. Now: finished days keep their +XP
@@ -1018,8 +1096,14 @@ $("wbResume").addEventListener("click", () => {
   if (entry) openLesson(entry.day);
 });
 
-async function resetAll(msg) {
-  if (!confirm(msg)) return;
+async function resetAll() {
+  const ok = await confirmSheet({
+    title: "Start a new plan?",
+    body: "This deletes your current plan and its progress, permanently. Your career XP and your account survive.",
+    okLabel: "Delete plan and start over",
+    destructive: true,
+  });
+  if (!ok) return;
   await api("/api/reset", { method: "POST", body: JSON.stringify({ confirm: true }) });
   // the server just wiped state.lessons, so the client is the ONLY holder of
   // the old plan's lessons — keeping them would serve the old day 1 as the
@@ -1029,11 +1113,16 @@ async function resetAll(msg) {
   show("onboarding");
 }
 
-$("btnReset").addEventListener("click", () =>
-  resetAll("This permanently deletes your plan and progress. Continue?"));
+$("btnReset").addEventListener("click", () => resetAll());
 
 $("btnAbandonGen").addEventListener("click", async () => {
-  if (!confirm("This permanently deletes your plan and progress. Continue?")) return;
+  const ok = await confirmSheet({
+    title: "Abandon this plan?",
+    body: "The half-built plan is deleted and you start the setup again.",
+    okLabel: "Abandon and start over",
+    destructive: true,
+  });
+  if (!ok) return;
   genAborted = true;   // ignore any in-flight generation result
   try {
     await api("/api/reset", { method: "POST", body: JSON.stringify({ confirm: true }) });
@@ -1183,6 +1272,36 @@ $("inGoal").addEventListener("paste", () => {
 });
 
 $("dashGoal").addEventListener("click", () => { renderPlan(); show("plan"); });
+
+/* ---------- account sheet ---------- */
+
+function renderAccountSheet() {
+  const name = (state && state.profile && state.profile.name) || "";
+  const xp = (state && state.xp) || 0;
+  const lv = levelFromXp(xp);
+  $("accountName").textContent = name || "Your account";
+  $("accountStats").textContent = `LV ${lv} · ${xp} XP`;
+  $("avatarBig").textContent = (name.trim()[0] || "?").toUpperCase();
+  const plan = state && state.plan;
+  if (plan && plan.curriculum) {
+    const ord = orderedCurriculum();
+    const doneReal = ord.filter((d) => d.kind !== "revision" && isDone(d.day)).length;
+    $("accountPlanLine").textContent =
+      `${plan.short_title || "Your plan"} · ${doneReal}/${plan.days} days`;
+  } else {
+    $("accountPlanLine").textContent = "No plan yet";
+  }
+  // streakChip/careerChip live IN the sheet and are already written by
+  // renderDashboard — nothing to do for them here
+}
+
+$("btnAccount").addEventListener("click", () => { renderAccountSheet(); openSheet("accountSheet"); });
+$("accountClose").addEventListener("click", () => closeSheet());
+$("accountSheet").addEventListener("click", (e) => { if (e.target === $("accountSheet")) closeSheet(); });
+$("rowPlan").addEventListener("click", () => {
+  dismissSheet();          // navigating straight to a view — no history round-trip
+  if (state && state.plan && state.plan.curriculum) { renderPlan(); show("plan"); }
+});
 $("btnPlanBack").addEventListener("click", () => { renderDashboard(); show("dashboard"); });
 
 /* Name it yourself. A pasted syllabus can't be auto-titled — its first words are
@@ -1190,9 +1309,14 @@ $("btnPlanBack").addEventListener("click", () => { renderDashboard(); show("dash
    guess, for free. */
 $("btnRenamePlan").addEventListener("click", async () => {
   const current = (state.plan && state.plan.short_title) || "";
-  const next = prompt("Name this plan (a few words):", current);
-  if (next === null) return;
-  const title = next.trim().slice(0, 40);
+  const next = await confirmSheet({
+    title: "Name this plan",
+    body: "A few of your own words beat a guess.",
+    okLabel: "Save",
+    input: current,
+  });
+  if (next === false) return;          // cancelled — false, never a string
+  const title = String(next).trim().slice(0, 40);
   if (!title) return;
   try {
     await api("/api/plan/title", { method: "POST", body: JSON.stringify({ short_title: title }) });
@@ -1407,9 +1531,14 @@ $("recapSeg").addEventListener("click", (e) => {
 
 /* The checkpoint was the only view with no exit. Answers are only POSTed at the
    end, so leaving really does discard the run — say so plainly, then let them go. */
-$("btnQuizQuit").addEventListener("click", () => {
+$("btnQuizQuit").addEventListener("click", async () => {
   const answered = (quizRun && quizRun.answers.length) || (warmupRun && warmupRun.results.length) || 0;
-  if (answered && !confirm("Leave the checkpoint? Your answers so far won't be saved.")) return;
+  if (answered && !(await confirmSheet({
+    title: "Leave the checkpoint?",
+    body: "Your answers so far won't be saved.",
+    okLabel: "Leave",
+    destructive: true,
+  }))) return;
   quizRun = null; warmupRun = null;
   renderDashboard();
   show("dashboard");
@@ -1493,8 +1622,13 @@ $("btnVivaNext").addEventListener("click", async () => {
   } catch (err) { loading(false); toast(err.message, 6000); }
 });
 
-$("btnVivaQuit").addEventListener("click", () => {
-  if (!confirm("Leave the interview? Your answers won't be saved.")) return;
+$("btnVivaQuit").addEventListener("click", async () => {
+  if (!(await confirmSheet({
+    title: "Leave the interview?",
+    body: "Your answers won't be saved.",
+    okLabel: "Leave",
+    destructive: true,
+  }))) return;
   vivaRun = null; renderDashboard(); show("dashboard");
 });
 

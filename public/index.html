@@ -24,6 +24,10 @@
   <header class="topbar">
     <div class="brand">Mentor<span>OS</span></div>
     <div class="topbar-right mono" id="topbarStatus"></div>
+    <!-- SIBLING of #topbarStatus, never a child — renderDashboard owns that
+         element's innerHTML and would wipe anything inside it. flex:none so the
+         status chips (already ellipsis-guarded) stay the thing that shrinks. -->
+    <button class="avatar-btn hidden" id="btnAccount" aria-label="Account"><span id="avatarLetter">?</span></button>
   </header>
 
   <main id="app">
@@ -221,6 +225,8 @@
         <div class="today-actions">
           <button class="btn primary" id="btnStartToday">Start today</button>
           <button class="btn ghost small" id="btnFocus">Study mode</button>
+          <!-- allDone only: the positive route to reviewing what you built -->
+          <button class="btn ghost small hidden" id="btnReviewPlan">Review your plan</button>
         </div>
         <!-- the warm-up is a pre-step FOR today, not a rival to it. As its own
              row above the card it pushed today down on exactly the days it showed. -->
@@ -232,11 +238,11 @@
       </div>
 
       <!-- everything below here is reflective: it earns a scroll, it doesn't
-           get to stand between the student and today's lesson -->
-      <div class="level-bar">
-        <span class="streak-detail mono" id="streakChip"></span>
-        <span class="career-chip mono" id="careerChip"></span>
-      </div>
+           get to stand between the student and today's lesson.
+           (#streakChip/#careerChip moved into the account sheet — same ids, so
+           renderDashboard keeps writing them; the topbar chip stays the daily
+           signal. On a fresh plan both were empty, leaving ~20px of styled dead
+           space on the emptiest screen in the app.) -->
 
       <div class="thin-row hidden" id="weeklyCard">
         <p class="thin-text" id="weeklyBody"></p>
@@ -260,11 +266,10 @@
       <p class="label mono list-label">Your plan</p>
       <div id="dayList" class="day-list"></div>
 
-      <div class="dash-footer">
-        <button class="btn ghost small" id="btnReminders">Study reminders</button>
-        <button class="btn ghost small" id="btnSignOut">Sign out</button>
-        <button class="btn danger ghost small" id="btnReset">Start over</button>
-      </div>
+      <!-- the footer is gone: "Start over" (deletes the plan) sat in a shared
+           flex row with "Sign out", identically styled, and its position MOVED
+           depending on whether "Study reminders" was shown. All three now live
+           in the account sheet, behind the topbar avatar. -->
     </section>
 
     <!-- ============ SIGN IN ============ -->
@@ -637,6 +642,54 @@
       <p class="rem-status" id="remStatus"></p>
       <button class="btn primary" id="btnEnableReminders">Enable reminders</button>
       <button class="btn ghost small hidden" id="btnDisableReminders">Turn off</button>
+    </div>
+  </div>
+
+  <!-- Account sheet — opened from the topbar avatar. Reuses .sheet verbatim:
+       safe-area aware, transform+opacity only, reduced-motion covered, and now
+       history-backed via openSheet like every other overlay. -->
+  <div id="accountSheet" class="sheet-scrim hidden">
+    <div class="sheet">
+      <div class="sheet-head">
+        <p class="label">Account</p>
+        <button class="sheet-x" id="accountClose" aria-label="Close">✕</button>
+      </div>
+      <div class="account-head">
+        <span class="avatar-big" id="avatarBig">?</span>
+        <div>
+          <p class="account-name" id="accountName"></p>
+          <p class="account-stats mono" id="accountStats"></p>
+        </div>
+      </div>
+      <p class="account-sub mono">
+        <span class="streak-detail" id="streakChip"></span>
+        <span class="career-chip" id="careerChip"></span>
+      </p>
+      <div class="account-rows">
+        <button class="account-row" id="rowPlan"><span id="accountPlanLine">Your plan</span><span class="row-chev">›</span></button>
+        <button class="account-row" id="btnReminders"><span>Study reminders</span><span class="row-chev">›</span></button>
+      </div>
+      <div class="account-rows">
+        <button class="account-row" id="btnReset"><span>Start a new plan</span></button>
+        <button class="account-row" id="btnSignOut"><span>Sign out</span></button>
+        <!-- reserved slot: account deletion (Play policy, Apr 2024) — needs a
+             backend path first; do not ship a control that does nothing -->
+      </div>
+    </div>
+  </div>
+
+  <!-- In-app confirm — replaces window.confirm/prompt, which render as Chrome
+       dialogs prefixed with the origin: the loudest "this is a website" moment
+       in an app that goes to real lengths to hide that. -->
+  <div id="confirmModal" class="modal-scrim hidden">
+    <div class="modal confirm-modal">
+      <h2 id="confirmTitle"></h2>
+      <p class="sub" id="confirmBody"></p>
+      <input type="text" id="confirmInput" class="hidden" maxlength="40" autocomplete="off" />
+      <div class="confirm-actions">
+        <button class="btn ghost" id="confirmCancel">Cancel</button>
+        <button class="btn primary" id="confirmOk">Confirm</button>
+      </div>
     </div>
   </div>
 

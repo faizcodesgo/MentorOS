@@ -221,7 +221,7 @@ button.card:active, .day-row:active, .class-card:active, .skillmap-card:active, 
    ripple host silently shrinks the tap area back to what b4a2e93 already fixed.
    So: never .card, never .lesson-section, never .thin-row. */
 .btn, .day-row, .opt, .iopt, .class-card,
-.wager-chip, .dur-chip, .seg-item, .skillmap-card {
+.wager-chip, .dur-chip, .seg-item, .skillmap-card, .avatar-btn, .account-row {
   position: relative;
   overflow: hidden;
 }
@@ -362,7 +362,8 @@ input:focus, textarea:focus { outline: none; border-color: var(--brand); box-sha
 .dash-goal::after { content: " ›"; color: var(--faint); }
 
 /* wraps, so a long streak line can never push the chips off a narrow phone */
-.level-bar { display: flex; align-items: center; gap: var(--s3); margin: var(--s1) 0 var(--s4); flex-wrap: wrap; }
+/* (.level-bar removed with its DOM — #streakChip/#careerChip now live in the
+   account sheet; on a fresh plan both were empty and the row was dead space) */
 .streak-detail { font-size: var(--text-xs); color: var(--muted); }
 /* (.level-chip and .rank-chip removed — the level chip was a byte-identical
    copy of the topbar's, and rank is derivable from the level. Both gone with
@@ -1075,7 +1076,45 @@ body.study-mode #app { padding-top: calc(60px + env(safe-area-inset-top)); }
 .scope-opt:has(input:checked) .scope-check::after { transform: scale(1); }
 
 /* ---------- reminders sheet ---------- */
-.dash-footer { display: flex; justify-content: space-between; gap: var(--s3); margin-top: var(--s6); flex-wrap: wrap; }
+/* ---------- account sheet + in-app confirm ----------
+   (.dash-footer is gone — its three controls live here now, behind the avatar) */
+.avatar-btn {
+  flex: none;   /* the status chips shrink; the avatar never does */
+  width: 34px; height: 34px; margin-left: var(--s2);
+  border: none; border-radius: 50%; cursor: pointer;
+  background: var(--panel-2); color: var(--ink);
+  font-family: "Archivo", "Inter", system-ui, sans-serif;
+  font-size: var(--text-sm); font-weight: 700;
+  display: inline-flex; align-items: center; justify-content: center;
+  box-shadow: var(--shadow-1);
+}
+#accountSheet .sheet { display: block; }   /* plain form, like the reminders sheet */
+.account-head { display: flex; align-items: center; gap: var(--s4); margin: var(--s3) 0 var(--s2); }
+.avatar-big {
+  flex: none; width: 52px; height: 52px; border-radius: 50%;
+  background: var(--panel-2); color: var(--ink);
+  font-family: "Archivo", "Inter", system-ui, sans-serif;
+  font-size: var(--text-xl); font-weight: 700;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.account-name { font-weight: 600; font-size: var(--text-lg); }
+.account-stats { font-size: var(--text-sm); color: var(--muted); }
+.account-sub { display: flex; gap: var(--s3); flex-wrap: wrap; margin: 0 0 var(--s3); min-height: 0; }
+.account-sub:empty { display: none; }
+.account-rows { border-top: 1px solid var(--line); padding-top: var(--s2); margin-top: var(--s2); }
+.account-row {
+  display: flex; justify-content: space-between; align-items: center; gap: var(--s3);
+  width: 100%; min-height: 48px; padding: var(--s2) var(--s1);
+  background: none; border: none; border-radius: var(--r1);
+  font: inherit; color: var(--ink); text-align: left; cursor: pointer;
+}
+#btnReset span { color: var(--bad); }   /* destructive, deliberately chosen */
+.row-chev { color: var(--faint); }
+.confirm-modal { text-align: left; }
+.confirm-modal h2 { margin-bottom: var(--s2); }
+.confirm-actions { display: flex; justify-content: flex-end; gap: var(--s3); margin-top: var(--s5); }
+#confirmInput { margin-top: var(--s3); }
+
 .rem-row { display: flex; justify-content: space-between; align-items: center; gap: var(--s3); margin: var(--s3) 0; font-size: var(--text-md); }
 .rem-row input[type="time"] { width: auto; background: var(--panel-2); border: 1px solid var(--line); color: var(--ink); border-radius: var(--r2); padding: var(--s2) var(--s3); }
 .rem-status { font-size: var(--text-sm); color: var(--good); min-height: 1em; margin: var(--s3) 0; }
