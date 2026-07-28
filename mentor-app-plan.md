@@ -1,5 +1,24 @@
 # AI Mentor App — Idea Evaluation & Plan (LLM Council Report)
 
+> ## ⚠️ HISTORICAL DOCUMENT — the founding plan, NOT the plan of record
+> This is the 2 July founding evaluation, kept for the reasoning. The product has been
+> through four design passes and three councils since, and **several sections below
+> describe things that were built differently or deliberately reversed**:
+> - **§11 (RPG direction) is SUPERSEDED.** The indigo/purple palette is gone (one blue
+>   accent + gold only — enforced four times since); "Boss Battles / Arena / Dungeon"
+>   naming died in the Voice-A rename (Today / Checkpoint / Your plan); the proposed
+>   5-tab bottom nav was rejected three separate times — the app is ONE hub.
+> - **The §13-family (13½, 13⅝, 13¾, 13.9) and §15 are point-in-time specs.** What
+>   shipped diverged: quizzes are 6–15 questions not 5; the wager is Gardner-Medwin CBM
+>   (14/12 · 16/8 · 18/0), not 1×/1.5×/2×, and combo is a flat end-of-run bonus, never a
+>   multiplier; Mermaid is deleted (sanitized inline SVG only); Focus is a slim bar OVER
+>   the lesson, never a fullscreen takeover; Second Wind and skip-ahead were cut by
+>   council; project placement is `_wants_project()`, not "~4 per 50 days".
+> - **Current truth lives in:** `DESIGN-DECISIONS.md` (the standing rules),
+>   `COUNCIL-2026-07-27-REDESIGN.md` (DOM contract + do-not-break), `handoff.md`
+>   (history), `RESOURCES-SPEC.md` (next feature). Sections 1–10 and 12 remain accurate
+>   as history.
+
 *Prepared by Claude for Faiz, 2 July 2026. Method: 4 independent evaluators (product/UX, startup/VC, engineering feasibility, learning science) + 1 web market researcher, then synthesized. Reviewed by ChatGPT (see section 10). This document is self-contained — share it with any AI or person for review.*
 
 ---
