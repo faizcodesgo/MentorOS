@@ -1,5 +1,29 @@
 # MentorOS — Project History (scratch → now)
 
+> ## ▶ START HERE (cross-device pickup — read this first)
+> **If you are Claude on a different device / fresh session:** this GitHub repo is the whole
+> source of truth. The owner's local `~/.claude` memory does NOT travel between devices — these
+> repo docs do. Read, in order: **this file** (the narrative + "What's left" at the bottom),
+> **`DESIGN-DECISIONS.md`** (31 standing rules — never violate blind), **`handoff.md` §5-§6**
+> (setup + gotchas), **`RESOURCES-SPEC.md`** (the resource feature) and
+> **`COUNCIL-2026-07-27-REDESIGN.md` §5/§7** (the DOM contract + do-not-break list).
+>
+> **CURRENT STATE (as of the 28 Jul session, HEAD `63f38e6`):**
+> - **Production**: suspended until ~1 Aug (Render free hours); ~20 commits queued for the
+>   auto-deploy. **NOTHING has been verified on a real phone yet** — all local, by measurement.
+> - **Done & pushed this session**: the full visual redesign (slices 1-6), tap ripple, the
+>   diagram-palette fix, the account sheet, the H2 timezone-streak bug fix, the level ring, and
+>   **the entire Resource Mentor (slices 1-6): it finds real free resources on the web for any
+>   subject, weaves them into the plan as "Watch" steps, and adapts the plan when you fail a
+>   checkpoint (fail a text day → revision comes back as the resource; fail a resource day →
+>   text)**. Border sweep 26→7. Everything verified locally (headless + unit tests).
+> - **FIRST THING TO DO when prod is back (Faiz's job, ~1 Aug)**: `curl /healthz` = 200, then
+>   walk one lesson → checkpoint → account sheet → bookmark jump → a resource-led day on the
+>   REAL phone. Fix the UptimeRobot schedule or it re-suspends ~31 Aug. Then restart the plan,
+>   activate notifications (env vars in `handoff.md`), and judge the feel.
+> - **Build gotcha**: Flask reload is OFF — restart the dev server to test any `.py` change.
+> - **Untested without a device**: the TWA YouTube deep-link (does it open the native app?).
+
 **The one living narrative of the whole project.** Every other doc is a slice: `handoff.md`
 is setup + recent sessions, the `COUNCIL-*` files are single councils, `DESIGN-DECISIONS.md`
 is the standing rules, `RESOURCES-SPEC.md`/`REDESIGN-PHASES.md` are forward specs. This file
