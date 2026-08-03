@@ -498,7 +498,7 @@ body.study-mode .step-progress { top: calc(60px + env(safe-area-inset-top)); }
 }
 .probe::before { content: "Think first — "; font-style: normal; font-weight: 600; color: var(--brand); }
 .worked {
-  background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--r2);
+  background: var(--panel-2); border: 1px solid transparent; border-radius: var(--r2);
   padding: var(--s3) var(--s4); margin-bottom: var(--s3);
 }
 /* One reading size for every prose block inside a lesson section. A section
@@ -525,7 +525,7 @@ code {
 .tryit-answer { display: flex; flex-wrap: wrap; gap: var(--s2); align-items: center; margin-top: var(--s3); }
 .tryit-input {
   flex: 1 1 12ch; min-width: 0; font: inherit; font-size: var(--text-sm);
-  padding: var(--s2) var(--s3); border: 1px solid var(--line);
+  padding: var(--s2) var(--s3); border: 1px solid var(--line-strong);
   border-radius: var(--r2); background: var(--panel); color: var(--ink);
 }
 .tryit-input:disabled { opacity: 0.6; }
@@ -686,7 +686,7 @@ html.vt .view:not(.hidden) { animation: none; }
 .focus-durs { display: flex; gap: var(--s2); justify-content: center; margin: var(--s2) 0 var(--s4); }
 .dur-chip {
   font: inherit; font-weight: 600; color: var(--muted);
-  background: var(--bg); border: 1px solid var(--line); border-radius: var(--r-full);
+  background: var(--panel-2); border: 1px solid transparent; border-radius: var(--r-full);
   padding: var(--s2) var(--s4); cursor: pointer; transition: border-color 0.15s ease, color 0.15s ease;
   min-height: 44px; display: inline-flex; align-items: center; justify-content: center;
 }
@@ -931,14 +931,14 @@ body.study-mode #app { padding-top: calc(60px + env(safe-area-inset-top)); }
 }
 .interaction-q { font-weight: 500; margin: var(--s1) 0 var(--s3); }
 .interaction-code {
-  background: var(--bg); border: 1px solid var(--line); border-radius: var(--r2);
+  background: var(--panel-2); border: 1px solid transparent; border-radius: var(--r2);
   padding: var(--s3) var(--s4); margin-bottom: var(--s3); overflow-x: auto;
 }
 .interaction-code code { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: var(--text-sm); color: var(--ink); }
 .interaction-opts { display: flex; flex-direction: column; gap: var(--s2); }
 .iopt {
   text-align: left; font: inherit; color: var(--ink); cursor: pointer;
-  background: var(--bg); border: 1px solid var(--line); border-radius: var(--r2);
+  background: var(--panel-2); border: 1px solid transparent; border-radius: var(--r2);
   padding: var(--s3) var(--s4); min-height: 46px; transition: border-color 0.15s ease, background 0.15s ease;
 }
 .iopt:hover:not(:disabled) { border-color: var(--faint); }
@@ -955,11 +955,11 @@ body.study-mode #app { padding-top: calc(60px + env(safe-area-inset-top)); }
 .recap-stats { display: flex; flex-wrap: wrap; gap: var(--s2); margin-top: var(--s4); }
 .recap-stat {
   font-size: var(--text-sm); color: var(--muted); font-weight: 600;
-  background: var(--bg); border: 1px solid var(--line); border-radius: var(--r-full); padding: var(--s2) var(--s3);
+  background: var(--panel-2); border: 1px solid transparent; border-radius: var(--r-full); padding: var(--s2) var(--s3);
 }
 .recap-carry { color: var(--ink); max-width: 65ch; }
 .chapter-block {
-  border: 1px solid var(--line); border-left: 3px solid var(--gold);
+  background: var(--panel); border: 1px solid transparent; border-left: 3px solid var(--gold);
   border-radius: var(--r2); padding: var(--s5); margin: var(--s4) 0 var(--s5);
   background: var(--panel);
   box-shadow: var(--shadow-1);
@@ -1161,7 +1161,7 @@ body.study-mode #app { padding-top: calc(60px + env(safe-area-inset-top)); }
 #confirmInput { margin-top: var(--s3); }
 
 .rem-row { display: flex; justify-content: space-between; align-items: center; gap: var(--s3); margin: var(--s3) 0; font-size: var(--text-md); }
-.rem-row input[type="time"] { width: auto; background: var(--panel-2); border: 1px solid var(--line); color: var(--ink); border-radius: var(--r2); padding: var(--s2) var(--s3); }
+.rem-row input[type="time"] { width: auto; background: var(--panel-2); border: 1px solid var(--line-strong); color: var(--ink); border-radius: var(--r2); padding: var(--s2) var(--s3); }
 .rem-status { font-size: var(--text-sm); color: var(--good); min-height: 1em; margin: var(--s3) 0; }
 #remindersSheet .btn.primary { width: 100%; }
 #btnDisableReminders { width: 100%; margin-top: var(--s3); }
@@ -1272,7 +1272,7 @@ body.study-mode #app { padding-top: calc(60px + env(safe-area-inset-top)); }
 /* ---------- segmented control ---------- */
 .seg {
   display: inline-flex; gap: 2px; padding: 2px;
-  background: var(--bg); border: 1px solid var(--line);
+  background: var(--panel-2); border: 1px solid transparent;
   border-radius: var(--r-full); margin: var(--s3) 0 var(--s4);
 }
 .seg-item {
@@ -1329,7 +1329,7 @@ body.study-mode #app { padding-top: calc(60px + env(safe-area-inset-top)); }
 
 .result-review { display: flex; flex-direction: column; gap: var(--s2); }
 .rev-item {
-  background: var(--panel); border: 1px solid var(--line);
+  background: var(--panel); border: 1px solid transparent;
   border-radius: var(--r2); padding: var(--s3) var(--s4);
 }
 .rev-item.wrong { border-color: #3a2f2f; }
