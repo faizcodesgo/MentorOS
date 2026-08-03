@@ -229,9 +229,11 @@ historical. This closes the pattern behind the project's worst regressions.
    `DIAGRAM_PALETTE_MIGRATION`** once the restart regenerates all lessons.
 7. Gated interaction phases still open: verdict word-reveal, and the Skills constellation +
    bento (needs ~a week of real quiz data). *(Level ring DONE, `ad5d45b`.)*
-8. **Resource Mentor** — slice 1 DONE (`9f635fe`). Next: run the grounding probe with the
-   real key (spends a little quota — needs Faiz's OK), then slice 2 (`ask_grounded_text` +
-   URL verifier), then Scout/Monitor, then UI (after the redesign is confirmed on-device).
+8. **Resource Mentor** — DISCOVERY DONE: slice 1 schema/cache (`9f635fe`), slice 2 grounding
+   + verify (`b83a936`), slice 3 the Scout (`147f37c`), probe run (`a6cb290`). It now finds
+   and verifies real resources for a plan. **Remaining: slice 4 (resource-led day rendering —
+   makes them visible), slice 5 (the Monitor — makes the plan adapt). Both best built with
+   the redesign confirmed on-device (D3) / with fresh care for the H1 hot path.**
 9. Remaining known items: the 17 remaining full-box borders vs the council's ~4 target,
    dashboard tiering, and the open blue-stripe question. *(H2 timezone bug DONE, `ae520f9`.)*
 
@@ -282,10 +284,37 @@ the grounding probe, which **spends Faiz's Gemini quota / needs his key** — no
 his OK. The resource UI slices need his phone (TWA deep-link) and his own D3 gate (verify the
 deploy first). So the resource *backend foundation* is in; the *grounding + UI* wait for him.
 
-**Not built, and why (still correct to defer):** verdict word-reveal (taste call, needs his
-eye on-device); Skills constellation/bento (needs ~a week of real quiz data — all topics are
-currently "new"); the resource grounding helper + Scout + Monitor + UI (probe/key + device +
-his D3 gate).
+Faiz then said **"run the probe and do everything else"** — clearing the quota gate. Continued:
+
+- **Grounding probe RUN** (`a6cb290`, `tools/grounding_probe.py`, his key). All three spec
+  assumptions confirmed empirically: grounding works on 2.5-flash free; grounding+JSON = 400
+  (2-call shape mandatory); `groundingChunks` are expiring redirect URLs — the reliable URL
+  source is the model's PROSE. Spec §1a records it.
+- **Resource slice 2 BUILT** (`b83a936`): `gemini.ask_grounded_text()` (grounded, no JSON,
+  lean) + `resources.py` — `normalize_topic`, `extract_urls`, and the 3-way `verify_url`
+  (live / unverified / dead; a 403 is "alive enough to defend itself", never dropped; a
+  redirect into a login wall = dead). 20/20 incl. live grounding end-to-end (found LearnVern's
+  Python course, verified live).
+- **Resource slice 3 — THE SCOUT — BUILT** (`147f37c`): `POST /api/plan/scout` +
+  `resources.build_spine` (parallel discovery, cap 4, 70s budget) + surgical
+  `save_plan_resources` + `maybeScout()` fire-and-forget from the dashboard (also the G1
+  backfill). **Proven against Faiz's real 8-chapter plan: all 8 resolved, every URL LIVE** —
+  NPTEL for Computer Fundamentals, learngitbranching.js.org for git, w3schools SQL, real
+  YouTube courses for C/DSA/Python. 14/14 units + the live end-to-end. Idempotent, additive,
+  never fails a plan.
+
+**The Resource Mentor's DISCOVERY half is complete and demonstrable.** What remains: making
+those resources VISIBLE (slice 4, resource-led day rendering) and ADAPTIVE (slice 5, the
+Monitor). Both were deferred at this checkpoint — see below.
+
+**Not built, and why (deferred at the slice-3 checkpoint):**
+- **Resource-led day UI (slice 4)** — renders the Scout's slots as watch-steps in the lesson.
+  Lands on the redesign surfaces Faiz hasn't seen on-device (his own D3 gate) and uses a TWA
+  YouTube deep-link that can't be tested without his phone. Build after the deploy verify.
+- **Monitor (slice 5)** — writes curriculum state on the checkpoint-submit hot path, right by
+  the open H1 race; deserves fresh, careful attention, not the tail of a huge turn.
+- **Verdict word-reveal** (taste call, needs his eye); **Skills constellation/bento** (needs
+  ~a week of real quiz data).
 
 ---
 
