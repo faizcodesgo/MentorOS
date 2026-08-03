@@ -2398,6 +2398,12 @@ function renderLesson(l, resume, jumpSec) {
     `<div class="lesson-intro">${fmtProse(l.intro)}</div>` +
     (resources ? `<div class="card"><p class="label mono">Watch</p>${l.resources_note ? `<p class="resources-note">${fmt(l.resources_note)}</p>` : ""}${resources}</div>` : "")
   });
+  // resource-led day: the mentor found a real external resource for this chapter —
+  // its own step, right after the intro. Link OUT (a YouTube iframe is ~1MB of
+  // player JS in a TWA WebView, and an external link opens the native app).
+  if (l.resource_segment && l.resource_segment.url) {
+    lessonSteps.push({ kind: "watch", html: watchHtml(l.resource_segment) });
+  }
   // Long days are split into blocks with a real break between them. A 6-hour
   // sitting is attendance, not learning — the break IS the feature.
   let lastBlock = null;
@@ -2506,6 +2512,26 @@ function breakHtml(l, nextBlock) {
     </div>`;
 }
 
+const PLATFORM_LABEL = { youtube: "YouTube", github: "GitHub", freecodecamp: "freeCodeCamp",
+  khan: "Khan Academy", nptel: "NPTEL", docs: "Docs", web: "Web" };
+const PLATFORM_VERB = { youtube: "Watch on YouTube", docs: "Open the docs", github: "Open on GitHub" };
+
+/* The resource-led day's own step: the mentor's real pick for this chapter,
+   opened in the native app/browser (never embedded). Rewards-only — the
+   checkpoint still tests the topic whether or not they watched. */
+function watchHtml(r) {
+  const plat = PLATFORM_LABEL[r.platform] || "Resource";
+  const verb = PLATFORM_VERB[r.platform] || "Open the resource";
+  const host = (r.url.match(/^https?:\/\/([^/]+)/) || [, r.url])[1].replace("www.", "");
+  return `<div class="card resource-card">
+    <p class="label mono">Your mentor's pick · ${esc(plat)}</p>
+    ${r.why ? `<p class="resource-why">${esc(r.why)}</p>` : ""}
+    <a class="btn primary resource-open" target="_blank" rel="noopener" href="${esc(r.url)}">${esc(verb)} ↗</a>
+    <p class="resource-host mono">${esc(host)}</p>
+    <p class="resource-note">Give it a real watch/read, then come back — the checkpoint below is on this.</p>
+  </div>`;
+}
+
 function renderStep() {
   const l = currentLesson;
   const step = lessonSteps[stepIdx];
@@ -2531,7 +2557,7 @@ function renderStep() {
     const pre = blocks > 1 ? `Block ${step.s.block || 1} of ${blocks} · ` : "";
     label = `${pre}Section ${n} of ${sections.length} — <b>${esc(step.s.heading)}</b>`;
   } else {
-    label = { intro: "Intro", break: "Break", practice: "Practice + homework", summary: "Summary" }[step.kind] || "";
+    label = { intro: "Intro", watch: "Watch", break: "Break", practice: "Practice + homework", summary: "Summary" }[step.kind] || "";
   }
   $("stepLabel").innerHTML = label;
 
@@ -2608,7 +2634,7 @@ function openStepIndex() {
   if (!lessonSteps.length) return;
   $("stepIndexList").innerHTML = lessonSteps.map((st, i) => {
     const name = st.kind === "section" ? st.s.heading
-      : { intro: "Intro", break: "Break", practice: "Practice + homework", summary: "Summary" }[st.kind] || "";
+      : { intro: "Intro", watch: "Watch", break: "Break", practice: "Practice + homework", summary: "Summary" }[st.kind] || "";
     const starred = st.kind === "section" && (state.bookmarks || [])
       .some((m) => m.day === currentLesson.day && m.sectionIndex === st.i);
     const cls = ["step-index-row", i === stepIdx ? "current" : "", i < stepIdx ? "visited" : ""].join(" ");

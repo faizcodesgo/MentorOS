@@ -663,6 +663,7 @@ def get_lesson(day):
 
     cached = state["lessons"].get(str(day))
     if cached:
+        _attach_resource_segment(state, day, cached)   # slot is plan-level, not baked in
         return jsonify(cached)
 
     profile = state["profile"]
@@ -747,7 +748,27 @@ def get_lesson(day):
 
     state["lessons"][str(day)] = lesson
     storage.save_state(state)
+    _attach_resource_segment(state, day, lesson)       # after save — a serve-time overlay
     return jsonify(lesson)
+
+
+def _attach_resource_segment(state, day, lesson):
+    """A resource-led day carries a verified external resource the lesson wraps
+    (RESOURCES-SPEC.md D1). The slot lives in plan.resource_slots (plan-level, set
+    by the Scout), NOT baked into the cached lesson — so it's attached on every
+    serve, cache hit or fresh. Absent slot -> nothing changes (text-led = today)."""
+    plan = state.get("plan") or {}
+    slot = (plan.get("resource_slots") or {}).get(str(day))
+    r = None
+    if slot:
+        r = next((s for s in (plan.get("resource_spine") or [])
+                  if s.get("id") == slot.get("spine")), None)
+    if not r:
+        lesson.pop("resource_segment", None)
+        return
+    lesson["resource_segment"] = {"title": r.get("title"), "url": r.get("url"),
+                                  "platform": r.get("platform"), "kind": r.get("kind"),
+                                  "why": r.get("why")}
 
 
 @app.get("/api/project/<pid>")

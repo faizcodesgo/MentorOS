@@ -1259,6 +1259,14 @@ body.study-mode #app { padding-top: calc(60px + env(safe-area-inset-top)); }
   max-width: 46ch; margin: var(--s2) auto 0;
 }
 
+/* resource-led day: the mentor's external pick. Primary surface — it's the
+   day's main event — with the one accent on the open button. No embed. */
+.resource-card { background: var(--panel-3); }
+.resource-why { font-size: var(--text-lg); line-height: 1.55; margin: var(--s2) 0 var(--s4); }
+.resource-open { display: inline-flex; align-items: center; gap: var(--s2); }
+.resource-host { font-size: var(--text-xs); color: var(--faint); margin-top: var(--s2); }
+.resource-note { font-size: var(--text-sm); color: var(--muted); margin-top: var(--s3); }
+
 /* ---------- segmented control ---------- */
 .seg {
   display: inline-flex; gap: 2px; padding: 2px;
