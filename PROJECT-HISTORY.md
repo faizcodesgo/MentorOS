@@ -227,13 +227,13 @@ historical. This closes the pattern behind the project's worst regressions.
 **Claude, after Faiz's verdict:**
 6. Tune the feel knobs (`--vt-out`/`--vt-in`, `MOTION`) from his answers · **delete
    `DIAGRAM_PALETTE_MIGRATION`** once the restart regenerates all lessons.
-7. Build the gated interaction phases: verdict word-reveal, level ring on the avatar, and the
-   Skills constellation + bento (needs ~a week of real quiz data to look right).
-8. **Build the Resource Mentor** — `RESOURCES-SPEC.md` slices 1–6 in order, grounding probe
-   first; resource UI after the redesign is confirmed good on-device.
-9. Remaining known items: the H2 timezone streak bug (rolls over at 05:30 IST), the 17
-   remaining full-box borders vs the council's ~4 target, dashboard tiering, and the open
-   blue-stripe question.
+7. Gated interaction phases still open: verdict word-reveal, and the Skills constellation +
+   bento (needs ~a week of real quiz data). *(Level ring DONE, `ad5d45b`.)*
+8. **Resource Mentor** — slice 1 DONE (`9f635fe`). Next: run the grounding probe with the
+   real key (spends a little quota — needs Faiz's OK), then slice 2 (`ask_grounded_text` +
+   URL verifier), then Scout/Monitor, then UI (after the redesign is confirmed on-device).
+9. Remaining known items: the 17 remaining full-box borders vs the council's ~4 target,
+   dashboard tiering, and the open blue-stripe question. *(H2 timezone bug DONE, `ae520f9`.)*
 
 **Captured ideas (not scheduled — explore AFTER dogfooding):**
 - **Dashboard / chat visual refresh** using Bklit UI and Magic UI as inspiration (Faiz's
@@ -252,6 +252,40 @@ tuning, but real feature-building follows it.
 
 **The point of all of it:** Faiz's real 40-day placement bootcamp, run inside his own app.
 That's the finish line every phase above was building toward.
+
+---
+
+## Phase 7 — Post-redesign backlog: real bug + first features (28 Jul, continued)
+
+With the redesign shipped, Faiz said "do the remaining ones." Worked in dependency order,
+building only what could be **verified locally** and flagging what needs his device/key.
+
+- **H2 timezone streak bug FIXED** (`ae520f9`). `_bump_streak` / every `_today()` used the
+  server's UTC date, so the daily boundary fell at 05:30 IST — a 22:00-Mon + 00:30-Tue pair
+  is one UTC day, so Tuesday earned no credit and Wednesday could break a genuine two-day
+  run. The `api()` helper now sends `X-TZ-Offset` on every request; `_local_date()`/`_today()`
+  convert UTC→local; absent header → UTC (old behaviour, safe degrade). All six `_today()`
+  guards became zone-aware for free. 12/12 units incl. the exact collision; live-verified
+  (this env reports -330, Faiz's own zone).
+- **Level ring BUILT** (`ad5d45b`, interaction phase 3 — its blocker, the account-sheet
+  avatar, had shipped in slice 4). Gold XP-to-next-level arc around the avatar, driven by the
+  same `lvFrac` the XP meter uses; additive (doesn't replace any width-meter), drawn inside
+  the button's clip so the ripple's `overflow:hidden` can't crop it. Verified at 360px: no
+  collision with the widest status, ring uncropped, letter above ring, still ripples.
+- **Resource Mentor slice 1 BUILT** (`9f635fe`, schema 17 + global cache). Empty containers
+  only (`plan.resource_spine`, `plan.resource_slots`, `state.monitor`) so a plan with no
+  spine behaves exactly like today; new `resource_cache` collection (topic-keyed, 30-day TTL,
+  surgical upsert, local-file fallback). 13/13 units. Purely additive, device-independent.
+
+**Held at a real gate:** the next resource slice (`ask_grounded_text` in gemini.py) hinges on
+the grounding probe, which **spends Faiz's Gemini quota / needs his key** — not run without
+his OK. The resource UI slices need his phone (TWA deep-link) and his own D3 gate (verify the
+deploy first). So the resource *backend foundation* is in; the *grounding + UI* wait for him.
+
+**Not built, and why (still correct to defer):** verdict word-reveal (taste call, needs his
+eye on-device); Skills constellation/bento (needs ~a week of real quiz data — all topics are
+currently "new"); the resource grounding helper + Scout + Monitor + UI (probe/key + device +
+his D3 gate).
 
 ---
 
