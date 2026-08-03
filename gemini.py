@@ -131,6 +131,62 @@ def ask_json(system_prompt, user_prompt, max_retries=3):
     raise RuntimeError(f"Gemini call failed after retries. Last error: {last_error}")
 
 
+def _call_grounded(model, system_prompt, user_prompt):
+    """One grounded call — Google Search tool ON, NO responseMimeType (the two are
+    mutually exclusive: 'Tool use with a response mime type application/json is
+    unsupported', probed 28 Jul). Returns the model's PROSE, which is where the
+    real source URLs live; groundingChunks carries expiring redirect URLs and is
+    only a fallback, so we don't touch it here. maxOutputTokens is generous on
+    purpose — a truncated answer loses both the URL and the citations."""
+    url = f"{API_BASE}/{model}:generateContent?key={_api_key()}"
+    body = {
+        "system_instruction": {"parts": [{"text": system_prompt}]},
+        "contents": [{"role": "user", "parts": [{"text": user_prompt}]}],
+        "tools": [{"google_search": {}}],
+        "generationConfig": {"temperature": 0.3, "maxOutputTokens": 4096},
+    }
+    req = urllib.request.Request(
+        url, data=json.dumps(body).encode("utf-8"),
+        headers={"Content-Type": "application/json"}, method="POST")
+    with urllib.request.urlopen(req, timeout=120) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
+    parts = data["candidates"][0]["content"]["parts"]
+    return " ".join(p.get("text", "") for p in parts).strip()
+
+
+def ask_grounded_text(system_prompt, user_prompt, max_retries=1):
+    """Grounded web-search call returning raw text. Deliberately lean (max_retries
+    defaults to 1, no second sweep): the Scout makes ~10 of these per plan and a
+    failure falls back to the non-grounded / YouTube path — it must never storm the
+    quota or block a plan. Returns "" on total failure rather than raising, so a
+    partial spine is still fine."""
+    global _working_model
+    models = [m for m in ("gemini-2.5-flash", "gemini-2.5-flash-lite")]
+    if _working_model in models:
+        models.remove(_working_model)
+        models.insert(0, _working_model)
+    last = None
+    for model in models:
+        for attempt in range(max_retries + 1):
+            try:
+                text = _call_grounded(model, system_prompt, user_prompt)
+                _working_model = model
+                return text
+            except urllib.error.HTTPError as e:
+                detail = e.read().decode("utf-8", errors="ignore")[:300]
+                last = f"HTTP {e.code} from {model}: {detail}"
+                if e.code in (404, 503) or (e.code == 429 and "limit: 0" in detail):
+                    break                      # switch models
+                if e.code in (429, 500) and attempt < max_retries:
+                    time.sleep(3 * (attempt + 1))
+                    continue
+                break
+            except (KeyError, IndexError, json.JSONDecodeError):
+                last = f"{model} returned an unusable grounded response"
+                break
+    return ""   # caller degrades to the non-grounded path
+
+
 def _parse_json(text):
     """Model output should be pure JSON, but strip code fences and try a light
     repair before giving up (a raised JSONDecodeError triggers a regenerate)."""
