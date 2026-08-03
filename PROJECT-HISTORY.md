@@ -235,6 +235,21 @@ historical. This closes the pattern behind the project's worst regressions.
    remaining full-box borders vs the council's ~4 target, dashboard tiering, and the open
    blue-stripe question.
 
+**Captured ideas (not scheduled — explore AFTER dogfooding):**
+- **Dashboard / chat visual refresh** using Bklit UI and Magic UI as inspiration (Faiz's
+  idea, 28 Jul). Constraints still bind: transform/opacity only, one accent, no continuous
+  decoration — Magic UI was already mined this session and ~45 of its components rejected on
+  exactly those grounds, so this is a *curation* pass, not adoption. "Bklit UI" needs a
+  proper look first (unfamiliar reference). "For chats" implies a more conversational mentor
+  than today's Ask box — that is NEW scope and must be weighed against the one-hub rule
+  before any build. Do this only after Faiz has lived with the current redesign on-device;
+  layering a new dashboard look on an unjudged redesign is the rework pattern to avoid.
+
+**Reality check (28 Jul):** the app is NOT "feature complete + polish only." Two real
+features remain unbuilt — the **Resource Mentor** (specced, ~0 lines) and the **gated
+interaction phases** — plus the H2 timezone bug. Immediate next step is dogfooding + UX
+tuning, but real feature-building follows it.
+
 **The point of all of it:** Faiz's real 40-day placement bootcamp, run inside his own app.
 That's the finish line every phase above was building toward.
 
