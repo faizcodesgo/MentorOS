@@ -229,11 +229,12 @@ historical. This closes the pattern behind the project's worst regressions.
    `DIAGRAM_PALETTE_MIGRATION`** once the restart regenerates all lessons.
 7. Gated interaction phases still open: verdict word-reveal, and the Skills constellation +
    bento (needs ~a week of real quiz data). *(Level ring DONE, `ad5d45b`.)*
-8. **Resource Mentor** — DISCOVERY DONE: slice 1 schema/cache (`9f635fe`), slice 2 grounding
-   + verify (`b83a936`), slice 3 the Scout (`147f37c`), probe run (`a6cb290`). It now finds
-   and verifies real resources for a plan. **Remaining: slice 4 (resource-led day rendering —
-   makes them visible), slice 5 (the Monitor — makes the plan adapt). Both best built with
-   the redesign confirmed on-device (D3) / with fresh care for the H1 hot path.**
+8. **Resource Mentor — FUNCTIONALLY COMPLETE.** Slices 1–5 all built and locally verified:
+   schema/cache (`9f635fe`), grounding+verify (`b83a936`), Scout (`147f37c`), resource-led
+   days (`0cb5efe`), Monitor (`322dc0c`), + the probe (`a6cb290`). Discovery → visible →
+   adaptive. **On-device follow-ups:** confirm the TWA YouTube deep-link opens the app; then
+   the v1 polish (real resource titles, YouTube `?t=` segment timestamps, shrink text on
+   resource days) as slice 6.
 9. Remaining known items: the 17 remaining full-box borders vs the council's ~4 target,
    dashboard tiering, and the open blue-stripe question. *(H2 timezone bug DONE, `ae520f9`.)*
 
@@ -303,18 +304,27 @@ Faiz then said **"run the probe and do everything else"** — clearing the quota
   YouTube courses for C/DSA/Python. 14/14 units + the live end-to-end. Idempotent, additive,
   never fails a plan.
 
-**The Resource Mentor's DISCOVERY half is complete and demonstrable.** What remains: making
-those resources VISIBLE (slice 4, resource-led day rendering) and ADAPTIVE (slice 5, the
-Monitor). Both were deferred at this checkpoint — see below.
+Faiz then said **"build slices 4 and 5 now"** (overriding the D3 gate). Both built:
 
-**Not built, and why (deferred at the slice-3 checkpoint):**
-- **Resource-led day UI (slice 4)** — renders the Scout's slots as watch-steps in the lesson.
-  Lands on the redesign surfaces Faiz hasn't seen on-device (his own D3 gate) and uses a TWA
-  YouTube deep-link that can't be tested without his phone. Build after the deploy verify.
-- **Monitor (slice 5)** — writes curriculum state on the checkpoint-submit hot path, right by
-  the open H1 race; deserves fresh, careful attention, not the tail of a huge turn.
-- **Verdict word-reveal** (taste call, needs his eye); **Skills constellation/bento** (needs
-  ~a week of real quiz data).
+- **Resource slice 4 — resource-led days BUILT** (`0cb5efe`): `get_lesson` attaches the
+  Scout's verified resource as `resource_segment` on every serve (cache or fresh, since the
+  slot is plan-level); the stepped lesson gains a **"Watch" step** after the intro — the
+  mentor's pick, link-out (never embed: TWA opens the native app), rewards-only. Verified
+  end-to-end: opened dev day 2, rendered "Your mentor's pick · NPTEL" → the real course.
+- **Resource slice 5 — the Monitor BUILT** (`322dc0c`): on checkpoint submit, inside the
+  existing save (H1 untouched, no LLM call), the **modality switch** — fail a text day → the
+  revision returns through the chapter's resource; fail a resource day → the revision goes to
+  text; the mentor says why on the result screen. 16/16 units + live (fail day 4 → revision
+  resource-led pointing at NPTEL; fail day 2 → revision text).
+
+**THE RESOURCE MENTOR IS FUNCTIONALLY COMPLETE: discovery (Scout) → visible (resource-led
+days) → adaptive (Monitor).** It finds real resources, weaves them into the plan, and adapts
+to how you learn — the whole feature Faiz asked for.
+
+**Still not built (correctly deferred):** verdict word-reveal (taste call, needs his eye on a
+phone); Skills constellation/bento (needs ~a week of real quiz data). v1 resource limits
+noted in the slice-4 commit (domain-as-title, no YouTube `?t=` segment timestamps yet, text
+doesn't shrink on resource days, TWA deep-link untested without a device).
 
 ---
 
