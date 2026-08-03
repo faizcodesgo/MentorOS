@@ -115,7 +115,7 @@ def _why(prose):
 
 
 def _discover_chapter(phase, level_notes, hours_per_day, days, ask_fn, verify_fn,
-                      cache_get, cache_put, cache_lock):
+                      cache_get, cache_put, cache_lock, enrich_fn=None):
     """Find ONE verified resource for a chapter, or []. Grounded call + verify,
     with a topic-keyed cache. Runs in a worker thread, so all I/O is local to it."""
     import prompts
@@ -133,9 +133,20 @@ def _discover_chapter(phase, level_notes, hours_per_day, days, ask_fn, verify_fn
     top = next((u for u in urls if verdicts.get(u) in ("live", "unverified")), None)
     resolved = []
     if top:
-        resolved = [{"url": top, "title": _domain(top), "platform": _platform(top),
-                     "kind": "video" if _platform(top) == "youtube" else "link",
-                     "why": _why(prose), "status": verdicts.get(top, "unverified")}]
+        entry = {"url": top, "title": _domain(top), "platform": _platform(top),
+                 "kind": "video" if _platform(top) == "youtube" else "link",
+                 "why": _why(prose), "status": verdicts.get(top, "unverified")}
+        # enrich a YouTube pick with its REAL title + duration (+ chapters), so the
+        # card reads "freeCodeCamp: Git Crash Course · 1h 09m" not "youtube.com"
+        if enrich_fn and entry["platform"] == "youtube":
+            meta = enrich_fn(top)
+            if meta and meta.get("title"):
+                entry["title"] = meta["title"]
+                entry["channel"] = meta.get("channel", "")
+                entry["duration"] = meta.get("duration", "")
+                entry["duration_seconds"] = meta.get("duration_seconds", 0)
+                entry["has_chapters"] = bool(meta.get("chapters"))
+        resolved = [entry]
         if cache_put:
             with cache_lock:                       # local-file cache isn't thread-safe
                 cache_put(key, resolved)
@@ -144,7 +155,7 @@ def _discover_chapter(phase, level_notes, hours_per_day, days, ask_fn, verify_fn
 
 def build_spine(phases, level_notes, hours_per_day, days,
                 ask_fn=None, verify_fn=None, cache_get=None, cache_put=None,
-                budget=None, max_workers=4):
+                budget=None, max_workers=4, enrich_fn=None):
     """Build (resource_spine, resource_slots) for a plan — one verified pick per
     chapter, chapters discovered IN PARALLEL (cap 4, like generate_all) so an
     8-chapter plan resolves in ~2 waves instead of 8 sequential grounded calls.
@@ -173,7 +184,7 @@ def build_spine(phases, level_notes, hours_per_day, days,
     # still-running thread just finishes into the cache, harmlessly.
     ex = concurrent.futures.ThreadPoolExecutor(max_workers=max_workers)
     futs = {ex.submit(_discover_chapter, ph, level_notes, hours_per_day, days,
-                      ask_fn, verify_fn, cache_get, cache_put, lock): i
+                      ask_fn, verify_fn, cache_get, cache_put, lock, enrich_fn): i
             for i, ph in enumerate(phases)}
     try:
         for fut in concurrent.futures.as_completed(futs, timeout=budget):

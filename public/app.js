@@ -2523,8 +2523,13 @@ function watchHtml(r) {
   const plat = PLATFORM_LABEL[r.platform] || "Resource";
   const verb = PLATFORM_VERB[r.platform] || "Open the resource";
   const host = (r.url.match(/^https?:\/\/([^/]+)/) || [, r.url])[1].replace("www.", "");
+  // a real title (YouTube-enriched) becomes the headline; else the "why" carries it
+  const hasTitle = r.title && !/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(r.title);   // not a bare domain
+  const meta = [r.channel, r.duration].filter(Boolean).join(" · ");
   return `<div class="card resource-card">
     <p class="label mono">Your mentor's pick · ${esc(plat)}</p>
+    ${hasTitle ? `<h3 class="resource-title">${esc(r.title)}</h3>` : ""}
+    ${meta ? `<p class="resource-meta mono">${esc(meta)}</p>` : ""}
     ${r.why ? `<p class="resource-why">${esc(r.why)}</p>` : ""}
     <a class="btn primary resource-open" target="_blank" rel="noopener" href="${esc(r.url)}">${esc(verb)} ↗</a>
     <p class="resource-host mono">${esc(host)}</p>

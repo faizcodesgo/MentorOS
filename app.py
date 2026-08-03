@@ -593,11 +593,15 @@ def plan_scout():
         return jsonify({"done": True, "cached": True, "count": len(plan["resource_spine"])})
     try:
         level = state["profile"].get("level_notes", "")
+        yt_cache = state.setdefault("yt_cache", {})
+        def _enrich(url):                            # real YouTube title/duration (~1 unit)
+            return youtube.video_details(youtube.video_id_from_url(url), cache=yt_cache,
+                                         guard=storage.youtube_quota_reserve)
         spine, slots = resource_engine.build_spine(
             plan.get("phases", []), level, plan.get("hours_per_day", 1),
             plan.get("days", len(plan["curriculum"])),
             cache_get=storage.resource_cache_get, cache_put=storage.resource_cache_put,
-            budget=70)                               # parallel (cap 4); well under the 180s ceiling
+            budget=70, enrich_fn=_enrich)            # parallel (cap 4); well under the 180s ceiling
         storage.save_plan_resources(g.user_id, spine, slots)
         return jsonify({"done": True, "count": len(spine), "resource_days": len(slots)})
     except Exception as e:
@@ -768,7 +772,8 @@ def _attach_resource_segment(state, day, lesson):
         return
     lesson["resource_segment"] = {"title": r.get("title"), "url": r.get("url"),
                                   "platform": r.get("platform"), "kind": r.get("kind"),
-                                  "why": r.get("why")}
+                                  "why": r.get("why"), "channel": r.get("channel", ""),
+                                  "duration": r.get("duration", "")}
 
 
 @app.get("/api/project/<pid>")

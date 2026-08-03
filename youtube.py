@@ -100,6 +100,46 @@ def _chapters(description):
     return []
 
 
+def video_id_from_url(url):
+    """The 11-char YouTube id from a watch / youtu.be / embed URL, or None."""
+    m = re.search(r"(?:v=|youtu\.be/|/embed/|/shorts/)([A-Za-z0-9_-]{11})", url or "")
+    return m.group(1) if m else None
+
+
+def video_details(video_id, cache=None, guard=None):
+    """Real title/channel/duration/chapters for a KNOWN video id — one videos.list
+    call (~1 unit, vs search's 100). Used to enrich a URL the Scout already found,
+    so a resource card shows 'freeCodeCamp: Git Crash Course · 1h 09m' instead of
+    a bare domain. Cached like search_videos; graceful None on any failure."""
+    apikey = os.environ.get("YOUTUBE_API_KEY", "").strip()
+    if not apikey or not video_id:
+        return None
+    key = "vid:" + video_id
+    cached = _cache_get(cache, key)
+    if cached is not None:
+        return cached[0] if cached else None
+    if guard is not None and not guard():
+        return None
+    try:
+        det = _get("videos", {"part": "snippet,contentDetails", "id": video_id})
+        items = det.get("items", [])
+        if not items:
+            _cache_put(cache, key, [])            # stable miss — cache it
+            return None
+        it = items[0]
+        sn = it.get("snippet") or {}
+        label, secs = _duration((it.get("contentDetails") or {}).get("duration"))
+        v = {"title": html.unescape(sn.get("title", "")),
+             "channel": html.unescape(sn.get("channelTitle", "")),
+             "url": f"https://www.youtube.com/watch?v={video_id}",
+             "duration": label, "duration_seconds": secs,
+             "chapters": _chapters(sn.get("description", ""))}
+        _cache_put(cache, key, [v])
+        return v
+    except Exception:
+        return None
+
+
 def search_videos(query, max_results=2, cache=None, guard=None):
     """Find the best video(s) for a query, WITH length + chapters.
 
