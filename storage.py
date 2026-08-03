@@ -60,7 +60,7 @@ def _uid():
     return uid
 
 
-SCHEMA = 16
+SCHEMA = 17
 
 
 def load_state():
@@ -228,6 +228,17 @@ def _migrate(state):
             if carried:
                 entry["carried_explorations"] = carried
             lessons.pop(day, None)
+
+    # v17: the Resource Mentor's home. Empty containers only — a plan with no
+    # spine behaves EXACTLY like today's app (the feature is purely additive and
+    # degrades to the existing resource_queries path). The Scout fills the spine
+    # after plan creation; the Monitor writes only `monitor`. See RESOURCES-SPEC.md.
+    plan = state.get("plan")
+    if plan is not None:
+        plan.setdefault("resource_spine", [])    # [{id,title,platform,url,kind,segments,...}]
+        plan.setdefault("resource_slots", {})     # day-id -> {spine, segment, modality}
+    state.setdefault("monitor", {"last_compose_day": None, "last_action_day": None,
+                                 "trend": [], "compose": None, "log": []})
 
     state["schema"] = SCHEMA
     return state
@@ -459,6 +470,83 @@ def youtube_quota_reserve(units=101, budget=8000):
         return True   # fail-open — never let the quota guard cause an outage
 
 
+# ---------- Resource Mentor: the global, cross-user resolved-resource cache ----------
+# Keyed by NORMALIZED TOPIC (not a goal hash): two users "learning Git" phrase
+# their goals differently, but the Scout queries per topic, so topic keys are what
+# make the shared hit happen. Lives in its OWN collection, never in the per-user
+# state doc — that doc is whole-read-modify-written on every request (H1) and is
+# already size-conscious (M0). Surgical upsert only. This is the global twin of
+# the per-user yt_cache, with the same 30-day freshness rule.
+RESOURCE_CACHE_TTL_DAYS = 30
+_LOCAL_RESOURCE_CACHE = os.path.join(DATA_DIR, "_resource_cache.json")
+_resource_ttl_ready = False
+
+
+def _ensure_resource_ttl():
+    """Create the Mongo TTL index once. `created_at` is a real BSON date (below)
+    so Mongo can expire entries on its own; the in-code freshness check still
+    runs, so the local-file fallback (no TTL) expires too."""
+    global _resource_ttl_ready
+    if _resource_ttl_ready:
+        return
+    try:
+        _db()["resource_cache"].create_index(
+            "created_at", expireAfterSeconds=RESOURCE_CACHE_TTL_DAYS * 86400)
+    except Exception:
+        pass
+    _resource_ttl_ready = True
+
+
+def _fresh(created):
+    """True if `created` (BSON date or ISO string) is within the TTL."""
+    if isinstance(created, str):
+        try:
+            created = datetime.datetime.fromisoformat(created)
+        except ValueError:
+            return False
+    if not isinstance(created, datetime.datetime):
+        return False
+    return created >= datetime.datetime.utcnow() - datetime.timedelta(days=RESOURCE_CACHE_TTL_DAYS)
+
+
+def resource_cache_get(topic_key):
+    """Fresh resolved resources for a normalized topic, or None (absent or stale)."""
+    try:
+        if using_mongo():
+            _ensure_resource_ttl()
+            doc = _db()["resource_cache"].find_one({"_id": topic_key})
+        else:
+            cache = json.load(open(_LOCAL_RESOURCE_CACHE, encoding="utf-8")) \
+                if os.path.exists(_LOCAL_RESOURCE_CACHE) else {}
+            doc = cache.get(topic_key)
+    except Exception:
+        return None
+    if not doc or not _fresh(doc.get("created_at")):
+        return None
+    return doc.get("resolved")
+
+
+def resource_cache_put(topic_key, resolved):
+    """Cache a topic's resolved resources. Surgical upsert; never touches state."""
+    try:
+        if using_mongo():
+            _ensure_resource_ttl()
+            _db()["resource_cache"].update_one(
+                {"_id": topic_key},
+                {"$set": {"resolved": resolved, "created_at": datetime.datetime.utcnow()}},
+                upsert=True)
+        else:
+            os.makedirs(DATA_DIR, exist_ok=True)
+            cache = json.load(open(_LOCAL_RESOURCE_CACHE, encoding="utf-8")) \
+                if os.path.exists(_LOCAL_RESOURCE_CACHE) else {}
+            cache[topic_key] = {"resolved": resolved,
+                                "created_at": datetime.datetime.utcnow().isoformat()}
+            with open(_LOCAL_RESOURCE_CACHE, "w", encoding="utf-8") as f:
+                json.dump(cache, f)
+    except Exception:
+        pass   # the cache is an optimization; a write failure just means a re-resolve
+
+
 def notif_user_ids():
     """Users who could actually receive a push — the cron never loads anyone else."""
     if using_mongo():
@@ -512,6 +600,8 @@ def _empty_state():
         "material": {"text": "", "scope": "", "name": ""},  # uploaded syllabus/textbook
         "awarded": {},         # once-per-day XP guards (warm-up / explain / focus)
         "warmup_pending": None,  # questions we served, so the SERVER grades them
+        "monitor": {"last_compose_day": None, "last_action_day": None,
+                    "trend": [], "compose": None, "log": []},  # Resource Mentor's adaptive state
         "notifications": {"enabled": False, "daily_time": "19:00", "tz_offset": 0,
                           "quiet_hours": {"start": "22:00", "end": "08:00"},
                           "subscriptions": [], "last_notified": {}},
