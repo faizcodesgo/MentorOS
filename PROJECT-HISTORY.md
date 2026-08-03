@@ -229,14 +229,15 @@ historical. This closes the pattern behind the project's worst regressions.
    `DIAGRAM_PALETTE_MIGRATION`** once the restart regenerates all lessons.
 7. Gated interaction phases still open: verdict word-reveal, and the Skills constellation +
    bento (needs ~a week of real quiz data). *(Level ring DONE, `ad5d45b`.)*
-8. **Resource Mentor — FUNCTIONALLY COMPLETE.** Slices 1–5 all built and locally verified:
-   schema/cache (`9f635fe`), grounding+verify (`b83a936`), Scout (`147f37c`), resource-led
-   days (`0cb5efe`), Monitor (`322dc0c`), + the probe (`a6cb290`). Discovery → visible →
-   adaptive. **On-device follow-ups:** confirm the TWA YouTube deep-link opens the app; then
-   the v1 polish (real resource titles, YouTube `?t=` segment timestamps, shrink text on
-   resource days) as slice 6.
-9. Remaining known items: the 17 remaining full-box borders vs the council's ~4 target,
-   dashboard tiering, and the open blue-stripe question. *(H2 timezone bug DONE, `ae520f9`.)*
+8. **Resource Mentor — COMPLETE (slices 1–6).** schema/cache (`9f635fe`), grounding+verify
+   (`b83a936`), Scout (`147f37c`), resource-led days (`0cb5efe`), Monitor (`322dc0c`), real
+   titles (`b8b3166`), + probe (`a6cb290`). **On-device follow-up:** confirm the TWA YouTube
+   deep-link opens the native app. Deferred refinements: YouTube `?t=` segment timestamps,
+   shrink generated text on resource days, retry empty chapters on cold scout runs.
+9. Remaining design items: borders now 7 (down from 26; the 7 are defensible — `1b97d84`);
+   **dashboard tiering** and the **blue-stripe question** are genuinely on-device/taste calls;
+   the **Bklit/Magic UI dashboard exploration** waits until the redesign is judged on a phone.
+   *(H2 timezone bug DONE `ae520f9`; level ring DONE `ad5d45b`.)*
 
 **Captured ideas (not scheduled — explore AFTER dogfooding):**
 - **Dashboard / chat visual refresh** using Bklit UI and Magic UI as inspiration (Faiz's
@@ -317,9 +318,19 @@ Faiz then said **"build slices 4 and 5 now"** (overriding the D3 gate). Both bui
   text; the mentor says why on the result screen. 16/16 units + live (fail day 4 → revision
   resource-led pointing at NPTEL; fail day 2 → revision text).
 
-**THE RESOURCE MENTOR IS FUNCTIONALLY COMPLETE: discovery (Scout) → visible (resource-led
-days) → adaptive (Monitor).** It finds real resources, weaves them into the plan, and adapts
-to how you learn — the whole feature Faiz asked for.
+Then **"build slice 6 too and next design and ui/ux polish"**:
+- **Resource slice 6 BUILT** (`b8b3166`): `youtube.video_details(id)` resolves a known URL to
+  its REAL title/channel/duration (~1 unit); the Scout enriches YouTube picks at discovery;
+  the card now reads "Git and GitHub for Beginners - Crash Course · freeCodeCamp.org · 1h 8m"
+  instead of "youtube.com". A bare domain is regex-rejected so it never fakes a headline.
+- **Border sweep finished** (`1b97d84`): slice 3 took full-box `--line` borders 26→17; this
+  took 17→7 (8 more decorative card/chip/code borders → transparent with a carrying fill;
+  the 2 inputs → `--line-strong`). The 7 that remain are defensible: 4 floating elements +
+  3 minor containers left for on-device review. State rules intact (verified on the real seg).
+
+**THE RESOURCE MENTOR IS COMPLETE (slices 1–6): discovery (Scout) → visible (resource-led
+days) → adaptive (Monitor) → polished (real titles).** It finds real resources, weaves them
+into the plan, adapts to how you learn, and reads cleanly — the whole feature Faiz asked for.
 
 **Still not built (correctly deferred):** verdict word-reveal (taste call, needs his eye on a
 phone); Skills constellation/bento (needs ~a week of real quiz data). v1 resource limits
