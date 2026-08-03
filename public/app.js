@@ -847,8 +847,14 @@ function renderDashboard() {
   // disagree with the LV shown in the topbar.
   const lvFloor = xpForLevel(lv), lvCeil = xpForLevel(lv + 1);
   const span = Math.max(1, lvCeil - lvFloor);
+  const lvFrac = Math.min(1, Math.max(0, (xp - lvFloor) / span));
   $("xpToNext").textContent = `${Math.max(0, lvCeil - xp)} XP to LV ${lv + 1}`;
-  $("xpFill").style.width = `${Math.min(100, Math.max(0, ((xp - lvFloor) / span) * 100))}%`;
+  $("xpFill").style.width = `${lvFrac * 100}%`;
+  // the same fraction, drawn as the ring around the avatar (additive — it does
+  // NOT replace the meter above; C must match the SVG's r=15)
+  const RING_C = 2 * Math.PI * 15;
+  $("avatarRing").style.strokeDasharray = RING_C;
+  $("avatarRing").style.strokeDashoffset = RING_C * (1 - lvFrac);
 
   // the avatar rides every dashboard render; letter from the profile name
   $("btnAccount").classList.remove("hidden");

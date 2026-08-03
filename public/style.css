@@ -1122,6 +1122,17 @@ body.study-mode #app { padding-top: calc(60px + env(safe-area-inset-top)); }
   display: inline-flex; align-items: center; justify-content: center;
   box-shadow: var(--shadow-1);
 }
+/* the XP-to-next-level ring. rotate(-90deg) starts the arc at 12 o'clock; the
+   fill's stroke-dashoffset is set per render in renderDashboard. Static
+   transform on a leaf SVG — no containing-block risk for fixed layers. */
+.avatar-ring { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); z-index: 0; }
+.avatar-ring-track { fill: none; stroke: var(--line-strong); stroke-width: 2; }
+.avatar-ring-fill {
+  fill: none; stroke: var(--gold); stroke-width: 2.5; stroke-linecap: round;
+  /* one-shot on XP change, exactly like the width-driven meters — not continuous */
+  transition: stroke-dashoffset 0.55s var(--ease-out);
+}
+.avatar-btn #avatarLetter { position: relative; z-index: 1; }   /* letter above the ring */
 #accountSheet .sheet { display: block; }   /* plain form, like the reminders sheet */
 .account-head { display: flex; align-items: center; gap: var(--s4); margin: var(--s3) 0 var(--s2); }
 .avatar-big {

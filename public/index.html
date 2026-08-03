@@ -27,7 +27,16 @@
     <!-- SIBLING of #topbarStatus, never a child — renderDashboard owns that
          element's innerHTML and would wipe anything inside it. flex:none so the
          status chips (already ellipsis-guarded) stay the thing that shrinks. -->
-    <button class="avatar-btn hidden" id="btnAccount" aria-label="Account"><span id="avatarLetter">?</span></button>
+    <button class="avatar-btn hidden" id="btnAccount" aria-label="Account">
+      <!-- XP-to-next-level ring: the game layer, permanently on screen at ZERO
+           added vertical space. Drawn INSIDE the button's clip (r=15 within a
+           34px host) so overflow:hidden — needed for the ripple — can't crop it. -->
+      <svg class="avatar-ring" viewBox="0 0 34 34" aria-hidden="true">
+        <circle class="avatar-ring-track" cx="17" cy="17" r="15"></circle>
+        <circle class="avatar-ring-fill" id="avatarRing" cx="17" cy="17" r="15"></circle>
+      </svg>
+      <span id="avatarLetter">?</span>
+    </button>
   </header>
 
   <main id="app">
