@@ -1183,8 +1183,33 @@ def complete_day(day):
                     "streak": state.get("streak"), "streak_event": streak_event})
 
 
-def _today():
-    return datetime.date.today().isoformat()
+def _req_tz_offset():
+    """The client's raw JS getTimezoneOffset() from the request header (minutes;
+    UTC = local + offset, so IST is -330). Absent/garbage/no-request-context ->
+    None, which falls back to UTC — the old behaviour, so an old cached client or
+    the cron degrade safely instead of breaking."""
+    try:
+        v = request.headers.get("X-TZ-Offset")
+        return int(v) if v not in (None, "") else None
+    except Exception:
+        return None
+
+
+def _local_date(tz_offset="__req__", now=None):
+    """The USER's local calendar date. Reads the request header by default; pass
+    an explicit tz_offset/now for tests. local = UTC - offset (IST: UTC + 330m)."""
+    if tz_offset == "__req__":
+        tz_offset = _req_tz_offset()
+    base = now or datetime.datetime.utcnow()
+    if tz_offset is not None:
+        base = base - datetime.timedelta(minutes=int(tz_offset))
+    return base.date()
+
+
+def _today(tz_offset="__req__"):
+    # every existing _today() caller becomes timezone-aware for free — it now
+    # reads the client's zone from the request instead of using the server's UTC
+    return _local_date(tz_offset).isoformat()
 
 
 def _bump_streak(state, today_date=None):
@@ -1204,7 +1229,9 @@ def _bump_streak(state, today_date=None):
     """
     s = state.setdefault("streak", {"count": 0, "shields": 0, "last_day": None, "best": 0})
     s.setdefault("best", s.get("count", 0))
-    d = today_date or datetime.date.today()
+    # default is the USER's local date (was datetime.date.today() = the server's
+    # UTC date on Render — the H2 bug). today_date is still injectable for tests.
+    d = today_date if today_date is not None else _local_date()
     today = d.isoformat()
     if s["last_day"] == today:
         return None  # already counted today

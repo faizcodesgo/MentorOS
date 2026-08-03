@@ -392,8 +392,12 @@ function rewardPill(label, amount) {
 async function api(path, opts = {}) {
   const res = await fetch(path, {
     // the custom header marks requests as coming from the app itself —
-    // guarded endpoints (like reset) require it
-    headers: { "Content-Type": "application/json", "X-Requested-With": "MentorOS" },
+    // guarded endpoints (like reset) require it. X-TZ-Offset carries the raw
+    // getTimezoneOffset() (IST = -330) so the server can decide "what day is it"
+    // in the USER's zone, not UTC — otherwise the streak rolls over at 05:30 IST
+    // and a genuine two-consecutive-day run can break (H2).
+    headers: { "Content-Type": "application/json", "X-Requested-With": "MentorOS",
+               "X-TZ-Offset": String(new Date().getTimezoneOffset()) },
     ...opts,
   });
   const data = await res.json().catch(() => ({}));
