@@ -3043,8 +3043,15 @@ function renderResult(day, r) {
   const rev = $("resultRevision");
   if (r.revision) {
     rev.classList.remove("hidden");
-    rev.innerHTML = `<p class="thin-text">Your mentor added a revision on ${esc(r.revision.topics.join(", "))}. ` +
-                    `It's in your plan — we'll go over it together.</p>`;
+    const topics = esc(r.revision.topics.join(", "));
+    // the Monitor tells the student WHY the plan just changed, in the mentor's voice —
+    // and names the different door it's using this time (RESOURCES-SPEC.md §6 visibility)
+    const tail = r.revision.modality === "resource"
+      ? `reading it once didn't stick, and that's normal — this time you'll <b>watch it happen</b> instead. It's in your plan.`
+      : r.revision.modality === "text"
+      ? `that one didn't land from the video — the revision walks it through <b>step by step, on paper</b>. It's in your plan.`
+      : `it's in your plan — we'll go over it together.`;
+    rev.innerHTML = `<p class="thin-text">Your mentor added a revision on ${topics}: ${tail}</p>`;
   } else {
     rev.classList.add("hidden");
   }

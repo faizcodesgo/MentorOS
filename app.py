@@ -939,8 +939,12 @@ def submit_quiz(day):
 
     # struggled badly → the mentor inserts a revision quest (local, no AI)
     revision = None
-    if len(quiz) and correct_count / len(quiz) < 0.5:
+    score_frac = correct_count / len(quiz) if len(quiz) else 1.0
+    if score_frac < 0.5:
         revision = _insert_revision(state, day, wrong_topics)
+    # the adaptive Monitor: deterministic, no LLM call, inside THIS save window
+    # (so H1 is not widened). It sets the revision's MODALITY — see below.
+    _monitor_after_checkpoint(state, day, score_frac, revision)
 
     # add this checkpoint's questions to the spaced-review ladder for warm-ups
     entry = next((d for d in (state["plan"] or {}).get("curriculum", []) if d["day"] == day), None)
@@ -1006,6 +1010,62 @@ def _insert_revision(state, after_day, wrong_topics):
     }
     curriculum.append(entry)
     return {"title": entry["title"], "topics": topics}
+
+
+def _phase_index_of_day(plan, day):
+    """Which chapter (phase index) a real curriculum day sits in, from the phase
+    day-counts. Revision days (fractional order, id past the end) aren't in a
+    phase range — this is only asked of the real checkpoint day that failed."""
+    start = 1
+    for i, ph in enumerate(plan.get("phases", [])):
+        n = int(ph.get("days") or 1)
+        if start <= day <= start + n - 1:
+            return i
+        start += n
+    return None
+
+
+def _monitor_after_checkpoint(state, day, score_frac, revision):
+    """The Resource Mentor's adaptive Monitor (RESOURCES-SPEC.md slice 5).
+    Deterministic and LLM-free — it runs inside submit_quiz's existing single save,
+    so the H1 read-modify-write window is not widened by one byte.
+
+    Its job right now is the MODALITY SWITCH on the revision day that was just
+    inserted (R1/R2): if a TEXT-led checkpoint failed, the revision comes back
+    through the chapter's real resource — teach it another way; if a RESOURCE-led
+    day failed, the revision goes to text — the resource route just failed, don't
+    repeat it. Absolute target state, never a toggle, so a double-submit is a
+    no-op (and the revision insert itself is already one-per-boss capped)."""
+    plan = state.get("plan") or {}
+    mon = state.setdefault("monitor", {"last_compose_day": None, "last_action_day": None,
+                                       "trend": [], "compose": None, "log": []})
+    mon.setdefault("trend", []).append(round(score_frac, 2))
+    mon["trend"] = mon["trend"][-10:]
+
+    if not revision or score_frac >= 0.5:
+        return                                   # R3/R4: no structural change
+
+    slots = plan.setdefault("resource_slots", {})
+    rev = next((d for d in plan.get("curriculum", [])
+                if d.get("kind") == "revision" and d.get("revision_for") == day), None)
+    if not rev:
+        return
+    rev_day = str(rev["day"])
+    failed_was_resource = str(day) in slots
+
+    if failed_was_resource:
+        slots.pop(rev_day, None)                 # R2: text this time
+        revision["modality"] = "text"            # -> the mentor's result-screen line
+    else:
+        # R1: resource this time — IF the chapter actually has a verified resource
+        pidx = _phase_index_of_day(plan, day)
+        sid = next((s["id"] for s in plan.get("resource_spine", [])
+                    if s.get("chapter") == pidx), None)
+        if sid:
+            slots[rev_day] = {"spine": sid, "segment": 0, "modality": "resource",
+                              "monitor_key": f"{day}:modality"}
+            revision["modality"] = "resource"
+    mon["last_action_day"] = day
 
 
 def _mastered_set(dna):
