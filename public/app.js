@@ -445,6 +445,7 @@ function clearLocalCache() {
   lessonCache.clear();
   prefetchTried.clear();
   warmupInfo = null;
+  scoutTried = false;              // a new plan (after reset/sign-out) re-scouts
 }
 
 /* the ONE way to refetch full state — every fetch refreshes the snapshot */
@@ -776,6 +777,21 @@ async function generatePhases() {
 }
 $("btnGenRetry").addEventListener("click", generatePhases);
 
+/* Find the plan's resources in the background. Fire-and-forget: discovery takes
+   ~30-90s of grounded search and must NEVER hold up "your plan is ready" or the
+   dashboard. Once per session, only when a plan has no spine yet — which covers
+   both a brand-new plan AND the G1 backfill of a plan created before this shipped
+   (e.g. the ~1 Aug bootcamp plan). The endpoint is idempotent, so a repeat is
+   cheap; refreshState folds the spine into local state when it lands. */
+let scoutTried = false;
+function maybeScout() {
+  if (scoutTried) return;
+  const plan = state && state.plan;
+  if (!plan || !plan.curriculum || (plan.resource_spine || []).length) return;
+  scoutTried = true;
+  api("/api/plan/scout", { method: "POST" }).then(() => refreshState()).catch(() => {});
+}
+
 /* ---------- dashboard ---------- */
 
 const isDone = (dayId) => !!(state.progress[String(dayId)] && state.progress[String(dayId)].completed);
@@ -793,6 +809,7 @@ function currentEntry() {
 
 function renderDashboard() {
   const plan = state.plan;
+  maybeScout();                    // background resource discovery, once, if unscouted
   const ord = orderedCurriculum();
   const realQuests = ord.filter((d) => d.kind !== "revision");
   const doneReal = realQuests.filter((d) => isDone(d.day)).length;

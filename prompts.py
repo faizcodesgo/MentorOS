@@ -632,3 +632,34 @@ DISTRACTORS — this is what makes a question worth answering:
 - Aim for a question a student who half-learned today's material gets WRONG, and a student who actually understood it gets right by reasoning — not by recognising a phrase from the lesson.
 
 Exactly one correct option. Vary the position of the correct answer across all {shape['quiz']} questions. SCALE difficulty to the PROGRESSION above — later in the plan and for a student doing well, push toward interview-level. NEVER reuse a question the student has already seen; write fresh ones."""
+
+
+# ---------- Resource Mentor: the Scout's grounded discovery prompt ----------
+SCOUT_SYSTEM = ("You are a resource scout for a learning app. You find the single best FREE "
+                "online resource for a given set of beginner topics and always state its full "
+                "https URL explicitly. You never invent URLs — you name real, well-known "
+                "resources you are confident exist.")
+
+
+def scout_prompt(chapter_name, focus, level_notes, hours_per_day, days):
+    """Grounded discovery for ONE chapter. The level/pace/free/India constraints are
+    mandated (red team) — fame is explicitly NOT a criterion. Returns PROSE; the URL
+    is read from the text (where real, non-redirect links live — see the probe)."""
+    topic = f"{chapter_name} — {focus}" if focus and focus != chapter_name else chapter_name
+    return (
+        f"Find the SINGLE best free online learning resource for a beginner to learn: {topic}.\n"
+        f"Context: part of a {days}-day plan at {hours_per_day}h/day; learner level: "
+        f"{level_notes or 'beginner'}.\n\n"
+        "Choose for THIS learner. Judge fit ONLY by: (1) prerequisites a learner at this level "
+        "already meets; (2) pace — a beginner can actually follow it; (3) direct coverage of the "
+        "topic above. Fame, production quality and general acclaim are NOT criteria — a famous "
+        "course that is too advanced or too long for this topic is a WRONG answer.\n"
+        "Prefer resources that are FREE, usable WITHOUT any account or sign-in, and available in "
+        "India. YouTube tutorials, freeCodeCamp, official docs, Khan Academy, NPTEL and Indian "
+        "university lectures are first-class when the fit is right. Reject anything paywalled, "
+        "login-walled, or region-restricted.\n\n"
+        "Link to the SPECIFIC course, video, or tutorial PAGE — never a channel page, a site "
+        "homepage, or a search results page. "
+        "Reply in 2-3 sentences naming the resource and why it fits, then put its full https URL "
+        "on its own final line."
+    )

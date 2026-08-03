@@ -14,6 +14,7 @@ import dna as dna_engine
 import gemini
 import prompts
 import push as push_engine
+import resources as resource_engine
 import reviews as review_engine
 import storage
 import youtube
@@ -575,6 +576,35 @@ def generate_all():
     plan["next_day"] = next_day
     storage.save_state(state)
     return jsonify({"done": True, "phases_generated": len(phases), "total_phases": len(phases)})
+
+
+@app.post("/api/plan/scout")
+def plan_scout():
+    """Find the best real learning resources for this plan and weave them in
+    (RESOURCES-SPEC.md). Called once when generation reports done — and again on
+    dashboard load if a plan somehow has no spine (the G1 backfill, so the ~1 Aug
+    plan created before this shipped still gets resources). Idempotent, additive,
+    and it NEVER fails a plan: any error just leaves the spine empty = today's app."""
+    state = storage.load_state()
+    plan = state.get("plan")
+    if not plan or not plan.get("curriculum"):
+        return jsonify({"error": "No plan yet."}), 400
+    if plan.get("resource_spine"):
+        return jsonify({"done": True, "cached": True, "count": len(plan["resource_spine"])})
+    try:
+        level = state["profile"].get("level_notes", "")
+        spine, slots = resource_engine.build_spine(
+            plan.get("phases", []), level, plan.get("hours_per_day", 1),
+            plan.get("days", len(plan["curriculum"])),
+            cache_get=storage.resource_cache_get, cache_put=storage.resource_cache_put,
+            budget=70)                               # parallel (cap 4); well under the 180s ceiling
+        storage.save_plan_resources(g.user_id, spine, slots)
+        return jsonify({"done": True, "count": len(spine), "resource_days": len(slots)})
+    except Exception as e:
+        # resources are an enhancement, never a dependency — a failure leaves the
+        # plan exactly as it was (text-led everywhere) rather than erroring the UI
+        app.logger.warning("scout failed: %s", e)
+        return jsonify({"done": True, "count": 0, "error": "scout_skipped"})
 
 
 def _day_unlocked(state, day):

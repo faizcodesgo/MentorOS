@@ -580,6 +580,22 @@ def save_notifications_for(uid, notif):
         save_state_for(uid, s)
 
 
+def save_plan_resources(uid, spine, slots):
+    """Surgical $set of the Scout's output. The Scout runs right after plan
+    creation, but a whole-document replace would still race the user's own
+    session; write ONLY these two subtrees (the save_notifications_for pattern)."""
+    if using_mongo():
+        _collection().update_one({"_id": uid}, {"$set": {
+            "state.plan.resource_spine": spine,
+            "state.plan.resource_slots": slots}})
+    else:
+        s = load_state_for(uid)
+        if s.get("plan") is not None:
+            s["plan"]["resource_spine"] = spine
+            s["plan"]["resource_slots"] = slots
+            save_state_for(uid, s)
+
+
 def _empty_state():
     return {
         "schema": SCHEMA,

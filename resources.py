@@ -90,3 +90,110 @@ def verify_urls(urls, timeout=5, max_workers=10):
         for fut in concurrent.futures.as_completed(futs):
             out[futs[fut]] = fut.result()
     return out
+
+
+def _platform(url):
+    u = url.lower()
+    if "youtube.com" in u or "youtu.be" in u: return "youtube"
+    if "github.com" in u: return "github"
+    if "freecodecamp" in u: return "freecodecamp"
+    if "khanacademy" in u: return "khan"
+    if "nptel" in u: return "nptel"
+    if any(d in u for d in ("docs.", "/docs", "developer.", ".dev/")): return "docs"
+    return "web"
+
+
+def _domain(url):
+    m = re.match(r"https?://([^/]+)", url or "")
+    return (m.group(1) if m else url).replace("www.", "")
+
+
+def _why(prose):
+    """The first sentence of the grounded prose — the mentor's one-line reason."""
+    s = re.split(r"(?<=[.!?])\s", (prose or "").strip())
+    return (s[0][:200] if s and s[0] else "").strip()
+
+
+def _discover_chapter(phase, level_notes, hours_per_day, days, ask_fn, verify_fn,
+                      cache_get, cache_put, cache_lock):
+    """Find ONE verified resource for a chapter, or []. Grounded call + verify,
+    with a topic-keyed cache. Runs in a worker thread, so all I/O is local to it."""
+    import prompts
+    name = (phase.get("name") or "").strip() or "this chapter"
+    key = normalize_topic(name + " " + (phase.get("focus") or ""))
+    if cache_get:
+        hit = cache_get(key)
+        if hit is not None:
+            return hit
+    prose = ask_fn(prompts.SCOUT_SYSTEM,
+                   prompts.scout_prompt(name, phase.get("focus", ""),
+                                        level_notes, hours_per_day, days))
+    urls = extract_urls(prose)
+    verdicts = verify_fn(urls) if urls else {}
+    top = next((u for u in urls if verdicts.get(u) in ("live", "unverified")), None)
+    resolved = []
+    if top:
+        resolved = [{"url": top, "title": _domain(top), "platform": _platform(top),
+                     "kind": "video" if _platform(top) == "youtube" else "link",
+                     "why": _why(prose), "status": verdicts.get(top, "unverified")}]
+        if cache_put:
+            with cache_lock:                       # local-file cache isn't thread-safe
+                cache_put(key, resolved)
+    return resolved
+
+
+def build_spine(phases, level_notes, hours_per_day, days,
+                ask_fn=None, verify_fn=None, cache_get=None, cache_put=None,
+                budget=None, max_workers=4):
+    """Build (resource_spine, resource_slots) for a plan — one verified pick per
+    chapter, chapters discovered IN PARALLEL (cap 4, like generate_all) so an
+    8-chapter plan resolves in ~2 waves instead of 8 sequential grounded calls.
+    Every dependency is injectable so tests run with ZERO quota. `budget` seconds
+    time-boxes the whole wave; chapters not done in time stay text-led (the feature
+    is additive — a thin spine just means those days behave like today). A chapter
+    that yields no verifiable URL is skipped."""
+    import threading
+    import gemini
+    ask_fn = ask_fn or gemini.ask_grounded_text
+    verify_fn = verify_fn or verify_urls
+    lock = threading.Lock()
+
+    # chapter day-ranges up front, so the (parallel) resolution order can't affect
+    # slot assignment — spine/slots are assembled in chapter order afterwards
+    ranges, start = [], 1
+    for phase in phases:
+        pdays = int(phase.get("days") or 1)
+        ranges.append((start, start + pdays - 1))
+        start += pdays
+
+    results = {}
+    # NOT a `with` block: its __exit__ waits for every thread, which would defeat
+    # the budget if a grounded call hangs near its 120s socket timeout. We collect
+    # whatever finished within `budget`, then shut down WITHOUT waiting — any
+    # still-running thread just finishes into the cache, harmlessly.
+    ex = concurrent.futures.ThreadPoolExecutor(max_workers=max_workers)
+    futs = {ex.submit(_discover_chapter, ph, level_notes, hours_per_day, days,
+                      ask_fn, verify_fn, cache_get, cache_put, lock): i
+            for i, ph in enumerate(phases)}
+    try:
+        for fut in concurrent.futures.as_completed(futs, timeout=budget):
+            try:
+                results[futs[fut]] = fut.result()
+            except Exception:
+                results[futs[fut]] = []          # one chapter's failure is not the plan's
+    except concurrent.futures.TimeoutError:
+        pass                                     # budget spent — take what finished
+    ex.shutdown(wait=False, cancel_futures=True)
+
+    spine, slots = [], {}
+    for pidx, phase in enumerate(phases):
+        resolved = results.get(pidx) or []
+        if not resolved:
+            continue
+        sid = f"r{pidx}"
+        spine.append({"id": sid, "chapter": pidx, **resolved[0]})
+        s, e = ranges[pidx]
+        slot_day = next((d for d in range(s, e + 1) if d > 1), None)   # never day 1
+        if slot_day is not None:
+            slots[str(slot_day)] = {"spine": sid, "segment": 0, "modality": "resource"}
+    return spine, slots
