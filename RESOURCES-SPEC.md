@@ -30,6 +30,28 @@ learner is actually doing.** The learner — a beginner — never names a resour
 
 ---
 
+## 1a. PROBE RESULTS — empirical, real key, 28 Jul (`tools/grounding_probe.py`)
+
+The council's secondary-sourced claims are now **run against the real key** and all hold,
+with one design-shaping addition:
+
+- **Grounding works** on `gemini-2.5-flash` with the free key: `tools:[{google_search:{}}]`
+  → HTTP 200, `groundingMetadata` present. It returned a genuinely good pick (freeCodeCamp's
+  Git course) with a **real, direct URL**.
+- **Grounding + `responseMimeType:application/json` → HTTP 400**, exact message *"Tool use
+  with a response mime type: 'application/json' is unsupported"*. **The 2-call Scout shape is
+  mandatory, confirmed.**
+- **`groundingChunks` only populates when the answer COMPLETES** (a `maxOutputTokens` cap that
+  truncates the answer returns zero chunks — just `searchEntryPoint` + `webSearchQueries`).
+  When present, its `uri` is the **expiring `vertexaisearch.../grounding-api-redirect/...`
+  redirect** — never store it.
+- **The reliable URL source is the PROSE, not the chunks.** Asked to "state the full https
+  URL explicitly," the model puts a real direct URL in its text. **Scout design: extract
+  URLs from the grounded prose (regex, strip trailing markdown like `**`), verify them, and
+  give the grounded call enough output budget to finish.** groundingChunks (redirect-resolved)
+  is a secondary source, not the primary one. This refines the spec's original "chunks carry
+  the URLs" toward "prose carries the URLs."
+
 ## 1. Verified ground truth (do not re-derive; re-verify only where flagged)
 
 | Fact | Status |
